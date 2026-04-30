@@ -4,12 +4,18 @@
   import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
   import { STLExporter } from 'three/examples/jsm/exporters/STLExporter.js'
 
-  let { bodies = [], visibility = {}, zScale = 8, boardZScale = 1, previewFilter = null, traceMode = 'raise' } = $props()
+  let { bodies = [], visibility = {}, zScale = 8, boardZScale = 1, previewFilter = null, traceMode = 'raise', drcViolations = [] } = $props()
 
   let canvas
   let renderer, scene, camera, controls, grid
   let meshMap = {}
   let animId
+  let needsRender = true
+
+  function requestRender() { needsRender = true }
+
+  let pcbWorldCenter = new THREE.Vector3()
+  let drcGroup
 
   // board geometry metrics — computed after centering
   let boardOriginalPosY = 0
@@ -69,6 +75,7 @@
     if (box.isEmpty()) return
 
     const center = box.getCenter(new THREE.Vector3())
+    pcbWorldCenter.copy(center)
     for (const mesh of Object.values(meshMap)) mesh.position.sub(center)
 
     const box2 = new THREE.Box3()
@@ -137,11 +144,15 @@
     grid = new THREE.GridHelper(300, 30, 0x3a3a55, 0x333350)
     scene.add(grid)
 
+    drcGroup = new THREE.Group()
+    scene.add(drcGroup)
+
     controls = new OrbitControls(camera, canvas)
     controls.enableDamping = true
     controls.dampingFactor = 0.08
     controls.minDistance = 0.5
     controls.maxDistance = 2000
+    controls.addEventListener('change', requestRender)
 
     const obs = new ResizeObserver(() => {
       const w = canvas.clientWidth
@@ -149,13 +160,18 @@
       renderer.setSize(w, h, false)
       camera.aspect = w / h
       camera.updateProjectionMatrix()
+      requestRender()
     })
     obs.observe(canvas)
 
     function loop() {
       animId = requestAnimationFrame(loop)
+      // must run every frame for damping; fires 'change' event which sets needsRender
       controls.update()
-      renderer.render(scene, camera)
+      if (needsRender) {
+        renderer.render(scene, camera)
+        needsRender = false
+      }
     }
     loop()
 
@@ -229,6 +245,7 @@
         applyBoardScale(boardZScale)
         applyCopperScale(zScale, boardZScale, traceMode)
       }
+      requestRender()
     })
   })
 
@@ -256,18 +273,86 @@
         mesh.material = originalMaterials[name] || mesh.material
       }
     }
+    requestRender()
   })
 
   // ------- board z-scale -------
 
   $effect(() => {
     applyBoardScale(boardZScale)
+    requestRender()
   })
 
   // ------- copper z-scale + position -------
 
   $effect(() => {
     applyCopperScale(zScale, boardZScale, traceMode)
+    requestRender()
+  })
+
+  // ------- DRC markers -------
+
+  function drcMarkerY() {
+    return boardBottomY + (boardTop - boardBottomY) * boardZScale + 1.5
+  }
+
+  function addDrcTube(x1, y1, x2, y2, color) {
+    const wx1 = x1 - pcbWorldCenter.x, wz1 = -y1 - pcbWorldCenter.z
+    const wx2 = x2 - pcbWorldCenter.x, wz2 = -y2 - pcbWorldCenter.z
+    const wy = drcMarkerY()
+    const p1 = new THREE.Vector3(wx1, wy, wz1)
+    const p2 = new THREE.Vector3(wx2, wy, wz2)
+    const len = p1.distanceTo(p2)
+
+    let mesh
+    if (len < 0.8) {
+      // Very short segment: sphere marker
+      const geo = new THREE.SphereGeometry(0.8, 8, 6)
+      mesh = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.9 }))
+      mesh.position.set((wx1 + wx2) / 2, wy, (wz1 + wz2) / 2)
+    } else {
+      const geo = new THREE.CylinderGeometry(0.35, 0.35, len, 8, 1)
+      mesh = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.9 }))
+      mesh.position.set((wx1 + wx2) / 2, wy, (wz1 + wz2) / 2)
+      mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), p2.clone().sub(p1).normalize())
+    }
+    drcGroup.add(mesh)
+  }
+
+  function clearDrcGroup() {
+    while (drcGroup.children.length) {
+      const m = drcGroup.children[0]
+      drcGroup.remove(m)
+      m.geometry.dispose()
+      m.material.dispose()
+    }
+  }
+
+  // Rebuild markers when violations or bodies change
+  $effect(() => {
+    const violations = drcViolations
+    const b = bodies  // track body changes so we rebuild after fitCamera updates pcbWorldCenter
+    if (!drcGroup) return
+    clearDrcGroup()
+    if (!violations.length || !b.length) return
+
+    for (const v of violations) {
+      if (v.type === 'width') {
+        addDrcTube(v.x1, v.y1, v.x2, v.y2, 0xf59e0b)
+      } else if (v.type === 'clearance') {
+        addDrcTube(v.segA.x1, v.segA.y1, v.segA.x2, v.segA.y2, 0xef4444)
+        addDrcTube(v.segB.x1, v.segB.y1, v.segB.x2, v.segB.y2, 0xef4444)
+      }
+    }
+    requestRender()
+  })
+
+  // Track board scale so markers float above the scaled board
+  $effect(() => {
+    if (!drcGroup) return
+    const wy = drcMarkerY()
+    for (const m of drcGroup.children) m.position.y = wy
+    requestRender()
   })
 
   // ------- public API -------
