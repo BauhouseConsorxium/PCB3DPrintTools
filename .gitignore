@@ -12,9 +12,10 @@ dist
 dist-ssr
 *.local
 
-# Auto-generated OCCT WASM assets (copied from node_modules by vite plugin)
+# Auto-generated assets copied from node_modules by vite plugin
 public/occt-import-js.js
 public/occt-import-js.wasm
+public/coi-serviceworker.js
 
 # Editor directories and files
 .vscode/*

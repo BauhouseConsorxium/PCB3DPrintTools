@@ -22,7 +22,7 @@
     let worker;
 
     onMount(() => {
-        worker = new Worker("/step-worker.js");
+        worker = new Worker(import.meta.env.BASE_URL + "step-worker.js");
 
         worker.onmessage = ({ data }) => {
             if (data.type === "PROGRESS") {

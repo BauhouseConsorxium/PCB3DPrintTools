@@ -1,4 +1,4 @@
-importScripts('/occt-import-js.js')
+importScripts('./occt-import-js.js')
 
 let occtInstance = null
 
