@@ -141,7 +141,7 @@
     back.position.set(0, -60, -100)
     scene.add(back)
 
-    grid = new THREE.GridHelper(300, 30, 0x3a3a55, 0x333350)
+    grid = new THREE.GridHelper(300, 30, 0x6060a8, 0x3e3e62)
     scene.add(grid)
 
     drcGroup = new THREE.Group()
