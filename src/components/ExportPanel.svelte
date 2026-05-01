@@ -19,7 +19,7 @@
 
   // Derive board thickness from the Z extent of non-copper body positions (KiCad Z = thickness)
   const boardThicknessMm = $derived((() => {
-    const boardBodies = bodies.filter((b) => isBoardBody(b.name))
+    const boardBodies = bodies.filter((b) => isPcbBoard(b.name))
     if (!boardBodies.length) return null
     let minZ = Infinity, maxZ = -Infinity
     for (const body of boardBodies) {
@@ -32,19 +32,25 @@
     return maxZ - minZ
   })())
 
-  const copperBodies = $derived(bodies.filter((b) => {
-    const n = b.name.toLowerCase()
-    return n.includes('copper') || n.includes('.cu') || n.includes('_cu')
-  }))
-
-  const isBoardBody = (name) => {
+  function isCopper(name) {
     const n = name.toLowerCase()
-    return !n.includes('copper') && !n.includes('.cu') && !n.includes('_cu')
+    return n.includes('copper') || n.includes('.cu') || n.includes('_cu')
   }
 
+  function isPcbBoard(name) {
+    const n = name.toLowerCase()
+    return !isCopper(name) && (n.includes('_pcb') || n.endsWith('pcb'))
+  }
+
+  function isComponent(name) {
+    return !isCopper(name) && !isPcbBoard(name)
+  }
+
+  const copperBodies = $derived(bodies.filter((b) => isCopper(b.name)))
+
   function getPreviewFilter() {
-    if (exportTarget === 'board') return isBoardBody
-    return () => true  // copper (pcb-print) and all export everything visible — still triggers preview material
+    if (exportTarget === 'board') return isPcbBoard
+    return (name) => !isComponent(name)
   }
 
   const targetLabel = $derived(
@@ -75,13 +81,13 @@
   function doExport() {
     if (!viewer) return
     if (traceMode === 'subtract') {
-      viewer.exportSTL(null, buildFilename('pcb-channel'))
+      viewer.exportSTL(name => !isComponent(name), buildFilename('pcb-channel'))
     } else if (exportTarget === 'copper') {
-      viewer.exportSTL(null, buildFilename('pcb-print'))
+      viewer.exportSTL(name => !isComponent(name), buildFilename('pcb-print'))
     } else if (exportTarget === 'board') {
-      viewer.exportSTL(isBoardBody, buildFilename('pcb-board'))
+      viewer.exportSTL(isPcbBoard, buildFilename('pcb-board'))
     } else {
-      viewer.exportSTL(null, buildFilename('all'))
+      viewer.exportSTL(name => !isComponent(name), buildFilename('all'))
     }
   }
 </script>

@@ -8,12 +8,23 @@
     return n.includes('copper') || n.includes('.cu') || n.includes('_cu')
   }
 
+  function isPcbBoard(name) {
+    const n = name.toLowerCase()
+    return !isCopper(name) && (n.includes('_pcb') || n.endsWith('pcb'))
+  }
+
+  function isComponent(name) {
+    return !isCopper(name) && !isPcbBoard(name)
+  }
+
   const groups = $derived((() => {
-    const copperBodies = bodies.filter(b => isCopper(b.name))
-    const boardBodies  = bodies.filter(b => !isCopper(b.name))
+    const copperBodies    = bodies.filter(b => isCopper(b.name))
+    const boardBodies     = bodies.filter(b => isPcbBoard(b.name))
+    const componentBodies = bodies.filter(b => isComponent(b.name))
     const result = []
-    if (copperBodies.length) result.push({ id: 'copper', label: 'Copper', color: '#f5c842', bodies: copperBodies })
-    if (boardBodies.length)  result.push({ id: 'board',  label: 'Board',  color: '#27ae60', bodies: boardBodies  })
+    if (copperBodies.length)    result.push({ id: 'copper',     label: 'Copper',     color: '#f5c842', bodies: copperBodies    })
+    if (boardBodies.length)     result.push({ id: 'board',      label: 'Board',      color: '#27ae60', bodies: boardBodies     })
+    if (componentBodies.length) result.push({ id: 'components', label: 'Components', color: '#e0609a', bodies: componentBodies })
     return result
   })())
 

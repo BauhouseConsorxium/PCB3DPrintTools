@@ -5,6 +5,7 @@
     import LayerPanel from "./components/LayerPanel.svelte";
     import InfoPanel from "./components/InfoPanel.svelte";
     import ExportPanel from "./components/ExportPanel.svelte";
+    import DrcPanel from "./components/DrcPanel.svelte";
 
     let status = $state("idle"); // 'idle' | 'loading' | 'ready' | 'error'
     let progress = $state("");
@@ -18,6 +19,7 @@
     let traceMode = $state("raise");
     let filename = $state("");
     let viewer = $state(null);
+    let drcViolations = $state([]);
 
     let worker;
 
@@ -159,6 +161,7 @@
                 {filename}
                 onpreviewchange={handlePreviewChange}
             />
+            <DrcPanel ondrcchange={v => drcViolations = v} />
         </aside>
 
         <!-- 3D Viewer -->
@@ -171,7 +174,13 @@
                 {boardZScale}
                 {previewFilter}
                 {traceMode}
+                {drcViolations}
             />
+
+            <!-- Watermark -->
+            <div class="absolute bottom-3 right-4 pointer-events-none select-none z-10">
+                <span class="text-sm font-semibold tracking-widest text-slate-400 uppercase">Bauhouse Consorxium</span>
+            </div>
 
             <!-- Export preview badge -->
             {#if previewFilter !== null || previewLabel}

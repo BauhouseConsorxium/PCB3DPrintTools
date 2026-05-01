@@ -52,10 +52,24 @@
     return n.includes('copper') || n.includes('.cu') || n.includes('_cu')
   }
 
+  function isPcbBoard(name) {
+    const n = name.toLowerCase()
+    return !isCopper(name) && (n.includes('_pcb') || n.endsWith('pcb'))
+  }
+
+  function isComponent(name) {
+    return !isCopper(name) && !isPcbBoard(name)
+  }
+
   function makeMaterial(name) {
     if (isCopper(name)) {
       return new THREE.MeshPhongMaterial({
         color: 0xf5c842, specular: 0xffffff, shininess: 120, side: THREE.DoubleSide,
+      })
+    }
+    if (isComponent(name)) {
+      return new THREE.MeshPhongMaterial({
+        color: 0xe0609a, specular: 0xffaad4, shininess: 80, side: THREE.DoubleSide,
       })
     }
     return new THREE.MeshPhongMaterial({
@@ -92,7 +106,7 @@
   // Apply board mesh scale + pin bottom, grid stays fixed
   function applyBoardScale(bS) {
     for (const [name, mesh] of Object.entries(meshMap)) {
-      if (isCopper(name)) continue
+      if (isCopper(name) || isComponent(name)) continue
       mesh.scale.z = bS
       mesh.position.y = boardBottomY + (boardOriginalPosY - boardBottomY) * bS
     }
