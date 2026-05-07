@@ -16,6 +16,7 @@
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.2.4",
+    "earcut": "^3.0.2",
     "occt-import-js": "^0.0.23",
     "tailwindcss": "^4.2.4",
     "three": "^0.184.0",

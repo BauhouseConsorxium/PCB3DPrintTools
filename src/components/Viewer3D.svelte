@@ -4,7 +4,7 @@
   import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
   import { STLExporter } from 'three/examples/jsm/exporters/STLExporter.js'
 
-  let { bodies = [], visibility = {}, zScale = 8, boardZScale = 1, previewFilter = null, traceMode = 'raise', drcViolations = [] } = $props()
+  let { bodies = [], visibility = {}, zScale = 8, boardZScale = 1, previewFilter = null, traceMode = 'raise', drcViolations = [], isRebuild = false } = $props()
 
   let canvas
   let renderer, scene, camera, controls, grid
@@ -223,6 +223,7 @@
     }
 
     untrack(() => {
+      const rebuild = isRebuild
       applyState()
 
       if (currentBodies.length) {
@@ -237,7 +238,15 @@
           }
         }
 
-        fitCamera()
+        if (rebuild) {
+          // Re-center meshes using the stored pcbWorldCenter (skip camera reset)
+          for (const mesh of Object.values(meshMap)) mesh.position.sub(pcbWorldCenter)
+          const box2 = new THREE.Box3()
+          for (const mesh of Object.values(meshMap)) box2.expandByObject(mesh)
+          if (grid) grid.position.y = box2.min.y - 0.05
+        } else {
+          fitCamera()
+        }
 
         originalMaterials = {}
         copperOriginalY = {}

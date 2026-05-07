@@ -17,14 +17,17 @@
     let previewFilter = $state(null);
     let previewLabel = $state("");
     let traceMode = $state("raise");
+    let traceWidthOffset = $state(0);
+    let drillDiameterOffset = $state(0);
     let filename = $state("");
     let viewer = $state(null);
     let drcViolations = $state([]);
+    let isRebuild = $state(false);
 
     let worker;
 
     onMount(() => {
-        worker = new Worker(import.meta.env.BASE_URL + "step-worker.js");
+        worker = new Worker(import.meta.env.BASE_URL + "pcb-worker.js");
 
         worker.onmessage = ({ data }) => {
             if (data.type === "PROGRESS") {
@@ -55,11 +58,33 @@
         progress = "Reading file…";
         bodies = [];
         visibility = {};
+        isRebuild = false;
+        traceWidthOffset = 0;
+        drillDiameterOffset = 0;
+        lastSentOffset = 0;
+        lastSentDrillOffset = 0;
 
-        file.arrayBuffer().then((buf) => {
-            worker.postMessage({ type: "PROCESS", buffer: buf }, [buf]);
+        file.text().then((text) => {
+            worker.postMessage({ type: "PROCESS", text, widthOffset: 0 });
         });
     }
+
+    let rebuildTimer;
+    let lastSentOffset = 0;
+    let lastSentDrillOffset = 0;
+    $effect(() => {
+        const wOff = traceWidthOffset;
+        const dOff = drillDiameterOffset;
+        if (status !== "ready") return;
+        if (wOff === lastSentOffset && dOff === lastSentDrillOffset) return;
+        clearTimeout(rebuildTimer);
+        rebuildTimer = setTimeout(() => {
+            lastSentOffset = wOff;
+            lastSentDrillOffset = dOff;
+            isRebuild = true;
+            worker.postMessage({ type: "REBUILD", widthOffset: wOff, drillOffset: dOff });
+        }, 150);
+    });
 
     function toggleBody(name) {
         visibility = { ...visibility, [name]: !(visibility[name] ?? true) };
@@ -157,6 +182,8 @@
                 bind:zScale
                 bind:boardZScale
                 bind:traceMode
+                bind:traceWidthOffset
+                bind:drillDiameterOffset
                 {bodies}
                 {filename}
                 onpreviewchange={handlePreviewChange}
@@ -175,6 +202,7 @@
                 {previewFilter}
                 {traceMode}
                 {drcViolations}
+                {isRebuild}
             />
 
             <!-- Watermark -->
@@ -217,7 +245,7 @@
                         />
                     </svg>
                     <p class="text-slate-600 text-sm">
-                        Drop a .step file to begin
+                        Drop a .kicad_pcb file to begin
                     </p>
                 </div>
             {/if}
@@ -252,9 +280,6 @@
                         <p class="text-slate-200 text-sm font-medium">
                             {progress}
                         </p>
-                        <p class="text-slate-500 text-xs mt-1">
-                            WASM loads once, cached after first use
-                        </p>
                     </div>
                 </div>
             {/if}
@@ -279,7 +304,7 @@
                     </svg>
                     <div class="text-center max-w-sm px-4">
                         <p class="text-red-400 text-sm font-medium mb-1">
-                            Failed to load STEP file
+                            Failed to load PCB file
                         </p>
                         <p class="text-slate-500 text-xs break-words">
                             {errorMsg}

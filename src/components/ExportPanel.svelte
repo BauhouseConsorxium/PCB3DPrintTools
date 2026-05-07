@@ -1,5 +1,5 @@
 <script>
-  let { viewer = null, zScale = $bindable(8), boardZScale = $bindable(1), traceMode = $bindable('raise'), bodies = [], filename = '', onpreviewchange = null } = $props()
+  let { viewer = null, zScale = $bindable(8), boardZScale = $bindable(1), traceMode = $bindable('raise'), traceWidthOffset = $bindable(0), drillDiameterOffset = $bindable(0), bodies = [], filename = '', onpreviewchange = null } = $props()
 
   function buildFilename(target) {
     const base = filename.replace(/\.[^.]+$/, '') || 'pcb'
@@ -174,6 +174,68 @@
       <div class="flex justify-between text-[10px] text-slate-600 mt-0.5">
         <span>0.25×</span>
         <span>10×</span>
+      </div>
+    </div>
+
+    <!-- Trace width offset -->
+    <div class="mb-3">
+      <div class="flex justify-between items-center mb-1">
+        <label for="trace-width-offset" class="text-xs text-slate-400">Trace width offset</label>
+        <div class="flex items-baseline gap-1.5">
+          <span class="text-xs text-[#b87333] font-mono font-semibold">{traceWidthOffset > 0 ? '+' : ''}{traceWidthOffset.toFixed(2)} mm</span>
+          {#if traceWidthOffset !== 0}
+            <button
+              onclick={() => traceWidthOffset = 0}
+              class="text-[10px] text-slate-500 hover:text-slate-300 underline"
+            >reset</button>
+          {/if}
+        </div>
+      </div>
+      <input
+        id="trace-width-offset"
+        type="range"
+        min="-1"
+        max="3"
+        step="0.05"
+        bind:value={traceWidthOffset}
+        class="w-full h-1.5 rounded-full appearance-none cursor-pointer
+          bg-[#2a2a48] accent-[#b87333]"
+      />
+      <div class="flex justify-between text-[10px] text-slate-600 mt-0.5">
+        <span>-1.0 mm</span>
+        <span>0</span>
+        <span>+3.0 mm</span>
+      </div>
+    </div>
+
+    <!-- Drill diameter offset -->
+    <div class="mb-3">
+      <div class="flex justify-between items-center mb-1">
+        <label for="drill-offset" class="text-xs text-slate-400">Drill diameter offset</label>
+        <div class="flex items-baseline gap-1.5">
+          <span class="text-xs text-[#6366f1] font-mono font-semibold">{drillDiameterOffset > 0 ? '+' : ''}{drillDiameterOffset.toFixed(2)} mm</span>
+          {#if drillDiameterOffset !== 0}
+            <button
+              onclick={() => drillDiameterOffset = 0}
+              class="text-[10px] text-slate-500 hover:text-slate-300 underline"
+            >reset</button>
+          {/if}
+        </div>
+      </div>
+      <input
+        id="drill-offset"
+        type="range"
+        min="-0.5"
+        max="2"
+        step="0.05"
+        bind:value={drillDiameterOffset}
+        class="w-full h-1.5 rounded-full appearance-none cursor-pointer
+          bg-[#2a2a48] accent-[#6366f1]"
+      />
+      <div class="flex justify-between text-[10px] text-slate-600 mt-0.5">
+        <span>-0.5 mm</span>
+        <span>0</span>
+        <span>+2.0 mm</span>
       </div>
     </div>
 

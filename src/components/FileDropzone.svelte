@@ -6,8 +6,7 @@
 
   function pickFile(file) {
     if (!file) return
-    const ext = file.name.split('.').pop().toLowerCase()
-    if (ext === 'step' || ext === 'stp') {
+    if (file.name.endsWith('.kicad_pcb')) {
       onfile(file)
     }
   }
@@ -34,7 +33,7 @@
 </script>
 
 <div class="p-3 border-b border-[#2a2a48]">
-  <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">STEP File</p>
+  <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">KiCad PCB</p>
 
   <!-- svelte-ignore a11y_no_static_element_interactions -->
   <div
@@ -54,7 +53,7 @@
     <input
       bind:this={inputEl}
       type="file"
-      accept=".step,.stp"
+      accept=".kicad_pcb"
       class="hidden"
       {onchange}
     />
@@ -64,7 +63,7 @@
         <path stroke-linecap="round" stroke-linejoin="round"
           d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
       </svg>
-      <p class="text-sm text-slate-300">Drop .step / .stp here</p>
+      <p class="text-sm text-slate-300">Drop .kicad_pcb here</p>
       <p class="text-xs text-slate-500">or click to browse</p>
     </div>
   </div>
