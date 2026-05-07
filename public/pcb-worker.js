@@ -398,30 +398,76 @@ function buildBoardGeometry(polygon, drills, thickness) {
 
 // ==================== Copper Traces Geometry ====================
 
-function buildTracesGeometry(segments, drills, layer, zBot, zTop) {
+function buildTracesGeometry(segments, drills, layer, zBot, zTop, squareEnds) {
   const segs = segments.filter(s => s.layer === layer)
   if (!segs.length) return null
+
+  // Pre-compute free endpoints: an endpoint is free if no other segment shares it
+  const endpointFree = []
+  if (squareEnds) {
+    const CONN_TOL_SQ = 0.05 * 0.05
+    for (let si = 0; si < segs.length; si++) {
+      const s = segs[si]
+      let p1Free = true, p2Free = true
+      for (let oi = 0; oi < segs.length; oi++) {
+        if (oi === si) continue
+        const o = segs[oi]
+        const ox1 = o.x1, oy1 = -o.y1, ox2 = o.x2, oy2 = -o.y2
+        const sx1 = s.x1, sy1 = -s.y1, sx2 = s.x2, sy2 = -s.y2
+        if (p1Free) {
+          if ((sx1-ox1)**2+(sy1-oy1)**2 < CONN_TOL_SQ || (sx1-ox2)**2+(sy1-oy2)**2 < CONN_TOL_SQ)
+            p1Free = false
+        }
+        if (p2Free) {
+          if ((sx2-ox1)**2+(sy2-oy1)**2 < CONN_TOL_SQ || (sx2-ox2)**2+(sy2-oy2)**2 < CONN_TOL_SQ)
+            p2Free = false
+        }
+      }
+      endpointFree.push({ p1: p1Free, p2: p2Free })
+    }
+  }
 
   const lookupDrill = makeDrillLookup(drills)
   const allPos = [], allNrm = [], allIdx = []
   let vOff = 0
 
-  for (const seg of segs) {
+  for (let si = 0; si < segs.length; si++) {
+    const seg = segs[si]
     const p1x = seg.x1, p1y = -seg.y1
     const p2x = seg.x2, p2y = -seg.y2
     const hw = seg.width / 2
     const dx = p2x - p1x, dy = p2y - p1y
     const theta = Math.atan2(dy, dx)
 
-    // Stadium outline (CCW)
+    const p1Sq = squareEnds && endpointFree[si]?.p1
+    const p2Sq = squareEnds && endpointFree[si]?.p2
+
+    // P2 cap (right-side → left-side)
     const outline = []
-    for (let i = 0; i <= HALF_N; i++) {
-      const a = theta - Math.PI/2 + Math.PI * i / HALF_N
-      outline.push([p2x + hw * Math.cos(a), p2y + hw * Math.sin(a)])
+    if (p2Sq) {
+      const ct = Math.cos(theta), st = Math.sin(theta)
+      const nx = -st, ny = ct
+      const ex = p2x + hw * ct, ey = p2y + hw * st
+      outline.push([ex - hw * nx, ey - hw * ny])
+      outline.push([ex + hw * nx, ey + hw * ny])
+    } else {
+      for (let i = 0; i <= HALF_N; i++) {
+        const a = theta - Math.PI/2 + Math.PI * i / HALF_N
+        outline.push([p2x + hw * Math.cos(a), p2y + hw * Math.sin(a)])
+      }
     }
-    for (let i = 1; i < HALF_N; i++) {
-      const a = theta + Math.PI/2 + Math.PI * i / HALF_N
-      outline.push([p1x + hw * Math.cos(a), p1y + hw * Math.sin(a)])
+    // P1 cap (left-side → right-side)
+    if (p1Sq) {
+      const ct = Math.cos(theta), st = Math.sin(theta)
+      const nx = -st, ny = ct
+      const ex = p1x - hw * ct, ey = p1y - hw * st
+      outline.push([ex + hw * nx, ey + hw * ny])
+      outline.push([ex - hw * nx, ey - hw * ny])
+    } else {
+      for (let i = 1; i < HALF_N; i++) {
+        const a = theta + Math.PI/2 + Math.PI * i / HALF_N
+        outline.push([p1x + hw * Math.cos(a), p1y + hw * Math.sin(a)])
+      }
     }
 
     // Drill holes
@@ -535,7 +581,7 @@ let cachedPolygon = null
 let cachedSegments = null
 let cachedDrills = null
 
-function buildBodies(widthOffset, drillOffset) {
+function buildBodies(widthOffset, drillOffset, squareEnds) {
   const thickness = cachedThickness
   const polygon = cachedPolygon
 
@@ -553,10 +599,10 @@ function buildBodies(widthOffset, drillOffset) {
   const board = buildBoardGeometry(polygon, drills, thickness)
   if (board) bodies.push(board)
 
-  const fCu = buildTracesGeometry(segments, drills, 'F.Cu', thickness, thickness + COPPER_THICKNESS)
+  const fCu = buildTracesGeometry(segments, drills, 'F.Cu', thickness, thickness + COPPER_THICKNESS, squareEnds)
   if (fCu) bodies.push(fCu)
 
-  const bCu = buildTracesGeometry(segments, drills, 'B.Cu', -COPPER_THICKNESS, 0)
+  const bCu = buildTracesGeometry(segments, drills, 'B.Cu', -COPPER_THICKNESS, 0, squareEnds)
   if (bCu) bodies.push(bCu)
 
   if (!bodies.length) {
@@ -572,7 +618,7 @@ self.onmessage = ({ data }) => {
   if (data.type === 'REBUILD') {
     if (!cachedTree) return
     try {
-      buildBodies(data.widthOffset || 0, data.drillOffset || 0)
+      buildBodies(data.widthOffset || 0, data.drillOffset || 0, !!data.squareEnds)
     } catch (err) {
       self.postMessage({ type: 'ERROR', message: String(err) })
     }
@@ -601,7 +647,7 @@ self.onmessage = ({ data }) => {
       return
     }
 
-    buildBodies(data.widthOffset || 0, data.drillOffset || 0)
+    buildBodies(data.widthOffset || 0, data.drillOffset || 0, !!data.squareEnds)
   } catch (err) {
     self.postMessage({ type: 'ERROR', message: String(err) })
   }

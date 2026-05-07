@@ -1,5 +1,5 @@
 <script>
-  let { viewer = null, zScale = $bindable(8), boardZScale = $bindable(1), traceMode = $bindable('raise'), traceWidthOffset = $bindable(0), drillDiameterOffset = $bindable(0), bodies = [], filename = '', onpreviewchange = null } = $props()
+  let { viewer = null, zScale = $bindable(8), boardZScale = $bindable(1), traceMode = $bindable('raise'), traceWidthOffset = $bindable(0), drillDiameterOffset = $bindable(0), squareEnds = $bindable(false), bodies = [], filename = '', onpreviewchange = null } = $props()
 
   function buildFilename(target) {
     const base = filename.replace(/\.[^.]+$/, '') || 'pcb'
@@ -207,6 +207,16 @@
         <span>+3.0 mm</span>
       </div>
     </div>
+
+    <!-- Square ends -->
+    <label class="flex items-center gap-2 mb-3 cursor-pointer group">
+      <input
+        type="checkbox"
+        bind:checked={squareEnds}
+        class="accent-[#b87333] w-3.5 h-3.5"
+      />
+      <span class="text-xs text-slate-400 group-hover:text-slate-200">Square trace ends</span>
+    </label>
 
     <!-- Drill diameter offset -->
     <div class="mb-3">

@@ -19,6 +19,7 @@
     let traceMode = $state("raise");
     let traceWidthOffset = $state(0);
     let drillDiameterOffset = $state(0);
+    let squareEnds = $state(false);
     let filename = $state("");
     let viewer = $state(null);
     let drcViolations = $state([]);
@@ -61,8 +62,10 @@
         isRebuild = false;
         traceWidthOffset = 0;
         drillDiameterOffset = 0;
+        squareEnds = false;
         lastSentOffset = 0;
         lastSentDrillOffset = 0;
+        lastSentSquareEnds = false;
 
         file.text().then((text) => {
             worker.postMessage({ type: "PROCESS", text, widthOffset: 0 });
@@ -72,17 +75,20 @@
     let rebuildTimer;
     let lastSentOffset = 0;
     let lastSentDrillOffset = 0;
+    let lastSentSquareEnds = false;
     $effect(() => {
         const wOff = traceWidthOffset;
         const dOff = drillDiameterOffset;
+        const sq = squareEnds;
         if (status !== "ready") return;
-        if (wOff === lastSentOffset && dOff === lastSentDrillOffset) return;
+        if (wOff === lastSentOffset && dOff === lastSentDrillOffset && sq === lastSentSquareEnds) return;
         clearTimeout(rebuildTimer);
         rebuildTimer = setTimeout(() => {
             lastSentOffset = wOff;
             lastSentDrillOffset = dOff;
+            lastSentSquareEnds = sq;
             isRebuild = true;
-            worker.postMessage({ type: "REBUILD", widthOffset: wOff, drillOffset: dOff });
+            worker.postMessage({ type: "REBUILD", widthOffset: wOff, drillOffset: dOff, squareEnds: sq });
         }, 150);
     });
 
@@ -184,6 +190,7 @@
                 bind:traceMode
                 bind:traceWidthOffset
                 bind:drillDiameterOffset
+                bind:squareEnds
                 {bodies}
                 {filename}
                 onpreviewchange={handlePreviewChange}
