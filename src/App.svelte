@@ -1,5 +1,5 @@
 <script>
-    import { onMount } from "svelte";
+    import { onMount, tick } from "svelte";
     import FileDropzone from "./components/FileDropzone.svelte";
     import Viewer3D from "./components/Viewer3D.svelte";
     import LayerPanel from "./components/LayerPanel.svelte";
@@ -87,6 +87,7 @@
                     data.bodies.map((b) => [b.name, true]),
                 );
                 status = "ready";
+                tick().then(() => { isRebuild = true; });
             } else if (data.type === "ERROR") {
                 errorMsg = data.message;
                 status = "error";

@@ -25,6 +25,8 @@
   // distance from copper mesh's position.y to its world Y top at scale.z=1 — invariant to centering
   let copperNaturalTopOffset = {}
 
+  let bodiesVersion = $state(0)
+
   // materials
   let originalMaterials = {}
 
@@ -280,6 +282,8 @@
 
         applyBoardScale(boardZScale)
         applyCopperScale(zScale, boardZScale, traceMode)
+        sideBySideOffsets = {}
+        bodiesVersion++
       }
       requestRender()
     })
@@ -333,6 +337,7 @@
 
   $effect(() => {
     const side = encSideBySide
+    const _v = bodiesVersion
     if (!Object.keys(meshMap).length) return
 
     // Reset all positions to base (undo previous side-by-side shift)
