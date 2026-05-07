@@ -6,6 +6,7 @@
     import InfoPanel from "./components/InfoPanel.svelte";
     import ExportPanel from "./components/ExportPanel.svelte";
     import DrcPanel from "./components/DrcPanel.svelte";
+    import PresetModal from "./components/PresetModal.svelte";
 
     let status = $state("idle"); // 'idle' | 'loading' | 'ready' | 'error'
     let progress = $state("");
@@ -24,6 +25,25 @@
     let viewer = $state(null);
     let drcViolations = $state([]);
     let isRebuild = $state(false);
+    let presetModalOpen = $state(false);
+
+    const currentSettings = $derived({
+        zScale,
+        boardZScale,
+        traceMode,
+        traceWidthOffset,
+        drillDiameterOffset,
+        squareEnds,
+    });
+
+    function applyPreset(s) {
+        if (s.zScale !== undefined) zScale = s.zScale;
+        if (s.boardZScale !== undefined) boardZScale = s.boardZScale;
+        if (s.traceMode !== undefined) traceMode = s.traceMode;
+        if (s.traceWidthOffset !== undefined) traceWidthOffset = s.traceWidthOffset;
+        if (s.drillDiameterOffset !== undefined) drillDiameterOffset = s.drillDiameterOffset;
+        if (s.squareEnds !== undefined) squareEnds = s.squareEnds;
+    }
 
     let worker;
 
@@ -195,6 +215,22 @@
                 {filename}
                 onpreviewchange={handlePreviewChange}
             />
+            {#if bodies.length > 0}
+                <div class="p-3 border-t border-[#2a2a48]">
+                    <button
+                        onclick={() => presetModalOpen = true}
+                        class="w-full py-1.5 px-3 rounded text-xs font-medium
+                            bg-[#1a1a30] border border-[#2a2a48]
+                            text-slate-400 hover:text-slate-200 hover:border-[#3a3a58]
+                            transition-colors flex items-center justify-center gap-1.5"
+                    >
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 6h9.75M10.5 6a1.5 1.5 0 11-3 0m3 0a1.5 1.5 0 10-3 0M3.75 6H7.5m3 12h9.75m-9.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-3.75 0H7.5m9-6h3.75m-3.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-9.75 0h9.75" />
+                        </svg>
+                        Presets
+                    </button>
+                </div>
+            {/if}
             <DrcPanel ondrcchange={v => drcViolations = v} />
         </aside>
 
@@ -331,3 +367,9 @@
         </main>
     </div>
 </div>
+
+<PresetModal
+    bind:open={presetModalOpen}
+    settings={currentSettings}
+    onapply={applyPreset}
+/>
