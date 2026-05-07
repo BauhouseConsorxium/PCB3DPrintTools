@@ -4,7 +4,7 @@
   import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
   import { STLExporter } from 'three/examples/jsm/exporters/STLExporter.js'
 
-  let { bodies = [], visibility = {}, zScale = 8, boardZScale = 1, previewFilter = null, traceMode = 'raise', drcViolations = [], isRebuild = false } = $props()
+  let { bodies = [], visibility = {}, zScale = 8, boardZScale = 1, previewFilter = null, traceMode = 'raise', drcViolations = [], isRebuild = false, encSideBySide = false } = $props()
 
   let canvas
   let renderer, scene, camera, controls, grid
@@ -57,14 +57,24 @@
     return !isCopper(name) && (n.includes('_pcb') || n.endsWith('pcb'))
   }
 
+  function isEnclosure(name) {
+    return name.toLowerCase() === 'enclosure'
+  }
+
   function isComponent(name) {
-    return !isCopper(name) && !isPcbBoard(name)
+    return !isCopper(name) && !isPcbBoard(name) && !isEnclosure(name)
   }
 
   function makeMaterial(name) {
     if (isCopper(name)) {
       return new THREE.MeshPhongMaterial({
         color: 0xf5c842, specular: 0xffffff, shininess: 120, side: THREE.DoubleSide,
+      })
+    }
+    if (isEnclosure(name)) {
+      return new THREE.MeshPhongMaterial({
+        color: 0x5a8fa8, specular: 0x334455, shininess: 20, side: THREE.DoubleSide,
+        transparent: true, opacity: 0.7, depthWrite: false,
       })
     }
     if (isComponent(name)) {
@@ -106,7 +116,7 @@
   // Apply board mesh scale + pin bottom, grid stays fixed
   function applyBoardScale(bS) {
     for (const [name, mesh] of Object.entries(meshMap)) {
-      if (isCopper(name) || isComponent(name)) continue
+      if (isCopper(name) || isComponent(name) || isEnclosure(name)) continue
       mesh.scale.z = bS
       mesh.position.y = boardBottomY + (boardOriginalPosY - boardBottomY) * bS
     }
@@ -253,9 +263,12 @@
         boardOriginalPosY = 0
         boardBottomY = 0
         boardTop = 0
+        encBaseZ = 0
         for (const [name, mesh] of Object.entries(meshMap)) {
           originalMaterials[name] = mesh.material
-          if (!isCopper(name)) {
+          if (isEnclosure(name)) {
+            encBaseZ = mesh.position.z
+          } else if (!isCopper(name)) {
             const box = new THREE.Box3().setFromObject(mesh)
             boardOriginalPosY = mesh.position.y
             boardBottomY = box.min.y
@@ -310,6 +323,82 @@
 
   $effect(() => {
     applyCopperScale(zScale, boardZScale, traceMode)
+    requestRender()
+  })
+
+  // ------- enclosure side-by-side -------
+
+  let sideBySideOffsets = {}
+  let encBaseZ = 0
+
+  $effect(() => {
+    const side = encSideBySide
+    if (!Object.keys(meshMap).length) return
+
+    // Reset all positions to base (undo previous side-by-side shift)
+    for (const [name, mesh] of Object.entries(meshMap)) {
+      if (sideBySideOffsets[name] !== undefined) {
+        mesh.position.x -= sideBySideOffsets[name]
+      }
+    }
+    sideBySideOffsets = {}
+
+    // Restore enclosure state when leaving side-by-side
+    const encMesh = meshMap['Enclosure']
+    if (encMesh) {
+      if (originalMaterials['Enclosure']) encMesh.material = originalMaterials['Enclosure']
+      encMesh.rotation.x = Math.PI / 2
+      encMesh.position.z = encBaseZ
+      if (copperOriginalY['Enclosure'] !== undefined) {
+        encMesh.position.y = copperOriginalY['Enclosure']
+      }
+    }
+
+    if (!side || !encMesh) {
+      requestRender()
+      return
+    }
+
+    // Opaque material
+    encMesh.material = new THREE.MeshPhongMaterial({
+      color: 0x5a8fa8, specular: 0x334455, shininess: 20, side: THREE.DoubleSide,
+    })
+
+    // Flip enclosure upside down — compensate Z for the rotation inversion
+    encMesh.rotation.x = -Math.PI / 2
+    encMesh.position.z = -encBaseZ
+    encMesh.updateMatrixWorld(true)
+    const flippedBox = new THREE.Box3().setFromObject(encMesh)
+    encMesh.position.y += boardBottomY - flippedBox.min.y
+
+    // Measure widths after flip
+    encMesh.updateMatrixWorld(true)
+    const encBox = new THREE.Box3().setFromObject(encMesh)
+    const encWidthX = encBox.max.x - encBox.min.x
+
+    let boardWidthX = 0
+    for (const [name, mesh] of Object.entries(meshMap)) {
+      if (isEnclosure(name)) continue
+      const b = new THREE.Box3().setFromObject(mesh)
+      boardWidthX = Math.max(boardWidthX, b.max.x - b.min.x)
+    }
+
+    const gap = 2
+    const boardShift = -(gap + encWidthX) / 2
+    const encShift = (gap + boardWidthX) / 2
+
+    for (const [name, mesh] of Object.entries(meshMap)) {
+      const offset = isEnclosure(name) ? encShift : boardShift
+      mesh.position.x += offset
+      sideBySideOffsets[name] = offset
+    }
+
+    // Reposition grid
+    if (grid) {
+      const box = new THREE.Box3()
+      for (const mesh of Object.values(meshMap)) box.expandByObject(mesh)
+      grid.position.y = box.min.y - 0.05
+    }
     requestRender()
   })
 

@@ -610,8 +610,20 @@ function buildBodies(widthOffset, drillOffset, squareEnds) {
     return
   }
 
+  // Pack board polygon as flat Float32Array of [x,y] pairs in KiCad coords (Y-down)
+  let polygonBuf = null
+  if (cachedPolygon) {
+    const flat = new Float32Array(cachedPolygon.length * 2)
+    for (let i = 0; i < cachedPolygon.length; i++) {
+      flat[i * 2] = cachedPolygon[i][0]
+      flat[i * 2 + 1] = -cachedPolygon[i][1]
+    }
+    polygonBuf = flat
+  }
+
   const transferables = bodies.flatMap(b => [b.positions.buffer, b.normals.buffer, b.indices.buffer])
-  self.postMessage({ type: 'RESULT', bodies }, transferables)
+  if (polygonBuf) transferables.push(polygonBuf.buffer)
+  self.postMessage({ type: 'RESULT', bodies, polygon: polygonBuf }, transferables)
 }
 
 self.onmessage = ({ data }) => {

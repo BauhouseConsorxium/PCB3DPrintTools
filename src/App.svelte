@@ -7,6 +7,7 @@
     import ExportPanel from "./components/ExportPanel.svelte";
     import DrcPanel from "./components/DrcPanel.svelte";
     import PresetModal from "./components/PresetModal.svelte";
+    import { parseBoardPoly, buildEnclosureBody } from "./lib/enclosure.js";
 
     let status = $state("idle"); // 'idle' | 'loading' | 'ready' | 'error'
     let progress = $state("");
@@ -21,6 +22,16 @@
     let traceWidthOffset = $state(0);
     let drillDiameterOffset = $state(0);
     let squareEnds = $state(false);
+    let enclosureEnabled = $state(false);
+    let encWallThickness = $state(2);
+    let encClearance = $state(0.3);
+    let encFloorThickness = $state(1.5);
+    let encWallHeight = $state(5);
+    let encShelfDepth = $state(1);
+    let encShelfHeight = $state(1.6);
+    let encSideBySide = $state(false);
+    let boardPolygon = $state(null);
+    let enclosureBody = $state(null);
     let filename = $state("");
     let viewer = $state(null);
     let drcViolations = $state([]);
@@ -34,6 +45,14 @@
         traceWidthOffset,
         drillDiameterOffset,
         squareEnds,
+        enclosureEnabled,
+        encWallThickness,
+        encClearance,
+        encFloorThickness,
+        encWallHeight,
+        encShelfDepth,
+        encShelfHeight,
+        encSideBySide,
     });
 
     function applyPreset(s) {
@@ -43,6 +62,14 @@
         if (s.traceWidthOffset !== undefined) traceWidthOffset = s.traceWidthOffset;
         if (s.drillDiameterOffset !== undefined) drillDiameterOffset = s.drillDiameterOffset;
         if (s.squareEnds !== undefined) squareEnds = s.squareEnds;
+        if (s.enclosureEnabled !== undefined) enclosureEnabled = s.enclosureEnabled;
+        if (s.encWallThickness !== undefined) encWallThickness = s.encWallThickness;
+        if (s.encClearance !== undefined) encClearance = s.encClearance;
+        if (s.encFloorThickness !== undefined) encFloorThickness = s.encFloorThickness;
+        if (s.encWallHeight !== undefined) encWallHeight = s.encWallHeight;
+        if (s.encShelfDepth !== undefined) encShelfDepth = s.encShelfDepth;
+        if (s.encShelfHeight !== undefined) encShelfHeight = s.encShelfHeight;
+        if (s.encSideBySide !== undefined) encSideBySide = s.encSideBySide;
     }
 
     let worker;
@@ -54,6 +81,7 @@
             if (data.type === "PROGRESS") {
                 progress = data.message;
             } else if (data.type === "RESULT") {
+                boardPolygon = data.polygon ? parseBoardPoly(data.polygon) : null;
                 bodies = data.bodies;
                 visibility = Object.fromEntries(
                     data.bodies.map((b) => [b.name, true]),
@@ -111,6 +139,47 @@
             worker.postMessage({ type: "REBUILD", widthOffset: wOff, drillOffset: dOff, squareEnds: sq });
         }, 150);
     });
+
+    $effect(() => {
+        const enabled = enclosureEnabled;
+        const poly = boardPolygon;
+        const wt = encWallThickness;
+        const cl = encClearance;
+        const ft = encFloorThickness;
+        const wh = encWallHeight;
+        const sd = encShelfDepth;
+        const sh = encShelfHeight;
+        if (!enabled || !poly) {
+            enclosureBody = null;
+            return;
+        }
+        try {
+            enclosureBody = buildEnclosureBody(poly, {
+                wallThickness: wt,
+                clearance: cl,
+                floorThickness: ft,
+                wallHeight: wh,
+                shelfDepth: sd,
+                shelfHeight: sh,
+            });
+        } catch {
+            enclosureBody = null;
+        }
+    });
+
+    $effect(() => {
+        if (enclosureBody && visibility['Enclosure'] === undefined) {
+            visibility = { ...visibility, Enclosure: true };
+        }
+        if (!enclosureBody && visibility['Enclosure'] !== undefined) {
+            const { Enclosure, ...rest } = visibility;
+            visibility = rest;
+        }
+    });
+
+    const allBodies = $derived(
+        enclosureBody ? [...bodies, enclosureBody] : bodies
+    );
 
     function toggleBody(name) {
         visibility = { ...visibility, [name]: !(visibility[name] ?? true) };
@@ -197,12 +266,12 @@
         >
             <FileDropzone onfile={handleFile} disabled={status === "loading"} />
             <LayerPanel
-                {bodies}
+                bodies={allBodies}
                 {visibility}
                 ontoggle={toggleBody}
                 ontogglegroup={toggleGroup}
             />
-            <InfoPanel {bodies} {filename} />
+            <InfoPanel bodies={allBodies} {filename} />
             <ExportPanel
                 {viewer}
                 bind:zScale
@@ -211,11 +280,20 @@
                 bind:traceWidthOffset
                 bind:drillDiameterOffset
                 bind:squareEnds
-                {bodies}
+                bind:enclosureEnabled
+                bind:encWallThickness
+                bind:encClearance
+                bind:encFloorThickness
+                bind:encWallHeight
+                bind:encShelfDepth
+                bind:encShelfHeight
+                bind:encSideBySide
+                bodies={allBodies}
+                hasBoardPoly={!!boardPolygon}
                 {filename}
                 onpreviewchange={handlePreviewChange}
             />
-            {#if bodies.length > 0}
+            {#if allBodies.length > 0}
                 <div class="p-3 border-t border-[#2a2a48]">
                     <button
                         onclick={() => presetModalOpen = true}
@@ -238,7 +316,7 @@
         <main class="flex-1 relative overflow-hidden">
             <Viewer3D
                 bind:this={viewer}
-                {bodies}
+                bodies={allBodies}
                 {visibility}
                 {zScale}
                 {boardZScale}
@@ -246,6 +324,7 @@
                 {traceMode}
                 {drcViolations}
                 {isRebuild}
+                {encSideBySide}
             />
 
             <!-- Watermark -->

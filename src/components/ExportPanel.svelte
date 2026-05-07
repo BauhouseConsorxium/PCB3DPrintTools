@@ -1,5 +1,14 @@
 <script>
-  let { viewer = null, zScale = $bindable(8), boardZScale = $bindable(1), traceMode = $bindable('raise'), traceWidthOffset = $bindable(0), drillDiameterOffset = $bindable(0), squareEnds = $bindable(false), bodies = [], filename = '', onpreviewchange = null } = $props()
+  let {
+    viewer = null, zScale = $bindable(8), boardZScale = $bindable(1),
+    traceMode = $bindable('raise'), traceWidthOffset = $bindable(0),
+    drillDiameterOffset = $bindable(0), squareEnds = $bindable(false),
+    enclosureEnabled = $bindable(false), encWallThickness = $bindable(2),
+    encClearance = $bindable(0.3), encFloorThickness = $bindable(1.5),
+    encWallHeight = $bindable(5), encShelfDepth = $bindable(1),
+    encShelfHeight = $bindable(1.6), encSideBySide = $bindable(false),
+    bodies = [], hasBoardPoly = false, filename = '', onpreviewchange = null,
+  } = $props()
 
   function buildFilename(target) {
     const base = filename.replace(/\.[^.]+$/, '') || 'pcb'
@@ -248,6 +257,51 @@
         <span>+2.0 mm</span>
       </div>
     </div>
+
+    <!-- Enclosure -->
+    {#if hasBoardPoly}
+      <div class="mb-3 border-t border-[#2a2a48] pt-3">
+        <label class="flex items-center gap-2 mb-2 cursor-pointer group">
+          <input type="checkbox" bind:checked={enclosureEnabled} class="accent-[#5a8fa8] w-3.5 h-3.5" />
+          <span class="text-xs font-semibold text-slate-400 uppercase tracking-wider group-hover:text-slate-200">Enclosure</span>
+        </label>
+
+        {#if enclosureEnabled}
+          <div class="space-y-2 pl-0.5">
+            {#each [
+              { id: 'enc-wall', label: 'Wall thickness', bind: () => encWallThickness, set: v => encWallThickness = v, min: 0.5, max: 5, step: 0.1, unit: 'mm' },
+              { id: 'enc-clear', label: 'Clearance', bind: () => encClearance, set: v => encClearance = v, min: 0, max: 2, step: 0.05, unit: 'mm' },
+              { id: 'enc-floor', label: 'Floor thickness', bind: () => encFloorThickness, set: v => encFloorThickness = v, min: 0.5, max: 5, step: 0.1, unit: 'mm' },
+              { id: 'enc-height', label: 'Wall height', bind: () => encWallHeight, set: v => encWallHeight = v, min: 1, max: 20, step: 0.5, unit: 'mm' },
+              { id: 'enc-shelf-d', label: 'Shelf depth', bind: () => encShelfDepth, set: v => encShelfDepth = v, min: 0.3, max: 3, step: 0.1, unit: 'mm' },
+              { id: 'enc-shelf-h', label: 'Shelf height', bind: () => encShelfHeight, set: v => encShelfHeight = v, min: 0.4, max: 5, step: 0.1, unit: 'mm' },
+            ] as slider}
+              <div>
+                <div class="flex justify-between items-center mb-0.5">
+                  <label for={slider.id} class="text-[10px] text-slate-500">{slider.label}</label>
+                  <span class="text-[10px] text-[#5a8fa8] font-mono">{slider.bind().toFixed(1)} {slider.unit}</span>
+                </div>
+                <input
+                  id={slider.id}
+                  type="range"
+                  min={slider.min}
+                  max={slider.max}
+                  step={slider.step}
+                  value={slider.bind()}
+                  oninput={e => slider.set(parseFloat(e.target.value))}
+                  class="w-full h-1 rounded-full appearance-none cursor-pointer bg-[#2a2a48] accent-[#5a8fa8]"
+                />
+              </div>
+            {/each}
+
+            <label class="flex items-center gap-2 cursor-pointer group mt-1">
+              <input type="checkbox" bind:checked={encSideBySide} class="accent-[#5a8fa8] w-3.5 h-3.5" />
+              <span class="text-[10px] text-slate-500 group-hover:text-slate-300">Side-by-side view</span>
+            </label>
+          </div>
+        {/if}
+      </div>
+    {/if}
 
     <!-- Export target -->
     <div class="mb-3">

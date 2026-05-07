@@ -7,7 +7,7 @@
 
   const STORAGE_KEY = 'pcb3d-presets'
   const ACTIVE_KEY = 'pcb3d-active-preset'
-  const SETTINGS_KEYS = ['zScale', 'boardZScale', 'traceMode', 'traceWidthOffset', 'drillDiameterOffset', 'squareEnds']
+  const SETTINGS_KEYS = ['zScale', 'boardZScale', 'traceMode', 'traceWidthOffset', 'drillDiameterOffset', 'squareEnds', 'enclosureEnabled', 'encWallThickness', 'encClearance', 'encFloorThickness', 'encWallHeight', 'encShelfDepth', 'encShelfHeight', 'encSideBySide']
 
   let presets = $state([])
   let activePresetName = $state('')
@@ -191,6 +191,7 @@
                   · Z {preset.settings.zScale}x
                   · W {preset.settings.traceWidthOffset > 0 ? '+' : ''}{preset.settings.traceWidthOffset}mm
                   {preset.settings.squareEnds ? '· sq' : ''}
+                  {preset.settings.enclosureEnabled ? '· enc' : ''}
                 </span>
               </div>
               <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
