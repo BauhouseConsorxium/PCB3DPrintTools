@@ -31,6 +31,8 @@
     let encShelfHeight = $state(1.6);
     let encSideBySide = $state(false);
     let boardPolygon = $state(null);
+    let rawSegments = $state(null);
+    let boardThickness = $state(0);
     let enclosureBody = $state(null);
     let filename = $state("");
     let viewer = $state(null);
@@ -82,6 +84,8 @@
                 progress = data.message;
             } else if (data.type === "RESULT") {
                 boardPolygon = data.polygon ? parseBoardPoly(data.polygon) : null;
+                rawSegments = data.segments || null;
+                boardThickness = data.thickness || 0;
                 bodies = data.bodies;
                 visibility = Object.fromEntries(
                     data.bodies.map((b) => [b.name, true]),
@@ -326,6 +330,8 @@
                 {drcViolations}
                 {isRebuild}
                 {encSideBySide}
+                {rawSegments}
+                {boardThickness}
             />
 
             <!-- Watermark -->

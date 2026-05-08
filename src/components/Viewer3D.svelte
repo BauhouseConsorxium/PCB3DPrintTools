@@ -3,8 +3,9 @@
   import * as THREE from 'three'
   import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
   import { STLExporter } from 'three/examples/jsm/exporters/STLExporter.js'
+  import earcut from 'earcut'
 
-  let { bodies = [], visibility = {}, zScale = 8, boardZScale = 1, previewFilter = null, traceMode = 'raise', drcViolations = [], isRebuild = false, encSideBySide = false } = $props()
+  let { bodies = [], visibility = {}, zScale = 8, boardZScale = 1, previewFilter = null, traceMode = 'raise', drcViolations = [], isRebuild = false, encSideBySide = false, rawSegments = null, boardThickness = 0 } = $props()
 
   let canvas
   let renderer, scene, camera, controls, grid
@@ -510,23 +511,75 @@
     triggerDownload(new STLExporter().parse(group, { binary: true }), filename || 'pcb-export.stl')
   }
 
+  // Build a single stadium prism BufferGeometry (no drill holes) for CSG cutter use
+  function buildStadiumCutterGeo(p1x, p1y, p2x, p2y, hw, zBot, zTop) {
+    const HALF = 16
+    const dx = p2x - p1x, dy = p2y - p1y
+    const theta = Math.atan2(dy, dx)
+    const outline = []
+    for (let i = 0; i <= HALF; i++) {
+      const a = theta - Math.PI / 2 + Math.PI * i / HALF
+      outline.push([p2x + hw * Math.cos(a), p2y + hw * Math.sin(a)])
+    }
+    for (let i = 1; i < HALF; i++) {
+      const a = theta + Math.PI / 2 + Math.PI * i / HALF
+      outline.push([p1x + hw * Math.cos(a), p1y + hw * Math.sin(a)])
+    }
+    const outN = outline.length
+    const flat = []
+    for (const [x, y] of outline) flat.push(x, y)
+    const triIdx = earcut(flat, null, 2)
+
+    const pos = [], nrm = [], idx = []
+    let vi = 0
+    // Top
+    for (let i = 0; i < outN; i++) { pos.push(flat[i * 2], flat[i * 2 + 1], zTop); nrm.push(0, 0, 1); vi++ }
+    for (const t of triIdx) idx.push(t)
+    // Bottom
+    const bOff = vi
+    for (let i = 0; i < outN; i++) { pos.push(flat[i * 2], flat[i * 2 + 1], zBot); nrm.push(0, 0, -1); vi++ }
+    for (let i = 0; i < triIdx.length; i += 3) idx.push(bOff + triIdx[i + 2], bOff + triIdx[i + 1], bOff + triIdx[i])
+    // Side walls
+    for (let i = 0; i < outN; i++) {
+      const j = (i + 1) % outN
+      const x0 = outline[i][0], y0 = outline[i][1], x1 = outline[j][0], y1 = outline[j][1]
+      const edx = x1 - x0, edy = y1 - y0, edL = Math.hypot(edx, edy) || 1
+      const nx = edy / edL, ny = -edx / edL
+      const a0 = vi, a1 = vi + 1, b0 = vi + 2, b1 = vi + 3
+      pos.push(x0, y0, zBot); nrm.push(nx, ny, 0); vi++
+      pos.push(x0, y0, zTop); nrm.push(nx, ny, 0); vi++
+      pos.push(x1, y1, zBot); nrm.push(nx, ny, 0); vi++
+      pos.push(x1, y1, zTop); nrm.push(nx, ny, 0); vi++
+      idx.push(a0, b0, b1, a0, b1, a1)
+    }
+    const geo = new THREE.BufferGeometry()
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3))
+    geo.setAttribute('normal', new THREE.Float32BufferAttribute(nrm, 3))
+    geo.setIndex(idx)
+    return geo
+  }
+
   async function doSubtractExport(filename) {
     const { Brush, Evaluator, SUBTRACTION } = await import('three-bvh-csg')
     scene.updateMatrixWorld(true)
 
-    const boardMeshes = Object.entries(meshMap).filter(([n, m]) => !isCopper(n) && m.visible).map(([, m]) => m)
-    const hasCopperVisible = Object.entries(meshMap).some(([n, m]) => isCopper(n) && m.visible)
+    const boardMesh = Object.entries(meshMap).find(([n, m]) => isPcbBoard(n) && m.visible)?.[1]
+    if (!boardMesh || !rawSegments || !rawSegments.length) {
+      alert('Need board and trace data for subtract export.')
+      return
+    }
 
-    if (!boardMeshes.length || !hasCopperVisible) {
-      alert('Need both board and copper bodies visible for subtract export.')
+    // Find the copper meshes to copy their transforms (rotation + scale + position in subtract mode)
+    const fCuMesh = meshMap['F.Cu']
+    const bCuMesh = meshMap['B.Cu']
+    if (!fCuMesh && !bCuMesh) {
+      alert('No copper bodies found for subtract export.')
       return
     }
 
     const evaluator = new Evaluator()
-    evaluator.attributes = ['position', 'normal']  // STEP geometry has no UV coords
+    evaluator.attributes = ['position', 'normal']
 
-    // Board Brush — set transforms directly (as in three-bvh-csg README)
-    const boardMesh = boardMeshes[0]
     const boardBrush = new Brush(boardMesh.geometry.clone())
     boardBrush.position.copy(boardMesh.position)
     boardBrush.rotation.copy(boardMesh.rotation)
@@ -534,35 +587,50 @@
     boardBrush.updateMatrixWorld()
     let base = boardBrush
 
-    // In subtract mode the scene mesh already has copper top flush with board surface.
-    // Raise cutter by PIERCE so top face is above board (avoids coplanar CSG degeneracy).
-    // Must be << copper height (0.035mm × zScale) or cutter exits the board entirely.
+    const thickness = boardThickness
+    const copperH = 0.035
     const PIERCE = 0.01
 
     let subtractCount = 0, failCount = 0
-    for (const [name, mesh] of Object.entries(meshMap)) {
-      if (!isCopper(name) || !mesh.visible) continue
-      const cutter = new Brush(mesh.geometry.clone())
-      cutter.rotation.copy(mesh.rotation)
-      cutter.scale.copy(mesh.scale)
-      cutter.position.copy(mesh.position)
-      cutter.position.y += PIERCE  // shift up so cutter top pierces above board surface
+    const segCount = rawSegments.length / 6
+    for (let i = 0; i < segCount; i++) {
+      const p1x = rawSegments[i * 6]
+      const p1y = rawSegments[i * 6 + 1]
+      const p2x = rawSegments[i * 6 + 2]
+      const p2y = rawSegments[i * 6 + 3]
+      const width = rawSegments[i * 6 + 4]
+      const layerFlag = rawSegments[i * 6 + 5]
+      const hw = width / 2
+
+      const isFront = layerFlag < 0.5
+      const zBot = isFront ? thickness : -copperH
+      const zTop = isFront ? thickness + copperH : 0
+      const refMesh = isFront ? fCuMesh : bCuMesh
+      if (!refMesh) continue
+
+      const geo = buildStadiumCutterGeo(p1x, p1y, p2x, p2y, hw, zBot, zTop)
+      const cutter = new Brush(geo)
+      // Copy the exact transform from the copper mesh (already in subtract mode position)
+      cutter.rotation.copy(refMesh.rotation)
+      cutter.scale.copy(refMesh.scale)
+      cutter.position.copy(refMesh.position)
+      cutter.position.y += PIERCE
       cutter.updateMatrixWorld()
       try {
         base = evaluator.evaluate(base, cutter, SUBTRACTION)
         subtractCount++
       } catch (e) {
         failCount++
-        console.error('CSG failed for', name, e)
+        console.warn('CSG skip segment', i, e.message)
       }
     }
 
     if (subtractCount === 0) {
-      alert(`CSG subtraction failed for all traces. Check console for details.`)
+      alert('CSG subtraction failed for all traces.')
       return
     }
+    if (failCount > 0) console.warn(`CSG: ${failCount} segment(s) failed, ${subtractCount} succeeded`)
 
-    // Export: bake result matrixWorld into geometry for STLExporter
     const resultGeo = base.geometry.clone()
     resultGeo.applyMatrix4(base.matrixWorld)
     const resultMesh = new THREE.Mesh(resultGeo)

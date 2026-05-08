@@ -479,17 +479,16 @@ function extractTexts(tree) {
   return texts
 }
 
-// ==================== Text to Segments ====================
+// ==================== Text to Polylines ====================
 
-function textToSegments(desc) {
+function textToPolylines(desc) {
   const CAP_H = 21
   const scaleX = desc.sizeW / CAP_H
   const scaleY = desc.sizeH / CAP_H
   const lineSpacing = desc.sizeH * 1.6
   const lines = desc.text.split('\n')
-  const segments = []
+  const polylines = []
 
-  // compute line widths for justification
   const lineWidths = lines.map(line => {
     let w = 0
     for (let i = 0; i < line.length; i++) {
@@ -501,11 +500,9 @@ function textToSegments(desc) {
 
   const totalHeight = (lines.length - 1) * lineSpacing
 
-  // vertical offset based on vJust
   let yOff = 0
   if (desc.vJust === 'center') yOff = totalHeight / 2
   else if (desc.vJust === 'bottom') yOff = totalHeight
-  // 'top' => yOff = 0
 
   const rotRad = desc.rot * Math.PI / 180
   const cosR = Math.cos(rotRad), sinR = Math.sin(rotRad)
@@ -514,12 +511,10 @@ function textToSegments(desc) {
     const line = lines[li]
     const lineW = lineWidths[li]
 
-    // horizontal offset based on hJust
     let cursorX = 0
     if (desc.hJust === 'center') cursorX = -lineW / 2
     else if (desc.hJust === 'right') cursorX = -lineW
 
-    // line vertical position: first line at top, subsequent lines go down (in KiCad Y-down)
     const cursorY = -(yOff - li * lineSpacing)
 
     for (let ci = 0; ci < line.length; ci++) {
@@ -528,31 +523,159 @@ function textToSegments(desc) {
       if (!g) { cursorX += 16 * scaleX; continue }
 
       for (const stroke of g.s) {
-        for (let pi = 0; pi < stroke.length - 1; pi++) {
-          let lx1 = cursorX + stroke[pi][0] * scaleX
-          let ly1 = cursorY - stroke[pi][1] * scaleY
-          let lx2 = cursorX + stroke[pi + 1][0] * scaleX
-          let ly2 = cursorY - stroke[pi + 1][1] * scaleY
-
-          if (desc.mirror) { lx1 = -lx1; lx2 = -lx2 }
-
-          // transform to world coords (KiCad negated rotation)
-          const wx1 = desc.x + lx1 * cosR + ly1 * sinR
-          const wy1 = desc.y - lx1 * sinR + ly1 * cosR
-          const wx2 = desc.x + lx2 * cosR + ly2 * sinR
-          const wy2 = desc.y - lx2 * sinR + ly2 * cosR
-
-          segments.push({
-            x1: wx1, y1: wy1, x2: wx2, y2: wy2,
-            width: desc.thickness, layer: desc.layer
-          })
+        if (stroke.length < 2) continue
+        const pts = []
+        for (let pi = 0; pi < stroke.length; pi++) {
+          let lx = cursorX + stroke[pi][0] * scaleX
+          let ly = cursorY - stroke[pi][1] * scaleY
+          if (desc.mirror) lx = -lx
+          const wx = desc.x + lx * cosR + ly * sinR
+          const wy = desc.y - lx * sinR + ly * cosR
+          pts.push([wx, -wy])
         }
+        polylines.push({ pts, hw: desc.thickness / 2, layer: desc.layer })
       }
       cursorX += g.w * scaleX
     }
   }
 
-  return segments
+  return polylines
+}
+
+// ==================== Thick Polyline Geometry ====================
+
+const TEXT_CAP_N = 12
+
+function buildTextGeometry(polylines, bodyName, zBot, zTop) {
+  if (!polylines.length) return null
+
+  const allPos = [], allNrm = [], allIdx = []
+  let vOff = 0
+
+  for (const { pts, hw } of polylines) {
+    if (pts.length < 2) continue
+
+    // Build thick polyline outline: right side (forward) + end cap + left side (backward) + start cap
+    const N = pts.length
+    const right = [], left = []
+
+    // Segment directions
+    const dirs = []
+    for (let i = 0; i < N - 1; i++) {
+      const dx = pts[i + 1][0] - pts[i][0], dy = pts[i + 1][1] - pts[i][1]
+      const len = Math.hypot(dx, dy) || 1e-9
+      dirs.push([dx / len, dy / len])
+    }
+
+    // Right normal of dir (dx,dy) = (dy, -dx)
+    for (let i = 0; i < N; i++) {
+      if (i === 0) {
+        // first point: use first segment's normal
+        right.push([pts[0][0] + dirs[0][1] * hw, pts[0][1] - dirs[0][0] * hw])
+        left.push([pts[0][0] - dirs[0][1] * hw, pts[0][1] + dirs[0][0] * hw])
+      } else if (i === N - 1) {
+        // last point: use last segment's normal
+        const d = dirs[N - 2]
+        right.push([pts[i][0] + d[1] * hw, pts[i][1] - d[0] * hw])
+        left.push([pts[i][0] - d[1] * hw, pts[i][1] + d[0] * hw])
+      } else {
+        // interior: miter join
+        const d0 = dirs[i - 1], d1 = dirs[i]
+        const nx0 = d0[1], ny0 = -d0[0]
+        const nx1 = d1[1], ny1 = -d1[0]
+        const bx = nx0 + nx1, by = ny0 + ny1
+        const bLen = Math.hypot(bx, by) || 1e-9
+        const bnx = bx / bLen, bny = by / bLen
+        const cosHalf = Math.max(0.25, nx0 * bnx + ny0 * bny)
+        const dist = hw / cosHalf
+        right.push([pts[i][0] + bnx * dist, pts[i][1] + bny * dist])
+        left.push([pts[i][0] - bnx * dist, pts[i][1] - bny * dist])
+      }
+    }
+
+    // Build closed outline: right forward + end cap + left backward + start cap
+    const outline = []
+
+    // Right side (forward)
+    for (let i = 0; i < N; i++) outline.push(right[i])
+
+    // End cap (semicircle at last point)
+    const lastDir = dirs[N - 2]
+    const endTheta = Math.atan2(lastDir[1], lastDir[0])
+    for (let i = 1; i < TEXT_CAP_N; i++) {
+      const a = endTheta - Math.PI / 2 + Math.PI * i / TEXT_CAP_N
+      outline.push([pts[N - 1][0] + hw * Math.cos(a), pts[N - 1][1] + hw * Math.sin(a)])
+    }
+
+    // Left side (backward)
+    for (let i = N - 1; i >= 0; i--) outline.push(left[i])
+
+    // Start cap (semicircle at first point)
+    const firstDir = dirs[0]
+    const startTheta = Math.atan2(firstDir[1], firstDir[0])
+    for (let i = 1; i < TEXT_CAP_N; i++) {
+      const a = startTheta + Math.PI / 2 + Math.PI * i / TEXT_CAP_N
+      outline.push([pts[0][0] + hw * Math.cos(a), pts[0][1] + hw * Math.sin(a)])
+    }
+
+    // Earcut
+    const flat = []
+    for (const [x, y] of outline) flat.push(x, y)
+    const triIdx = earcutFn(flat, null, 2)
+    if (!triIdx.length) continue
+
+    const outN = outline.length
+    const pos = [], nrm = [], idx = []
+    let lvi = 0
+
+    // Top face
+    for (let i = 0; i < outN; i++) {
+      pos.push(outline[i][0], outline[i][1], zTop)
+      nrm.push(0, 0, 1)
+      lvi++
+    }
+    for (const ti of triIdx) idx.push(ti)
+
+    // Bottom face
+    const botOff = lvi
+    for (let i = 0; i < outN; i++) {
+      pos.push(outline[i][0], outline[i][1], zBot)
+      nrm.push(0, 0, -1)
+      lvi++
+    }
+    for (let i = 0; i < triIdx.length; i += 3) {
+      idx.push(botOff + triIdx[i + 2], botOff + triIdx[i + 1], botOff + triIdx[i])
+    }
+
+    // Side walls
+    for (let i = 0; i < outN; i++) {
+      const j = (i + 1) % outN
+      const x0 = outline[i][0], y0 = outline[i][1]
+      const x1 = outline[j][0], y1 = outline[j][1]
+      const edx = x1 - x0, edy = y1 - y0
+      const edL = Math.hypot(edx, edy) || 1
+      const onx = edy / edL, ony = -edx / edL
+      const a0 = lvi, a1 = lvi + 1, b0 = lvi + 2, b1 = lvi + 3
+      pos.push(x0, y0, zBot); nrm.push(onx, ony, 0); lvi++
+      pos.push(x0, y0, zTop); nrm.push(onx, ony, 0); lvi++
+      pos.push(x1, y1, zBot); nrm.push(onx, ony, 0); lvi++
+      pos.push(x1, y1, zTop); nrm.push(onx, ony, 0); lvi++
+      idx.push(a0, b0, b1, a0, b1, a1)
+    }
+
+    for (let i = 0; i < pos.length; i++) { allPos.push(pos[i]); allNrm.push(nrm[i]) }
+    for (const i of idx) allIdx.push(i + vOff)
+    vOff += lvi
+  }
+
+  if (!allPos.length) return null
+
+  return {
+    name: bodyName,
+    positions: new Float32Array(allPos),
+    normals: new Float32Array(allNrm),
+    indices: new Uint32Array(allIdx)
+  }
 }
 
 // ==================== Geometry Helpers ====================
@@ -869,7 +992,7 @@ let cachedThickness = 0
 let cachedPolygon = null
 let cachedSegments = null
 let cachedDrills = null
-let cachedTextSegments = null
+let cachedTextPolylines = null
 
 function buildBodies(widthOffset, drillOffset, squareEnds) {
   const thickness = cachedThickness
@@ -895,22 +1018,19 @@ function buildBodies(widthOffset, drillOffset, squareEnds) {
   const bCu = buildTracesGeometry(segments, drills, 'B.Cu', -COPPER_THICKNESS, 0, squareEnds)
   if (bCu) bodies.push(bCu)
 
-  // Text bodies — group by layer
-  if (cachedTextSegments && cachedTextSegments.length) {
+  // Text bodies — group by layer, use thick polyline geometry
+  if (cachedTextPolylines && cachedTextPolylines.length) {
     const textByLayer = {}
-    for (const seg of cachedTextSegments) {
-      if (!textByLayer[seg.layer]) textByLayer[seg.layer] = []
-      textByLayer[seg.layer].push(seg)
+    for (const pl of cachedTextPolylines) {
+      if (!textByLayer[pl.layer]) textByLayer[pl.layer] = []
+      textByLayer[pl.layer].push(pl)
     }
-    for (const [layer, segs] of Object.entries(textByLayer)) {
+    for (const [layer, polys] of Object.entries(textByLayer)) {
       const isFront = layer.startsWith('F.')
       const zBot = isFront ? thickness : -COPPER_THICKNESS
       const zTop = isFront ? thickness + COPPER_THICKNESS : 0
-      // Use a unique body name: silkscreen layers as-is, copper layers get _text suffix
       const bodyName = (layer === 'F.Cu' || layer === 'B.Cu') ? layer + '_text' : layer
-      // Tag all segments with bodyName for the layer filter in buildTracesGeometry
-      const tagged = segs.map(s => ({ ...s, layer: bodyName }))
-      const body = buildTracesGeometry(tagged, [], bodyName, zBot, zTop, false)
+      const body = buildTextGeometry(polys, bodyName, zBot, zTop)
       if (body) bodies.push(body)
     }
   }
@@ -931,9 +1051,28 @@ function buildBodies(widthOffset, drillOffset, squareEnds) {
     polygonBuf = flat
   }
 
+  // Pack raw segment data for per-segment CSG subtraction
+  // Each segment: [x1, -y1, x2, -y2, width, layerFlag] (Y-flipped to match geometry coords)
+  // layerFlag: 0 = F.Cu, 1 = B.Cu
+  let segmentBuf = null
+  if (segments && segments.length) {
+    const buf = new Float32Array(segments.length * 6)
+    for (let i = 0; i < segments.length; i++) {
+      const s = segments[i]
+      buf[i * 6]     = s.x1
+      buf[i * 6 + 1] = -s.y1
+      buf[i * 6 + 2] = s.x2
+      buf[i * 6 + 3] = -s.y2
+      buf[i * 6 + 4] = s.width
+      buf[i * 6 + 5] = s.layer === 'F.Cu' ? 0 : 1
+    }
+    segmentBuf = buf
+  }
+
   const transferables = bodies.flatMap(b => [b.positions.buffer, b.normals.buffer, b.indices.buffer])
   if (polygonBuf) transferables.push(polygonBuf.buffer)
-  self.postMessage({ type: 'RESULT', bodies, polygon: polygonBuf }, transferables)
+  if (segmentBuf) transferables.push(segmentBuf.buffer)
+  self.postMessage({ type: 'RESULT', bodies, polygon: polygonBuf, segments: segmentBuf, thickness }, transferables)
 }
 
 self.onmessage = ({ data }) => {
@@ -964,7 +1103,7 @@ self.onmessage = ({ data }) => {
     cachedSegments = extractSegments(tree)
     cachedDrills = extractDrills(tree)
     const textDescs = extractTexts(tree)
-    cachedTextSegments = textDescs.flatMap(d => textToSegments(d))
+    cachedTextPolylines = textDescs.flatMap(d => textToPolylines(d))
 
     if (!cachedPolygon) {
       self.postMessage({ type: 'ERROR', message: 'No board outline found (Edge.Cuts layer)' })

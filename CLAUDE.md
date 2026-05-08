@@ -55,7 +55,10 @@ Design decisions that follow:
 
 - Classic worker: `new Worker(import.meta.env.BASE_URL + 'pcb-worker.js')`, **no** `type:'module'`
 - Worker receives `.kicad_pcb` text via `postMessage({ type:'PROCESS', text })`
-- Posts back `{ type:'RESULT', bodies: [{name, positions, normals, indices}] }`
+- Posts back `{ type:'RESULT', bodies: [{name, positions, normals, indices}], polygon, segments, thickness }`
+  - `polygon`: `Float32Array` of board outline `[x,y]` pairs (Y-flipped to geometry coords)
+  - `segments`: `Float32Array` of raw trace segments, 6 floats each `[x1, -y1, x2, -y2, width, layerFlag]` (0=F.Cu, 1=B.Cu) — used for per-segment CSG cutters in subtract export
+  - `thickness`: board thickness in mm
 - Send typed arrays as transferables: `Float32Array`, `Uint32Array`
 
 ## KiCad PCB parsing (in worker)
@@ -65,6 +68,7 @@ Design decisions that follow:
 - Arc: `gr_arc (start)(mid)(end)` → use circumcenter, then sweep angle, ensuring it passes through `mid`
 - Traces: `(segment (start)(end)(width)(layer "F.Cu"|"B.Cu"))`
 - Drills: top-level `(via (at)(drill))` AND nested `(footprint (at fpx fpy [rot]) (pad "n" thru_hole|np_thru_hole … (at padx pady [padrot]) (drill r|oval rx ry)))`
+- Text: `gr_text` (board-level), `property "Reference"|"Value"` (footprint-level), `fp_text user` (footprint user text)
 
 ### KiCad rotation gotcha
 
@@ -100,6 +104,54 @@ const HOLE_SIDES = 32 // drill hole resolution (board)
 ## Board geometry with drill holes
 
 `buildBoardGeometry(polygon, drills, thickness)` uses earcut for top/bottom faces (CCW outer + CW drill holes), plus outer side wall + inner side walls per drill. All explicit normals.
+
+## Text rendering (Hershey Simplex stroke font)
+
+Text elements (reference designators, values, board annotations) are rendered as raised 3D geometry using a Hershey Simplex stroke font embedded in the worker as constant `H`.
+
+**Font data format:**
+```js
+const H = {
+  32: { w: 16, s: [] },  // space — w = advance width, s = array of polyline strokes
+  65: { w: 18, s: [[[9,21],[1,0]], [[9,21],[17,0]], [[4,7],[14,7]]] },  // A
+}
+```
+Coordinate space: Y 0=baseline, 21=cap height. Each stroke is an array of `[x,y]` points forming a polyline.
+
+**Pipeline:**
+1. `extractTexts(tree)` → array of text descriptors `{ text, x, y, rot, sizeW, sizeH, thickness, layer, mirror, hJust, vJust }`
+   - Parses `gr_text`, footprint `property`, and `fp_text user`
+   - Resolves `${REFERENCE}` variables by looking up the footprint's Reference property
+   - Skips `(hide yes)` and fabrication layers (F.Fab, B.Fab)
+   - Handles multiline text (`\n` in KiCad strings)
+2. `textToPolylines(desc)` → array of `{ pts: [[x,y],...], hw, layer }` — one polyline per character stroke, world-transformed
+3. `buildTextGeometry(polylines, bodyName, zBot, zTop)` → body with thick polyline geometry
+
+**Thick polyline geometry (NOT individual stadium segments):**
+
+Each stroke is rendered as a **single closed outline** with miter joins at interior vertices and semicircle caps at endpoints. This avoids visible gaps between segments at stroke joints.
+
+Algorithm per polyline:
+1. Compute segment directions and right normals
+2. Interior vertices: bisector (miter) join with `cosHalf` clamped to `0.25` to limit spike length
+3. Endpoints: semicircle cap with `TEXT_CAP_N = 12` points
+4. Outline = right side forward + end cap + left side backward + start cap
+5. Earcut triangulates the closed outline → top/bottom faces + side walls
+
+**Why not per-segment stadiums for text:** Individual stadium prisms per stroke segment leave visible gaps at joints where two segments meet at an angle. The thick polyline approach creates one continuous outline per stroke, producing smooth letter shapes.
+
+**Body naming:**
+- Silkscreen text: `"F.SilkS"`, `"B.SilkS"` — new layer bodies
+- Copper text: `"F.Cu_text"`, `"B.Cu_text"` — `_text` suffix avoids collision with trace bodies
+
+**Viewer integration:**
+- `isSilkscreen(name)` predicate: matches `'silks'` in lowercase
+- Silkscreen material: `{ color: 0xf0f0f0, specular: 0x444444, shininess: 30, side: DoubleSide }`
+- Silkscreen scales with board (not copper) in `applyBoardScale`
+- Copper text (`*_text`) matched by `isCopper()` → scales with copper zScale
+- LayerPanel groups silkscreen as its own category with white color dot
+
+**Board metrics pitfall:** When computing `boardBottomY`/`boardTop`, use `isPcbBoard(name)` — NOT `!isCopper(name)`. Silkscreen text bodies have tiny bounding boxes (~0.035mm height) that will overwrite board metrics and corrupt all copper Z positioning if matched.
 
 ## Explicit normals everywhere (NO computeVertexNormals)
 
@@ -202,6 +254,26 @@ grid.position.y    = boardBottomY - 0.05
 - For merged copper+board print: pass `null` filter so all visible meshes are merged
 - Filename: `{originalName}_{target}_3dprint_{YYYYMMDD-HHMMSS}.stl`
 
+### Subtract mode CSG export (CRITICAL)
+
+Subtract mode carves trace channels into the board using `three-bvh-csg`. **Do NOT use the combined copper mesh as the CSG cutter.** It has two fatal issues:
+
+1. **Self-intersecting geometry**: All trace stadiums for a layer are merged into one mesh. Where stadiums overlap at junctions, the mesh self-intersects. `three-bvh-csg` produces garbage (inverted faces, missing geometry) with self-intersecting brushes.
+2. **Drill holes create pillars**: Copper stadiums have drill holes punched through them. When subtracted from the board, the hole region is "outside" the cutter — leaving un-subtracted pillars of board material (mushroom shapes in slicer view).
+
+**Correct approach: per-segment CSG subtraction.**
+
+The worker sends raw segment data (`segments` field in RESULT) as a flat `Float32Array`. At export time, `doSubtractExport` builds individual stadium cutters per segment:
+
+1. For each segment, `buildStadiumCutterGeo(p1x, p1y, p2x, p2y, hw, zBot, zTop)` creates a clean watertight stadium prism (no drill holes, no overlap with other segments)
+2. The cutter's transform (rotation, scale, position) is copied from the existing copper mesh (already positioned for subtract mode)
+3. Each cutter is subtracted from the board individually via `evaluator.evaluate(base, cutter, SUBTRACTION)`
+4. Failed segments are skipped with a console warning (not fatal)
+
+This is O(N) CSG operations but each cutter is small and non-self-intersecting. For typical PCBs (<100 segments), it completes in seconds.
+
+**PIERCE offset:** `cutter.position.y += 0.01` shifts the cutter up so its top face is above the board surface. This avoids coplanar face degeneracy in CSG. Must be `<< copperHeight × zScale` or the cutter exits the board volume entirely.
+
 ## Centering
 
 `fitCamera()` translates every mesh by `-center` of the combined bounding box so the model lands at world origin. Capture all board/copper metrics **after** centering.
@@ -209,10 +281,20 @@ grid.position.y    = boardBottomY - 0.05
 ## Body naming (matches viewer's name predicates)
 
 - Board: `"PCB"` — `isPcbBoard()` matches via `endsWith('pcb')`
-- Front copper: `"F.Cu"` — `isCopper()` matches via `includes('.cu')`
-- Back copper: `"B.Cu"` — same
+- Front copper traces: `"F.Cu"` — `isCopper()` matches via `includes('.cu')`
+- Back copper traces: `"B.Cu"` — same
+- Front copper text: `"F.Cu_text"` — also matched by `isCopper()` (contains `.cu`)
+- Back copper text: `"B.Cu_text"` — same
+- Front silkscreen: `"F.SilkS"` — `isSilkscreen()` matches via `includes('silks')`
+- Back silkscreen: `"B.SilkS"` — same
 
-If you rename, update `isCopper`/`isPcbBoard`/`isComponent` predicates in `Viewer3D.svelte` together.
+Predicates in `Viewer3D.svelte` AND `LayerPanel.svelte` (duplicated):
+- `isCopper(name)` — `.cu` in lowercase
+- `isPcbBoard(name)` — not copper AND (`_pcb` or ends with `pcb`)
+- `isSilkscreen(name)` — `silks` in lowercase
+- `isComponent(name)` — none of the above (and not enclosure)
+
+If you rename or add bodies, update predicates in **both** files.
 
 ## Blade mode (and saw teeth) — architecture
 
@@ -524,4 +606,7 @@ Two guard clauses prevent both no-op recomputes (key matches) and overlapping co
 - **Stale grid after a layout change** → `grid.position.y` is set during the bodies rebuild but doesn't update when a preview-mode toggle shifts meshes. Recompute `sceneBottomY` and reposition the grid inside the preview-mode framing function.
 - **Resetting camera on every settings change** → user complaint magnet ("camera always resets"). Only `initialFit()` on file load; preserve orbit on settings sliders and bodies rebuilds. Refit only on view-mode toggles where the layout fundamentally changed.
 - **Stacking 3 separate prisms (floor + walls + shelf) for the enclosure** → coplanar faces at their interfaces cause Z-fighting. Build one watertight body with N face groups (no shared vertices between groups for hard creases).
+- **Using combined copper mesh as CSG cutter in subtract mode** → self-intersecting overlapping stadiums + drill holes produce inverted faces and pillar artifacts. Build individual stadium cutters per segment (no drills) and subtract one by one.
+- **Per-segment stadiums for text strokes** → visible gaps at joints where stroke segments meet at angles. Use thick polyline geometry with miter joins and semicircle end caps instead.
+- **Computing board metrics from `!isCopper(name)` instead of `isPcbBoard(name)`** → silkscreen text bodies (tiny bounding boxes) overwrite `boardBottomY`/`boardTop`, corrupting copper Z positioning for all modes.
 
