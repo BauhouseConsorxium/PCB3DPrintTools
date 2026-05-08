@@ -280,12 +280,12 @@
           originalMaterials[name] = mesh.material
           if (isEnclosure(name)) {
             encBaseZ = mesh.position.z
-          } else if (!isCopper(name)) {
+          } else if (isPcbBoard(name)) {
             const box = new THREE.Box3().setFromObject(mesh)
             boardOriginalPosY = mesh.position.y
             boardBottomY = box.min.y
             boardTop = box.max.y
-          } else {
+          } else if (isCopper(name)) {
             copperOriginalY[name] = mesh.position.y
           }
         }
