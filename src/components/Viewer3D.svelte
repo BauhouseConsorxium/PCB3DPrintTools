@@ -511,47 +511,85 @@
     triggerDownload(new STLExporter().parse(group, { binary: true }), filename || 'pcb-export.stl')
   }
 
-  // Build a single stadium prism BufferGeometry (no drill holes) for CSG cutter use
-  function buildStadiumCutterGeo(p1x, p1y, p2x, p2y, hw, zBot, zTop) {
+  // Build a 2D stadium polygon (closed ring of [x,y] points) for polygon-clipping
+  function stadiumPoly2D(p1x, p1y, p2x, p2y, hw) {
     const HALF = 16
+    const snap = v => Math.round(v * 1000) / 1000
     const dx = p2x - p1x, dy = p2y - p1y
     const theta = Math.atan2(dy, dx)
-    const outline = []
+    const ring = []
     for (let i = 0; i <= HALF; i++) {
       const a = theta - Math.PI / 2 + Math.PI * i / HALF
-      outline.push([p2x + hw * Math.cos(a), p2y + hw * Math.sin(a)])
+      ring.push([snap(p2x + hw * Math.cos(a)), snap(p2y + hw * Math.sin(a))])
     }
     for (let i = 1; i < HALF; i++) {
       const a = theta + Math.PI / 2 + Math.PI * i / HALF
-      outline.push([p1x + hw * Math.cos(a), p1y + hw * Math.sin(a)])
+      ring.push([snap(p1x + hw * Math.cos(a)), snap(p1y + hw * Math.sin(a))])
     }
-    const outN = outline.length
-    const flat = []
-    for (const [x, y] of outline) flat.push(x, y)
-    const triIdx = earcut(flat, null, 2)
+    ring.push(ring[0].slice())
+    return ring
+  }
 
+  // Extrude a polygon-clipping multipolygon to 3D BufferGeometry
+  function extrudeMultiPoly(multiPoly, zBot, zTop) {
     const pos = [], nrm = [], idx = []
-    let vi = 0
-    // Top
-    for (let i = 0; i < outN; i++) { pos.push(flat[i * 2], flat[i * 2 + 1], zTop); nrm.push(0, 0, 1); vi++ }
-    for (const t of triIdx) idx.push(t)
-    // Bottom
-    const bOff = vi
-    for (let i = 0; i < outN; i++) { pos.push(flat[i * 2], flat[i * 2 + 1], zBot); nrm.push(0, 0, -1); vi++ }
-    for (let i = 0; i < triIdx.length; i += 3) idx.push(bOff + triIdx[i + 2], bOff + triIdx[i + 1], bOff + triIdx[i])
-    // Side walls
-    for (let i = 0; i < outN; i++) {
-      const j = (i + 1) % outN
-      const x0 = outline[i][0], y0 = outline[i][1], x1 = outline[j][0], y1 = outline[j][1]
-      const edx = x1 - x0, edy = y1 - y0, edL = Math.hypot(edx, edy) || 1
-      const nx = edy / edL, ny = -edx / edL
-      const a0 = vi, a1 = vi + 1, b0 = vi + 2, b1 = vi + 3
-      pos.push(x0, y0, zBot); nrm.push(nx, ny, 0); vi++
-      pos.push(x0, y0, zTop); nrm.push(nx, ny, 0); vi++
-      pos.push(x1, y1, zBot); nrm.push(nx, ny, 0); vi++
-      pos.push(x1, y1, zTop); nrm.push(nx, ny, 0); vi++
-      idx.push(a0, b0, b1, a0, b1, a1)
+    let vOff = 0
+    for (const polygon of multiPoly) {
+      const outer = polygon[0]
+      const holes = polygon.slice(1)
+      const outerVerts = outer.slice(0, -1)
+      const flat = []
+      const holeIndices = []
+      for (const [x, y] of outerVerts) flat.push(x, y)
+      for (const hole of holes) {
+        holeIndices.push(flat.length / 2)
+        const hv = hole.slice(0, -1)
+        for (const [x, y] of hv) flat.push(x, y)
+      }
+      const triIdx = earcut(flat, holeIndices.length ? holeIndices : null, 2)
+      if (!triIdx.length) continue
+      const nFace = flat.length / 2
+      let lvi = 0
+      // Top face
+      for (let i = 0; i < nFace; i++) { pos.push(flat[i*2], flat[i*2+1], zTop); nrm.push(0,0,1); lvi++ }
+      for (const t of triIdx) idx.push(vOff + t)
+      // Bottom face
+      const bOff = lvi
+      for (let i = 0; i < nFace; i++) { pos.push(flat[i*2], flat[i*2+1], zBot); nrm.push(0,0,-1); lvi++ }
+      for (let i = 0; i < triIdx.length; i += 3)
+        idx.push(vOff + bOff + triIdx[i+2], vOff + bOff + triIdx[i+1], vOff + bOff + triIdx[i])
+      // Outer side wall
+      for (let i = 0; i < outerVerts.length; i++) {
+        const j = (i + 1) % outerVerts.length
+        const [x0,y0] = outerVerts[i], [x1,y1] = outerVerts[j]
+        const edx = x1-x0, edy = y1-y0, edL = Math.hypot(edx,edy) || 1
+        const nx = edy/edL, ny = -edx/edL
+        const a0 = vOff+lvi, a1 = a0+1, b0 = a0+2, b1 = a0+3
+        pos.push(x0,y0,zBot); nrm.push(nx,ny,0); lvi++
+        pos.push(x0,y0,zTop); nrm.push(nx,ny,0); lvi++
+        pos.push(x1,y1,zBot); nrm.push(nx,ny,0); lvi++
+        pos.push(x1,y1,zTop); nrm.push(nx,ny,0); lvi++
+        idx.push(a0,b0,b1, a0,b1,a1)
+      }
+      // Hole side walls (inward normals for watertight solid)
+      for (const hole of holes) {
+        const hv = hole.slice(0, -1)
+        for (let i = 0; i < hv.length; i++) {
+          const j = (i + 1) % hv.length
+          const [x0,y0] = hv[i], [x1,y1] = hv[j]
+          const edx = x1-x0, edy = y1-y0, edL = Math.hypot(edx,edy) || 1
+          const nx = edy/edL, ny = -edx/edL
+          const a0 = vOff+lvi, a1 = a0+1, b0 = a0+2, b1 = a0+3
+          pos.push(x0,y0,zBot); nrm.push(nx,ny,0); lvi++
+          pos.push(x0,y0,zTop); nrm.push(nx,ny,0); lvi++
+          pos.push(x1,y1,zBot); nrm.push(nx,ny,0); lvi++
+          pos.push(x1,y1,zTop); nrm.push(nx,ny,0); lvi++
+          idx.push(a0,b0,b1, a0,b1,a1)
+        }
+      }
+      vOff += lvi
     }
+    if (!pos.length) return null
     const geo = new THREE.BufferGeometry()
     geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3))
     geo.setAttribute('normal', new THREE.Float32BufferAttribute(nrm, 3))
@@ -560,7 +598,11 @@
   }
 
   async function doSubtractExport(filename) {
-    const { Brush, Evaluator, SUBTRACTION } = await import('three-bvh-csg')
+    const [{ Brush, Evaluator, SUBTRACTION }, polygonClipping] = await Promise.all([
+      import('three-bvh-csg'),
+      import('polygon-clipping')
+    ])
+    const pcUnion = polygonClipping.default?.union || polygonClipping.union
     scene.updateMatrixWorld(true)
 
     const boardMesh = Object.entries(meshMap).find(([n, m]) => isPcbBoard(n) && m.visible)?.[1]
@@ -569,7 +611,6 @@
       return
     }
 
-    // Find the copper meshes to copy their transforms (rotation + scale + position in subtract mode)
     const fCuMesh = meshMap['F.Cu']
     const bCuMesh = meshMap['B.Cu']
     if (!fCuMesh && !bCuMesh) {
@@ -591,26 +632,53 @@
     const copperH = 0.035
     const PIERCE = 0.01
 
-    let subtractCount = 0, failCount = 0
+    // Group segments by layer, build 2D stadium polygons
+    const layerPolys = { front: [], back: [] }
     const segCount = rawSegments.length / 6
     for (let i = 0; i < segCount; i++) {
-      const p1x = rawSegments[i * 6]
-      const p1y = rawSegments[i * 6 + 1]
-      const p2x = rawSegments[i * 6 + 2]
-      const p2y = rawSegments[i * 6 + 3]
-      const width = rawSegments[i * 6 + 4]
-      const layerFlag = rawSegments[i * 6 + 5]
-      const hw = width / 2
+      const p1x = rawSegments[i * 6], p1y = rawSegments[i * 6 + 1]
+      const p2x = rawSegments[i * 6 + 2], p2y = rawSegments[i * 6 + 3]
+      const width = rawSegments[i * 6 + 4], layerFlag = rawSegments[i * 6 + 5]
+      const ring = stadiumPoly2D(p1x, p1y, p2x, p2y, width / 2)
+      const bucket = layerFlag < 0.5 ? 'front' : 'back'
+      layerPolys[bucket].push([ring])
+    }
 
-      const isFront = layerFlag < 0.5
+    // 2D union per layer (chunk-merge for FP stability), then extrude + single CSG subtract
+    let subtractCount = 0
+    for (const [key, polys] of Object.entries(layerPolys)) {
+      if (!polys.length) continue
+      const refMesh = key === 'front' ? fCuMesh : bCuMesh
+      if (!refMesh) continue
+      const isFront = key === 'front'
       const zBot = isFront ? thickness : -copperH
       const zTop = isFront ? thickness + copperH : 0
-      const refMesh = isFront ? fCuMesh : bCuMesh
-      if (!refMesh) continue
 
-      const geo = buildStadiumCutterGeo(p1x, p1y, p2x, p2y, hw, zBot, zTop)
+      // Chunk-merge union in groups of 8 for FP stability
+      let level = polys.slice()
+      while (level.length > 1) {
+        const next = []
+        for (let i = 0; i < level.length; i += 8) {
+          const chunk = level.slice(i, i + 8)
+          try { next.push(pcUnion(...chunk)) }
+          catch {
+            // fall back to pairwise within the chunk
+            let acc = chunk[0]
+            for (let j = 1; j < chunk.length; j++) {
+              try { acc = pcUnion(acc, chunk[j]) } catch { /* skip */ }
+            }
+            next.push(acc)
+          }
+        }
+        level = next
+      }
+      const merged = level[0]
+      if (!merged || !merged.length) continue
+
+      const geo = extrudeMultiPoly(merged, zBot, zTop)
+      if (!geo) continue
+
       const cutter = new Brush(geo)
-      // Copy the exact transform from the copper mesh (already in subtract mode position)
       cutter.rotation.copy(refMesh.rotation)
       cutter.scale.copy(refMesh.scale)
       cutter.position.copy(refMesh.position)
@@ -620,16 +688,14 @@
         base = evaluator.evaluate(base, cutter, SUBTRACTION)
         subtractCount++
       } catch (e) {
-        failCount++
-        console.warn('CSG skip segment', i, e.message)
+        console.error('CSG subtract failed for', key, e)
       }
     }
 
     if (subtractCount === 0) {
-      alert('CSG subtraction failed for all traces.')
+      alert('CSG subtraction failed for all layers.')
       return
     }
-    if (failCount > 0) console.warn(`CSG: ${failCount} segment(s) failed, ${subtractCount} succeeded`)
 
     const resultGeo = base.geometry.clone()
     resultGeo.applyMatrix4(base.matrixWorld)
