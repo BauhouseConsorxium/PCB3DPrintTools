@@ -59,18 +59,28 @@
     return !isCopper(name) && (n.includes('_pcb') || n.endsWith('pcb'))
   }
 
+  function isSilkscreen(name) {
+    const n = name.toLowerCase()
+    return n.includes('silks')
+  }
+
   function isEnclosure(name) {
     return name.toLowerCase() === 'enclosure'
   }
 
   function isComponent(name) {
-    return !isCopper(name) && !isPcbBoard(name) && !isEnclosure(name)
+    return !isCopper(name) && !isPcbBoard(name) && !isEnclosure(name) && !isSilkscreen(name)
   }
 
   function makeMaterial(name) {
     if (isCopper(name)) {
       return new THREE.MeshPhongMaterial({
         color: 0xf5c842, specular: 0xffffff, shininess: 120, side: THREE.DoubleSide,
+      })
+    }
+    if (isSilkscreen(name)) {
+      return new THREE.MeshPhongMaterial({
+        color: 0xf0f0f0, specular: 0x444444, shininess: 30, side: THREE.DoubleSide,
       })
     }
     if (isEnclosure(name)) {

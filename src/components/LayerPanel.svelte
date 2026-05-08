@@ -13,17 +13,24 @@
     return !isCopper(name) && (n.includes('_pcb') || n.endsWith('pcb'))
   }
 
+  function isSilkscreen(name) {
+    const n = name.toLowerCase()
+    return n.includes('silks')
+  }
+
   function isComponent(name) {
-    return !isCopper(name) && !isPcbBoard(name)
+    return !isCopper(name) && !isPcbBoard(name) && !isSilkscreen(name)
   }
 
   const groups = $derived((() => {
     const copperBodies    = bodies.filter(b => isCopper(b.name))
     const boardBodies     = bodies.filter(b => isPcbBoard(b.name))
+    const silkBodies      = bodies.filter(b => isSilkscreen(b.name))
     const componentBodies = bodies.filter(b => isComponent(b.name))
     const result = []
     if (copperBodies.length)    result.push({ id: 'copper',     label: 'Copper',     color: '#f5c842', bodies: copperBodies    })
     if (boardBodies.length)     result.push({ id: 'board',      label: 'Board',      color: '#27ae60', bodies: boardBodies     })
+    if (silkBodies.length)      result.push({ id: 'silkscreen', label: 'Silkscreen', color: '#e8e8e8', bodies: silkBodies      })
     if (componentBodies.length) result.push({ id: 'components', label: 'Components', color: '#e0609a', bodies: componentBodies })
     return result
   })())
