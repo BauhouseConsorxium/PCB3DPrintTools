@@ -1069,10 +1069,32 @@ function buildBodies(widthOffset, drillOffset, squareEnds) {
     segmentBuf = buf
   }
 
+  // Pack silkscreen text polylines for CSG engraving
+  // Format: [numPolylines, then per polyline: numPoints, hw, layerFlag(0=front,1=back), x1,y1, x2,y2, ...]
+  let silkPolyBuf = null
+  if (cachedTextPolylines && cachedTextPolylines.length) {
+    const silkPls = cachedTextPolylines.filter(pl => pl.layer.includes('SilkS'))
+    if (silkPls.length) {
+      let totalFloats = 1
+      for (const pl of silkPls) totalFloats += 3 + pl.pts.length * 2
+      const buf = new Float32Array(totalFloats)
+      let off = 0
+      buf[off++] = silkPls.length
+      for (const pl of silkPls) {
+        buf[off++] = pl.pts.length
+        buf[off++] = pl.hw
+        buf[off++] = pl.layer.startsWith('F.') ? 0 : 1
+        for (const [x, y] of pl.pts) { buf[off++] = x; buf[off++] = y }
+      }
+      silkPolyBuf = buf
+    }
+  }
+
   const transferables = bodies.flatMap(b => [b.positions.buffer, b.normals.buffer, b.indices.buffer])
   if (polygonBuf) transferables.push(polygonBuf.buffer)
   if (segmentBuf) transferables.push(segmentBuf.buffer)
-  self.postMessage({ type: 'RESULT', bodies, polygon: polygonBuf, segments: segmentBuf, thickness }, transferables)
+  if (silkPolyBuf) transferables.push(silkPolyBuf.buffer)
+  self.postMessage({ type: 'RESULT', bodies, polygon: polygonBuf, segments: segmentBuf, silkPolylines: silkPolyBuf, thickness }, transferables)
 }
 
 self.onmessage = ({ data }) => {

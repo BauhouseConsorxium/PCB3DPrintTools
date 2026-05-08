@@ -32,6 +32,7 @@
     let encSideBySide = $state(false);
     let boardPolygon = $state(null);
     let rawSegments = $state(null);
+    let silkPolylines = $state(null);
     let boardThickness = $state(0);
     let enclosureBody = $state(null);
     let filename = $state("");
@@ -85,6 +86,7 @@
             } else if (data.type === "RESULT") {
                 boardPolygon = data.polygon ? parseBoardPoly(data.polygon) : null;
                 rawSegments = data.segments || null;
+                silkPolylines = data.silkPolylines || null;
                 boardThickness = data.thickness || 0;
                 bodies = data.bodies;
                 visibility = Object.fromEntries(
@@ -331,6 +333,7 @@
                 {isRebuild}
                 {encSideBySide}
                 {rawSegments}
+                {silkPolylines}
                 {boardThickness}
             />
 

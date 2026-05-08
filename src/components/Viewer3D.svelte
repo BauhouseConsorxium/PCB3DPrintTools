@@ -5,7 +5,7 @@
   import { STLExporter } from 'three/examples/jsm/exporters/STLExporter.js'
   import earcut from 'earcut'
 
-  let { bodies = [], visibility = {}, zScale = 8, boardZScale = 1, previewFilter = null, traceMode = 'raise', drcViolations = [], isRebuild = false, encSideBySide = false, rawSegments = null, boardThickness = 0 } = $props()
+  let { bodies = [], visibility = {}, zScale = 8, boardZScale = 1, previewFilter = null, traceMode = 'raise', drcViolations = [], isRebuild = false, encSideBySide = false, rawSegments = null, silkPolylines = null, boardThickness = 0 } = $props()
 
   let canvas
   let renderer, scene, camera, controls, grid
@@ -494,12 +494,43 @@
     }
   }
 
-  function doRaiseExport(filter, filename) {
+  async function doRaiseExport(filter, filename) {
     scene.updateMatrixWorld(true)
     const group = new THREE.Group()
+
+    // Check if we have silkscreen data to engrave into the board
+    const hasSilk = silkPolylines && silkPolylines.length > 0
+    let engravedBoardGeo = null
+
+    if (hasSilk) {
+      const boardMesh = Object.entries(meshMap).find(([n, m]) => isPcbBoard(n) && m.visible)?.[1]
+      if (boardMesh) {
+        const [{ Brush, Evaluator, SUBTRACTION }, polygonClipping] = await Promise.all([
+          import('three-bvh-csg'),
+          import('polygon-clipping')
+        ])
+        const pcUnion = polygonClipping.default?.union || polygonClipping.union
+        const evaluator = new Evaluator()
+        evaluator.attributes = ['position', 'normal']
+        let boardBrush = new Brush(boardMesh.geometry.clone())
+        boardBrush.position.copy(boardMesh.position)
+        boardBrush.rotation.copy(boardMesh.rotation)
+        boardBrush.scale.copy(boardMesh.scale)
+        boardBrush.updateMatrixWorld()
+        boardBrush = await engraveSilkscreen(boardBrush, evaluator, Brush, SUBTRACTION, pcUnion, boardMesh)
+        engravedBoardGeo = boardBrush.geometry.clone()
+        engravedBoardGeo.applyMatrix4(boardBrush.matrixWorld)
+      }
+    }
+
     for (const [name, mesh] of Object.entries(meshMap)) {
       if (!mesh.visible) continue
       if (filter && !filter(name)) continue
+      if (isSilkscreen(name)) continue
+      if (engravedBoardGeo && isPcbBoard(name)) {
+        group.add(new THREE.Mesh(engravedBoardGeo))
+        continue
+      }
       const clone = mesh.clone()
       clone.applyMatrix4(mesh.matrixWorld)
       group.add(clone)
@@ -509,6 +540,59 @@
       return
     }
     triggerDownload(new STLExporter().parse(group, { binary: true }), filename || 'pcb-export.stl')
+  }
+
+  const SILK_ENGRAVE_DEPTH = 0.15
+
+  // Build a 2D closed ring from a thick polyline (miter joins + semicircle caps)
+  function polylineOutline2D(pts, hw) {
+    const CAP = 8
+    const snap = v => Math.round(v * 1000) / 1000
+    const N = pts.length
+    if (N < 2) return null
+    const dirs = []
+    for (let i = 0; i < N - 1; i++) {
+      const dx = pts[i + 1][0] - pts[i][0], dy = pts[i + 1][1] - pts[i][1]
+      const len = Math.hypot(dx, dy) || 1e-9
+      dirs.push([dx / len, dy / len])
+    }
+    const right = [], left = []
+    for (let i = 0; i < N; i++) {
+      if (i === 0) {
+        right.push([pts[0][0] + dirs[0][1] * hw, pts[0][1] - dirs[0][0] * hw])
+        left.push([pts[0][0] - dirs[0][1] * hw, pts[0][1] + dirs[0][0] * hw])
+      } else if (i === N - 1) {
+        const d = dirs[N - 2]
+        right.push([pts[i][0] + d[1] * hw, pts[i][1] - d[0] * hw])
+        left.push([pts[i][0] - d[1] * hw, pts[i][1] + d[0] * hw])
+      } else {
+        const d0 = dirs[i - 1], d1 = dirs[i]
+        const nx0 = d0[1], ny0 = -d0[0], nx1 = d1[1], ny1 = -d1[0]
+        const bx = nx0 + nx1, by = ny0 + ny1, bLen = Math.hypot(bx, by) || 1e-9
+        const bnx = bx / bLen, bny = by / bLen
+        const cosHalf = Math.max(0.25, nx0 * bnx + ny0 * bny)
+        const dist = hw / cosHalf
+        right.push([pts[i][0] + bnx * dist, pts[i][1] + bny * dist])
+        left.push([pts[i][0] - bnx * dist, pts[i][1] - bny * dist])
+      }
+    }
+    const ring = []
+    for (let i = 0; i < N; i++) ring.push([snap(right[i][0]), snap(right[i][1])])
+    const lastDir = dirs[N - 2]
+    const endTheta = Math.atan2(lastDir[1], lastDir[0])
+    for (let i = 1; i < CAP; i++) {
+      const a = endTheta - Math.PI / 2 + Math.PI * i / CAP
+      ring.push([snap(pts[N - 1][0] + hw * Math.cos(a)), snap(pts[N - 1][1] + hw * Math.sin(a))])
+    }
+    for (let i = N - 1; i >= 0; i--) ring.push([snap(left[i][0]), snap(left[i][1])])
+    const firstDir = dirs[0]
+    const startTheta = Math.atan2(firstDir[1], firstDir[0])
+    for (let i = 1; i < CAP; i++) {
+      const a = startTheta + Math.PI / 2 + Math.PI * i / CAP
+      ring.push([snap(pts[0][0] + hw * Math.cos(a)), snap(pts[0][1] + hw * Math.sin(a))])
+    }
+    ring.push(ring[0].slice())
+    return ring
   }
 
   // Build a 2D stadium polygon (closed ring of [x,y] points) for polygon-clipping
@@ -595,6 +679,84 @@
     geo.setAttribute('normal', new THREE.Float32BufferAttribute(nrm, 3))
     geo.setIndex(idx)
     return geo
+  }
+
+  // Parse packed silkscreen polyline data into { front: [...rings], back: [...rings] }
+  function parseSilkPolylines() {
+    if (!silkPolylines || !silkPolylines.length) return null
+    const result = { front: [], back: [] }
+    let off = 0
+    const count = silkPolylines[off++]
+    for (let i = 0; i < count; i++) {
+      const numPts = silkPolylines[off++]
+      const hw = silkPolylines[off++]
+      const layerFlag = silkPolylines[off++]
+      const pts = []
+      for (let j = 0; j < numPts; j++) {
+        pts.push([silkPolylines[off++], silkPolylines[off++]])
+      }
+      const ring = polylineOutline2D(pts, hw)
+      if (ring) {
+        const bucket = layerFlag < 0.5 ? 'front' : 'back'
+        result[bucket].push([ring])
+      }
+    }
+    return result
+  }
+
+  // Build silkscreen engraving cutter geometry per layer using 2D union + extrude
+  async function buildSilkCutters(pcUnion) {
+    const silk = parseSilkPolylines()
+    if (!silk) return []
+    const thickness = boardThickness
+    const cutters = []
+    for (const [key, polys] of Object.entries(silk)) {
+      if (!polys.length) continue
+      const isFront = key === 'front'
+      // Cutter spans from just above surface to SILK_ENGRAVE_DEPTH into the board
+      const zBot = isFront ? thickness - SILK_ENGRAVE_DEPTH : 0
+      const zTop = isFront ? thickness + 0.01 : SILK_ENGRAVE_DEPTH + 0.01
+
+      let level = polys.slice()
+      while (level.length > 1) {
+        const next = []
+        for (let i = 0; i < level.length; i += 8) {
+          const chunk = level.slice(i, i + 8)
+          try { next.push(pcUnion(...chunk)) }
+          catch {
+            let acc = chunk[0]
+            for (let j = 1; j < chunk.length; j++) {
+              try { acc = pcUnion(acc, chunk[j]) } catch { /* skip */ }
+            }
+            next.push(acc)
+          }
+        }
+        level = next
+      }
+      const merged = level[0]
+      if (!merged || !merged.length) continue
+      const geo = extrudeMultiPoly(merged, zBot, zTop)
+      if (geo) cutters.push({ geo, key })
+    }
+    return cutters
+  }
+
+  // Shared: engrave silkscreen text into a CSG base (board brush)
+  async function engraveSilkscreen(base, evaluator, Brush, SUBTRACTION, pcUnion, boardMesh) {
+    const cutters = await buildSilkCutters(pcUnion)
+    for (const { geo, key } of cutters) {
+      const cutter = new Brush(geo)
+      cutter.rotation.copy(boardMesh.rotation)
+      cutter.scale.copy(boardMesh.scale)
+      cutter.position.copy(boardMesh.position)
+      cutter.updateMatrixWorld()
+      try {
+        base = evaluator.evaluate(base, cutter, SUBTRACTION)
+      } catch (e) {
+        console.warn('Silk engrave failed for', key, e.message)
+      }
+    }
+    return base
   }
 
   async function doSubtractExport(filename) {
@@ -696,6 +858,9 @@
       alert('CSG subtraction failed for all layers.')
       return
     }
+
+    // Engrave silkscreen text into the board surface
+    base = await engraveSilkscreen(base, evaluator, Brush, SUBTRACTION, pcUnion, boardMesh)
 
     const resultGeo = base.geometry.clone()
     resultGeo.applyMatrix4(base.matrixWorld)
