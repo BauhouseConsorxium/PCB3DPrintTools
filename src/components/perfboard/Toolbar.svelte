@@ -2,13 +2,13 @@
   let { activeTool = 'select', onToolChange = () => {} } = $props()
 
   const tools = [
-    { id: 'select', label: 'Select', icon: 'pointer' },
-    { id: 'pad', label: 'Pad', icon: 'pad' },
-    { id: 'header', label: 'Header', icon: 'header' },
-    { id: 'trace', label: 'Trace', icon: 'trace' },
-    { id: 'jumper', label: 'Jumper', icon: 'jumper' },
-    { id: 'label', label: 'Label', icon: 'label' },
-    { id: 'erase', label: 'Erase', icon: 'erase' },
+    { id: 'select', label: 'Select', icon: 'pointer', key: null },
+    { id: 'pad', label: 'Pad', icon: 'pad', key: '1' },
+    { id: 'header', label: 'Header', icon: 'header', key: '2' },
+    { id: 'trace', label: 'Trace', icon: 'trace', key: '3' },
+    { id: 'jumper', label: 'Jumper', icon: 'jumper', key: '4' },
+    { id: 'label', label: 'Label', icon: 'label', key: '5' },
+    { id: 'erase', label: 'Erase', icon: 'erase', key: '6' },
   ]
 </script>
 
@@ -17,11 +17,14 @@
   <div class="grid grid-cols-4 gap-1">
     {#each tools as tool}
       <button
-        class="flex flex-col items-center gap-0.5 px-1 py-1.5 rounded text-[10px] transition-colors
+        class="relative flex flex-col items-center gap-0.5 px-1 py-1.5 rounded text-[10px] transition-colors
           {activeTool === tool.id ? 'bg-slate-600 text-white' : 'text-slate-400 hover:bg-slate-700 hover:text-slate-200'}"
         onclick={() => onToolChange(tool.id)}
-        title={tool.label}
+        title={tool.key ? `${tool.label} (${tool.key})` : tool.label}
       >
+        {#if tool.key}
+          <span class="absolute top-0.5 right-0.5 text-[8px] text-slate-500 leading-none">{tool.key}</span>
+        {/if}
         <svg viewBox="0 0 20 20" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.5">
           {#if tool.icon === 'pointer'}
             <path d="M5 3l10 7-5 1-2 5z" />
