@@ -225,7 +225,7 @@
     entry.doc.jumpers = entry.doc.jumpers ?? []
     entry.doc.annotations = entry.doc.annotations ?? []
     doc = entry.doc
-    selectedId = null
+    selectedIds = []
   }
 
   function deleteSlot(name) {
@@ -255,7 +255,7 @@
         parsed.jumpers = parsed.jumpers ?? []
         parsed.annotations = parsed.annotations ?? []
         doc = parsed
-        selectedId = null
+        selectedIds = []
       } catch { alert('Failed to parse file') }
     }
     reader.readAsText(file)
@@ -275,7 +275,7 @@
       parsed.jumpers = parsed.jumpers ?? []
       parsed.annotations = parsed.annotations ?? []
       doc = parsed
-      selectedId = null
+      selectedIds = []
     } catch { alert('Failed to load example') }
   }
 
