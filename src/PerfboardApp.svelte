@@ -157,6 +157,16 @@
     }
   }
 
+  function moveControlPoint(traceId, pointIndex, dc, dr) {
+    pushUndo()
+    const trace = doc.traces.find(t => t.id === traceId)
+    if (trace && trace.points[pointIndex]) {
+      trace.points[pointIndex].col += dc
+      trace.points[pointIndex].row += dr
+      doc.traces = [...doc.traces]
+    }
+  }
+
   function meltTraces(ids) {
     const targets = doc.traces.filter(t => ids.includes(t.id) && t.type !== 'curve')
     if (targets.length === 0) return
@@ -615,6 +625,7 @@
             onUpdateHeaderLabels={updateHeaderLabels}
             onUpdatePadLabel={updatePadLabel}
             onMoveSelected={moveSelected}
+            onMoveControlPoint={moveControlPoint}
             onRotateSelected={rotateSelected}
             onRemoveElement={removeElement}
             onSelect={selectElement}

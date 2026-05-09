@@ -20,6 +20,7 @@
     onUpdatePadLabel = () => {},
     onUpdateHeaderLabels = () => {},
     onMoveSelected = () => {},
+    onMoveControlPoint = () => {},
     onRotateSelected = () => {},
     onRemoveElement = () => {},
     onSelect = () => {},
@@ -63,6 +64,9 @@
 
   // Drag-to-move state
   let dragInfo = $state(null)
+
+  // Control point drag state
+  let cpDrag = $state(null)
 
   // Rubber band selection
   let selectionBox = $state(null)
@@ -119,6 +123,21 @@
     if (lenSq === 0) return Math.hypot(px - ax, py - ay)
     const t = Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / lenSq))
     return Math.hypot(px - (ax + t * dx), py - (ay + t * dy))
+  }
+
+  function findControlPointAt(rawX, rawY) {
+    const hitR = pitch * 0.2
+    for (const trace of doc.traces) {
+      if (trace.type !== 'curve' || !selectedIds.includes(trace.id)) continue
+      for (let i = 0; i < trace.points.length; i++) {
+        const px = trace.points[i].col * pitch
+        const py = trace.points[i].row * pitch
+        if (Math.hypot(rawX - px, rawY - py) < hitR) {
+          return { traceId: trace.id, pointIndex: i }
+        }
+      }
+    }
+    return null
   }
 
   function findElementAt(col, row, rawX, rawY) {
@@ -305,6 +324,12 @@
     } else if (activeTool === 'label') {
       onAddAnnotation(col, row)
     } else if (activeTool === 'select') {
+      // Check for control point click on selected curve traces
+      const cpHit = findControlPointAt(sp.x, sp.y)
+      if (cpHit) {
+        cpDrag = { traceId: cpHit.traceId, pointIndex: cpHit.pointIndex, startCol: col, startRow: row }
+        return
+      }
       const el = findElementAt(col, row, sp.x, sp.y)
       if (el) {
         if (e.shiftKey) {
@@ -431,6 +456,19 @@
       selectionBox = null
       return
     }
+    if (cpDrag) {
+      const sp = svgPoint(e)
+      if (sp) {
+        const { col, row } = snapToGrid(sp.x, sp.y)
+        const dc = col - cpDrag.startCol
+        const dr = row - cpDrag.startRow
+        if (dc !== 0 || dr !== 0) {
+          onMoveControlPoint(cpDrag.traceId, cpDrag.pointIndex, dc, dr)
+        }
+      }
+      cpDrag = null
+      return
+    }
     if (dragInfo) {
       const sp = svgPoint(e)
       if (sp) {
@@ -477,6 +515,7 @@
       return
     }
     if (activeTool === 'select') {
+      cpDrag = null
       const sp = svgPoint(e)
       if (!sp) return
       const { col, row } = snapToGrid(sp.x, sp.y)
@@ -613,6 +652,10 @@
   }
 
   function cancelDrawing() {
+    if (cpDrag) {
+      cpDrag = null
+      return true
+    }
     if (selectionBox) {
       selectionBox = null
       return true
@@ -1217,6 +1260,48 @@
         fill="rgba(251, 191, 36, 0.08)" stroke="#fbbf24" stroke-width={pitch * 0.03}
         stroke-dasharray="{pitch * 0.1}"
       />
+    {/if}
+
+    <!-- Control point drag ghost -->
+    {#if cpDrag && ghostPos}
+      {@const dc = ghostPos.col - cpDrag.startCol}
+      {@const dr = ghostPos.row - cpDrag.startRow}
+      {@const trace = doc.traces.find(t => t.id === cpDrag.traceId)}
+      {#if trace}
+        {@const pts = trace.points.map((p, i) => i === cpDrag.pointIndex
+          ? { x: (p.col + dc) * pitch, y: (p.row + dr) * pitch }
+          : { x: p.col * pitch, y: p.row * pitch }
+        )}
+        {@const ew = trace.endWidth ?? trace.width}
+        {@const tn = trace.tension ?? 0.5}
+        {#if ew > trace.width}
+          {@const outline = variableWidthOutlinePath(pts, trace.width, ew, 32, tn, trace.taperDistance ?? 0)}
+          <path d={outline} fill="#fbbf24" opacity="0.5" />
+        {:else}
+          {@const d = catmullRomSVGPath(pts, tn)}
+          <path {d}
+            stroke="#fbbf24" stroke-width={trace.width}
+            stroke-linecap="round" stroke-linejoin="round" fill="none" opacity="0.6"
+          />
+        {/if}
+        <!-- Control polygon ghost -->
+        {#each pts as pt, i}
+          {#if i > 0}
+            <line
+              x1={pts[i-1].x} y1={pts[i-1].y}
+              x2={pt.x} y2={pt.y}
+              stroke="rgba(34,197,94,0.4)" stroke-width={pitch * 0.03}
+              stroke-dasharray="{pitch * 0.08}"
+            />
+          {/if}
+        {/each}
+        {#each pts as pt, i}
+          <circle cx={pt.x} cy={pt.y} r={pitch * 0.1}
+            fill={i === cpDrag.pointIndex ? '#fbbf24' : '#22c55e'}
+            stroke="white" stroke-width={pitch * 0.02} opacity="0.8"
+          />
+        {/each}
+      {/if}
     {/if}
 
     <!-- Drag ghost (all selected elements) -->
