@@ -155,7 +155,7 @@
         const offset = copperNaturalTopOffset[name] ?? 0
         mesh.position.y = boardTopCurrent - offset * s
       } else {
-        mesh.position.y = (copperOriginalY[name] ?? 0) + boardHeight * (bS - 1)
+        mesh.position.y = (copperOriginalY[name] ?? 0) + boardHeight * (bS - 1) + boardHeight * (s - 1)
       }
     }
   }
