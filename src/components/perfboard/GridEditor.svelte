@@ -351,22 +351,39 @@
     else if (e.key === 'Escape') editingAnnotation = null
   }
 
-  function handleContextMenu(e) {
-    e.preventDefault()
+  function cancelDrawing() {
     if (activeTool === 'trace' && tracePoints.length > 0) {
       tracePoints = []
       tracePreview = null
+      return true
     }
     if (activeTool === 'header' && headerStart) {
       headerStart = null
       headerPreview = null
+      return true
     }
     if (activeTool === 'jumper' && jumperStart) {
       jumperStart = null
       jumperPreview = null
+      return true
     }
     if (dragInfo) {
       dragInfo = null
+      return true
+    }
+    return false
+  }
+
+  function handleContextMenu(e) {
+    e.preventDefault()
+    cancelDrawing()
+  }
+
+  function handleKeydown(e) {
+    if (e.key === 'Escape') {
+      if (editingAnnotation) { editingAnnotation = null; return }
+      if (editingJumper) { editingJumper = null; return }
+      cancelDrawing()
     }
   }
 
@@ -399,6 +416,8 @@
   const padR = $derived(doc.padDiameter / 2)
   const drillR = $derived(doc.drillDiameter / 2)
 </script>
+
+<svelte:window onkeydown={handleKeydown} />
 
 <div
   bind:this={containerEl}
