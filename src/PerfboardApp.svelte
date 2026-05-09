@@ -145,6 +145,15 @@
     if (dip) { dip.label = label; dip.socket = socket; doc.dips = [...(doc.dips || [])] }
   }
 
+  function updateTraceWidth(id, width) {
+    pushUndo()
+    const trace = doc.traces.find(t => t.id === id)
+    if (trace) {
+      trace.width = width
+      doc.traces = [...doc.traces]
+    }
+  }
+
   function updateCurve(id, width, endWidth, taperDistance, tension) {
     pushUndo()
     const trace = doc.traces.find(t => t.id === id)
@@ -646,6 +655,7 @@
             onUpdateJumperColor={updateJumperColor}
             onUpdateDip={updateDip}
             onUpdateCurve={updateCurve}
+            onUpdateTraceWidth={updateTraceWidth}
             onMeltTraces={meltTraces}
             onUpdateHeaderLabels={updateHeaderLabels}
             onUpdatePadLabel={updatePadLabel}

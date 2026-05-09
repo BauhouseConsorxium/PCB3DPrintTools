@@ -16,6 +16,7 @@
     onUpdateJumperColor = () => {},
     onUpdateDip = () => {},
     onUpdateCurve = () => {},
+    onUpdateTraceWidth = () => {},
     onMeltTraces = () => {},
     onUpdatePadLabel = () => {},
     onUpdateHeaderLabels = () => {},
@@ -81,6 +82,7 @@
   let editingPad = $state(null)
   let editingHeader = $state(null)
   let editingCurve = $state(null)
+  let editingTrace = $state(null)
   let editInput
   let dipEditInput
   let padEditInput
@@ -228,6 +230,8 @@
     if (editingDip) { editingDip = null }
     if (editingPad) { editingPad = null }
     if (editingHeader) { commitHeaderEdit() }
+    if (editingCurve) { closeCurveEdit() }
+    if (editingTrace) { closeTraceEdit() }
     if (e.button === 1 || (e.button === 0 && e.shiftKey && activeTool !== 'select')) {
       isPanning = true
       panStart = { x: e.clientX, y: e.clientY, vx: vb.x, vy: vb.y }
@@ -594,6 +598,15 @@
           left: e.clientX - rect.left,
           top: e.clientY - rect.top - 20
         }
+      } else if (el && doc.traces.find(t => t.id === el.id && t.type !== 'curve')) {
+        const trace = doc.traces.find(t => t.id === el.id)
+        const rect = containerEl.getBoundingClientRect()
+        editingTrace = {
+          id: el.id,
+          width: trace.width,
+          left: e.clientX - rect.left,
+          top: e.clientY - rect.top - 20
+        }
       }
     }
   }
@@ -658,6 +671,21 @@
     if (e.key === 'Enter' || e.key === 'Escape') closeCurveEdit()
   }
 
+  function applyTraceEdit() {
+    if (!editingTrace) return
+    onUpdateTraceWidth(editingTrace.id, editingTrace.width)
+  }
+
+  function closeTraceEdit() {
+    applyTraceEdit()
+    editingTrace = null
+  }
+
+  function handleTraceEditKeydown(e) {
+    e.stopPropagation()
+    if (e.key === 'Enter' || e.key === 'Escape') closeTraceEdit()
+  }
+
   function cancelDrawing() {
     if (cpDrag) {
       cpDrag = null
@@ -717,6 +745,7 @@
       if (editingDip) { editingDip = null; return }
       if (editingJumper) { editingJumper = null; return }
       if (editingCurve) { closeCurveEdit(); return }
+      if (editingTrace) { closeTraceEdit(); return }
       const cancelled = cancelDrawing()
       if (!cancelled && activeTool !== 'select') {
         onToolChange('select')
@@ -1543,6 +1572,28 @@
         onmousedown={(e) => e.preventDefault()}
         onclick={() => { onSubdivideCurve(editingCurve.id); closeCurveEdit() }}
       >+ Add Points (Subdivide)</button>
+    </div>
+  {/if}
+
+  {#if editingTrace}
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
+    <div
+      class="absolute bg-slate-700 rounded border border-amber-400 z-10 p-1.5"
+      style="left: {editingTrace.left}px; top: {editingTrace.top}px"
+      onfocusout={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) closeTraceEdit() }}
+    >
+      <div>
+        <label class="text-[10px] text-slate-400 block mb-0.5">Trace width (mm)</label>
+        <input
+          type="number"
+          value={editingTrace.width}
+          min="0.3" max="5" step="0.1"
+          class="bg-slate-800 text-xs text-slate-200 rounded px-2 py-1 border border-slate-600 outline-none w-28"
+          onkeydown={handleTraceEditKeydown}
+          oninput={(e) => { editingTrace = { ...editingTrace, width: parseFloat(e.target.value) || 0.3 }; applyTraceEdit() }}
+          onfocus={(e) => e.target.select()}
+        />
+      </div>
     </div>
   {/if}
 
