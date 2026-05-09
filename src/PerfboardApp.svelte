@@ -102,6 +102,11 @@
     pushUndo()
     const trace = { id: crypto.randomUUID(), points, width: doc.traceWidth }
     if (type) trace.type = type
+    if (type === 'curve') {
+      trace.endWidth = doc.curveEndWidth ?? doc.traceWidth
+      trace.taperDistance = doc.curveTaperDistance ?? 0
+      trace.tension = 0.5
+    }
     doc.traces = [...doc.traces, trace]
   }
 
@@ -138,6 +143,31 @@
     pushUndo()
     const dip = (doc.dips || []).find(d => d.id === id)
     if (dip) { dip.label = label; dip.socket = socket; doc.dips = [...(doc.dips || [])] }
+  }
+
+  function updateCurve(id, width, endWidth, taperDistance, tension) {
+    pushUndo()
+    const trace = doc.traces.find(t => t.id === id)
+    if (trace) {
+      trace.width = width
+      trace.endWidth = endWidth
+      trace.taperDistance = taperDistance
+      trace.tension = tension
+      doc.traces = [...doc.traces]
+    }
+  }
+
+  function meltTraces(ids) {
+    const targets = doc.traces.filter(t => ids.includes(t.id) && t.type !== 'curve')
+    if (targets.length === 0) return
+    pushUndo()
+    for (const trace of targets) {
+      trace.type = 'curve'
+      trace.endWidth = trace.endWidth ?? doc.curveEndWidth ?? doc.traceWidth
+      trace.taperDistance = trace.taperDistance ?? doc.curveTaperDistance ?? 0
+      trace.tension = trace.tension ?? 0.5
+    }
+    doc.traces = [...doc.traces]
   }
 
   function addAnnotation(col, row) {
@@ -290,6 +320,8 @@
     entry.doc.dips = entry.doc.dips ?? []
     entry.doc.jumpers = entry.doc.jumpers ?? []
     entry.doc.annotations = entry.doc.annotations ?? []
+    entry.doc.curveEndWidth = entry.doc.curveEndWidth ?? 3.0
+    entry.doc.curveTaperDistance = entry.doc.curveTaperDistance ?? 0
     doc = entry.doc
     selectedIds = []
   }
@@ -321,6 +353,8 @@
         parsed.dips = parsed.dips ?? []
         parsed.jumpers = parsed.jumpers ?? []
         parsed.annotations = parsed.annotations ?? []
+        parsed.curveEndWidth = parsed.curveEndWidth ?? 3.0
+        parsed.curveTaperDistance = parsed.curveTaperDistance ?? 0
         doc = parsed
         selectedIds = []
       } catch { alert('Failed to parse file') }
@@ -342,6 +376,7 @@
       parsed.dips = parsed.dips ?? []
       parsed.jumpers = parsed.jumpers ?? []
       parsed.annotations = parsed.annotations ?? []
+      parsed.curveEndWidth = parsed.curveEndWidth ?? 3.0
       doc = parsed
       selectedIds = []
     } catch { alert('Failed to load example') }
@@ -445,6 +480,8 @@
         bind:padDiameter={doc.padDiameter}
         bind:drillDiameter={doc.drillDiameter}
         bind:traceWidth={doc.traceWidth}
+        bind:curveEndWidth={doc.curveEndWidth}
+        bind:curveTaperDistance={doc.curveTaperDistance}
         bind:boardThickness={doc.boardThickness}
         onBeforeChange={pushUndo}
       />
@@ -573,6 +610,8 @@
             onUpdateAnnotation={updateAnnotation}
             onUpdateJumperColor={updateJumperColor}
             onUpdateDip={updateDip}
+            onUpdateCurve={updateCurve}
+            onMeltTraces={meltTraces}
             onUpdateHeaderLabels={updateHeaderLabels}
             onUpdatePadLabel={updatePadLabel}
             onMoveSelected={moveSelected}

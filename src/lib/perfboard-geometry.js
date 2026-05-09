@@ -1,6 +1,6 @@
 import earcut from 'earcut'
 import { buildBoardGeometry, buildTracesGeometry, HOLE_N } from './geometry.js'
-import { sampleCatmullRom } from './catmull-rom.js'
+import { sampleCatmullRom, sampleCatmullRomWithWidth } from './catmull-rom.js'
 
 const PAD_CIRCLE_N = 32
 
@@ -150,10 +150,21 @@ function collectTraceSegments(doc, padPositions) {
     let rawPairs
     if (trace.type === 'curve') {
       const pts = trace.points.map(p => ({ x: p.col * pitch, y: p.row * pitch }))
-      const samples = sampleCatmullRom(pts, 16)
-      rawPairs = []
-      for (let i = 0; i < samples.length - 1; i++) {
-        rawPairs.push({ ax: samples[i].x, ay: samples[i].y, bx: samples[i + 1].x, by: samples[i + 1].y })
+      const ew = trace.endWidth ?? trace.width
+      if (ew > trace.width) {
+        const tn = trace.tension ?? 0.5
+        const samples = sampleCatmullRomWithWidth(pts, trace.width, ew, 16, tn, trace.taperDistance ?? 0)
+        rawPairs = []
+        for (let i = 0; i < samples.length - 1; i++) {
+          const w = (samples[i].w + samples[i + 1].w) / 2
+          rawPairs.push({ ax: samples[i].x, ay: samples[i].y, bx: samples[i + 1].x, by: samples[i + 1].y, w })
+        }
+      } else {
+        const samples = sampleCatmullRom(pts, 16, trace.tension ?? 0.5)
+        rawPairs = []
+        for (let i = 0; i < samples.length - 1; i++) {
+          rawPairs.push({ ax: samples[i].x, ay: samples[i].y, bx: samples[i + 1].x, by: samples[i + 1].y })
+        }
       }
     } else {
       rawPairs = []
@@ -165,11 +176,13 @@ function collectTraceSegments(doc, padPositions) {
       }
     }
 
-    for (const { ax, ay, bx, by } of rawPairs) {
+    for (const pair of rawPairs) {
+      const { ax, ay, bx, by } = pair
+      const segWidth = pair.w ?? trace.width
       const dx = bx - ax, dy = by - ay
       const lenSq = dx * dx + dy * dy
       if (lenSq < TOL * TOL) {
-        segments.push({ x1: ax, y1: ay, x2: bx, y2: by, width: trace.width, layer: 'F.Cu' })
+        segments.push({ x1: ax, y1: ay, x2: bx, y2: by, width: segWidth, layer: 'F.Cu' })
         continue
       }
       const hits = []
@@ -181,16 +194,16 @@ function collectTraceSegments(doc, padPositions) {
         if (distSq < TOL * TOL) hits.push(t)
       }
       if (hits.length === 0) {
-        segments.push({ x1: ax, y1: ay, x2: bx, y2: by, width: trace.width, layer: 'F.Cu' })
+        segments.push({ x1: ax, y1: ay, x2: bx, y2: by, width: segWidth, layer: 'F.Cu' })
       } else {
         hits.sort((a, b) => a - b)
         let prevX = ax, prevY = ay
         for (const t of hits) {
           const mx = ax + t * dx, my = ay + t * dy
-          segments.push({ x1: prevX, y1: prevY, x2: mx, y2: my, width: trace.width, layer: 'F.Cu' })
+          segments.push({ x1: prevX, y1: prevY, x2: mx, y2: my, width: segWidth, layer: 'F.Cu' })
           prevX = mx; prevY = my
         }
-        segments.push({ x1: prevX, y1: prevY, x2: bx, y2: by, width: trace.width, layer: 'F.Cu' })
+        segments.push({ x1: prevX, y1: prevY, x2: bx, y2: by, width: segWidth, layer: 'F.Cu' })
       }
     }
   }
@@ -424,6 +437,8 @@ export function createDefaultDocument() {
     drillDiameter: 1.0,
     padDiameter: 2.0,
     traceWidth: 1.0,
+    curveEndWidth: 3.0,
+    curveTaperDistance: 0,
     pads: [],
     headers: [],
     dips: [],

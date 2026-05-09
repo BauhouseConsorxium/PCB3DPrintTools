@@ -1,6 +1,6 @@
 <script>
   import { onMount, tick } from 'svelte'
-  import { catmullRomSVGPath, sampleCatmullRom } from '../../lib/catmull-rom.js'
+  import { catmullRomSVGPath, sampleCatmullRom, variableWidthOutlinePath } from '../../lib/catmull-rom.js'
 
   let {
     doc,
@@ -15,6 +15,8 @@
     onUpdateAnnotation = () => {},
     onUpdateJumperColor = () => {},
     onUpdateDip = () => {},
+    onUpdateCurve = () => {},
+    onMeltTraces = () => {},
     onUpdatePadLabel = () => {},
     onUpdateHeaderLabels = () => {},
     onMoveSelected = () => {},
@@ -71,6 +73,7 @@
   let editingDip = $state(null)
   let editingPad = $state(null)
   let editingHeader = $state(null)
+  let editingCurve = $state(null)
   let editInput
   let dipEditInput
   let padEditInput
@@ -169,7 +172,7 @@
       for (const t of doc.traces) {
         if (t.type === 'curve') {
           const pts = t.points.map(p => ({ x: p.col * pitch, y: p.row * pitch }))
-          const samples = sampleCatmullRom(pts, 8)
+          const samples = sampleCatmullRom(pts, 8, t.tension ?? 0.5)
           for (let i = 0; i < samples.length - 1; i++) {
             if (distToSegment(rawX, rawY, samples[i].x, samples[i].y, samples[i+1].x, samples[i+1].y) < hitR) return t
           }
@@ -533,6 +536,18 @@
           left: e.clientX - rect.left,
           top: e.clientY - rect.top - 20
         }
+      } else if (el && doc.traces.find(t => t.id === el.id && t.type === 'curve')) {
+        const trace = doc.traces.find(t => t.id === el.id)
+        const rect = containerEl.getBoundingClientRect()
+        editingCurve = {
+          id: el.id,
+          width: trace.width,
+          endWidth: trace.endWidth ?? trace.width,
+          taperDistance: trace.taperDistance ?? 0,
+          tension: trace.tension ?? 0.5,
+          left: e.clientX - rect.left,
+          top: e.clientY - rect.top - 20
+        }
       }
     }
   }
@@ -580,6 +595,21 @@
   function handleDipEditKeydown(e) {
     e.stopPropagation()
     if (e.key === 'Enter' || e.key === 'Escape') closeDipEdit()
+  }
+
+  function applyCurveEdit() {
+    if (!editingCurve) return
+    onUpdateCurve(editingCurve.id, editingCurve.width, editingCurve.endWidth, editingCurve.taperDistance, editingCurve.tension)
+  }
+
+  function closeCurveEdit() {
+    applyCurveEdit()
+    editingCurve = null
+  }
+
+  function handleCurveEditKeydown(e) {
+    e.stopPropagation()
+    if (e.key === 'Enter' || e.key === 'Escape') closeCurveEdit()
   }
 
   function cancelDrawing() {
@@ -635,6 +665,7 @@
       if (editingHeader) { commitHeaderEdit(); return }
       if (editingDip) { editingDip = null; return }
       if (editingJumper) { editingJumper = null; return }
+      if (editingCurve) { closeCurveEdit(); return }
       const cancelled = cancelDrawing()
       if (!cancelled && activeTool !== 'select') {
         onToolChange('select')
@@ -643,6 +674,10 @@
     }
     if ((e.key === 'r' || e.key === 'R') && activeTool === 'select' && selectedIds.length > 0) {
       onRotateSelected()
+      return
+    }
+    if ((e.key === 'm' || e.key === 'M') && activeTool === 'select' && selectedIds.length > 0) {
+      onMeltTraces(selectedIds)
       return
     }
     const tool = toolHotkeys[e.key]
@@ -751,23 +786,55 @@
       {@const isSelected = selectedIds.includes(trace.id)}
       {#if trace.type === 'curve'}
         {@const pts = trace.points.map(p => ({ x: p.col * pitch, y: p.row * pitch }))}
-        {@const d = catmullRomSVGPath(pts)}
-        {#if isSelected}
+        {@const ew = trace.endWidth ?? trace.width}
+        {@const hasTaper = ew > trace.width}
+        {@const td = trace.taperDistance ?? 0}
+        {@const tn = trace.tension ?? 0.5}
+        {#if hasTaper}
+          {@const outline = variableWidthOutlinePath(pts, trace.width, ew, 32, tn, td)}
+          {#if isSelected}
+            <path d={outline}
+              stroke="rgba(255,255,255,0.45)" stroke-width={pitch * 0.08}
+              fill="rgba(255,255,255,0.15)"
+            />
+          {/if}
+          <path d={outline}
+            fill={isSelected ? '#fbbf24' : '#f5c842'}
+            stroke={isSelected ? '#fbbf24' : '#b8941f'} stroke-width={pitch * 0.02}
+            opacity={isSelected ? 1 : 0.85}
+          />
+        {:else}
+          {@const d = catmullRomSVGPath(pts, tn)}
+          {#if isSelected}
+            <path {d}
+              stroke="rgba(255,255,255,0.45)"
+              stroke-width={trace.width + pitch * 0.08}
+              stroke-linecap="round" stroke-linejoin="round" fill="none"
+            />
+          {/if}
           <path {d}
-            stroke="rgba(255,255,255,0.45)"
-            stroke-width={trace.width + pitch * 0.08}
+            stroke={isSelected ? '#fbbf24' : '#f5c842'}
+            stroke-width={trace.width}
             stroke-linecap="round" stroke-linejoin="round" fill="none"
+            opacity={isSelected ? 1 : 0.85}
           />
         {/if}
-        <path {d}
-          stroke={isSelected ? '#fbbf24' : '#f5c842'}
-          stroke-width={trace.width}
-          stroke-linecap="round" stroke-linejoin="round" fill="none"
-          opacity={isSelected ? 1 : 0.85}
-        />
         {#if isSelected}
+          <!-- Control polygon -->
+          {#each trace.points as pt, i}
+            {#if i > 0}
+              <line
+                x1={trace.points[i-1].col * pitch} y1={trace.points[i-1].row * pitch}
+                x2={pt.col * pitch} y2={pt.row * pitch}
+                stroke="rgba(34,197,94,0.5)" stroke-width={pitch * 0.03}
+                stroke-dasharray="{pitch * 0.08}"
+              />
+            {/if}
+          {/each}
           {#each trace.points as pt}
-            <circle cx={pt.col * pitch} cy={pt.row * pitch} r={pitch * 0.08} fill="#fbbf24" opacity="0.6" />
+            <circle cx={pt.col * pitch} cy={pt.row * pitch} r={pitch * 0.1}
+              fill="#22c55e" stroke="white" stroke-width={pitch * 0.02} opacity="0.8"
+            />
           {/each}
         {/if}
       {:else}
@@ -827,27 +894,46 @@
     <!-- In-progress curve -->
     {#if curvePoints.length >= 2}
       {@const pts = curvePoints.map(p => ({ x: p.col * pitch, y: p.row * pitch }))}
-      {@const d = catmullRomSVGPath(pts)}
-      <path {d}
-        stroke="#f5c842" stroke-width={doc.traceWidth}
-        stroke-linecap="round" stroke-linejoin="round" fill="none" opacity="0.6"
-      />
+      {@const ew = doc.curveEndWidth ?? doc.traceWidth}
+      {#if ew > doc.traceWidth}
+        {@const outline = variableWidthOutlinePath(pts, doc.traceWidth, ew)}
+        <path d={outline} fill="#f5c842" opacity="0.5" stroke="#b8941f" stroke-width={pitch * 0.02} />
+      {:else}
+        {@const d = catmullRomSVGPath(pts)}
+        <path {d} stroke="#f5c842" stroke-width={doc.traceWidth}
+          stroke-linecap="round" stroke-linejoin="round" fill="none" opacity="0.6" />
+      {/if}
+      <!-- Control polygon while drawing -->
+      {#each curvePoints as pt, i}
+        {#if i > 0}
+          <line
+            x1={curvePoints[i-1].col * pitch} y1={curvePoints[i-1].row * pitch}
+            x2={pt.col * pitch} y2={pt.row * pitch}
+            stroke="rgba(34,197,94,0.4)" stroke-width={pitch * 0.03}
+            stroke-dasharray="{pitch * 0.08}"
+          />
+        {/if}
+      {/each}
     {/if}
 
     <!-- Curve preview (smooth path through waypoints + cursor) -->
     {#if curvePreview && curvePoints.length >= 1}
       {@const pts = [...curvePoints, { col: curvePreview.col, row: curvePreview.row }].map(p => ({ x: p.col * pitch, y: p.row * pitch }))}
-      {@const d = catmullRomSVGPath(pts)}
-      <path {d}
-        stroke="#f5c842" stroke-width={doc.traceWidth}
-        stroke-linecap="round" stroke-linejoin="round" fill="none" opacity="0.3"
-        stroke-dasharray="{pitch * 0.15}"
-      />
+      {@const ew = doc.curveEndWidth ?? doc.traceWidth}
+      {#if ew > doc.traceWidth}
+        {@const outline = variableWidthOutlinePath(pts, doc.traceWidth, ew)}
+        <path d={outline} fill="#f5c842" opacity="0.2" stroke="#b8941f" stroke-width={pitch * 0.02} />
+      {:else}
+        {@const d = catmullRomSVGPath(pts)}
+        <path {d} stroke="#f5c842" stroke-width={doc.traceWidth}
+          stroke-linecap="round" stroke-linejoin="round" fill="none" opacity="0.3"
+          stroke-dasharray="{pitch * 0.15}" />
+      {/if}
     {/if}
 
     <!-- Curve waypoint dots -->
     {#each curvePoints as pt}
-      <circle cx={pt.col * pitch} cy={pt.row * pitch} r={pitch * 0.1} fill="#f5c842" opacity="0.5" />
+      <circle cx={pt.col * pitch} cy={pt.row * pitch} r={pitch * 0.1} fill="#22c55e" stroke="white" stroke-width={pitch * 0.02} opacity="0.7" />
     {/each}
 
     <!-- Header bodies -->
@@ -1157,11 +1243,17 @@
         {#each doc.traces.filter(t => selectedIds.includes(t.id)) as trace}
           {#if trace.type === 'curve'}
             {@const pts = trace.points.map(p => ({ x: (p.col + dc) * pitch, y: (p.row + dr) * pitch }))}
-            {@const d = catmullRomSVGPath(pts)}
-            <path {d}
-              stroke="#fbbf24" stroke-width={trace.width}
-              stroke-linecap="round" stroke-linejoin="round" fill="none" opacity="0.4"
-            />
+            {@const ew = trace.endWidth ?? trace.width}
+            {#if ew > trace.width}
+              {@const outline = variableWidthOutlinePath(pts, trace.width, ew, 32, trace.tension ?? 0.5, trace.taperDistance ?? 0)}
+              <path d={outline} fill="#fbbf24" opacity="0.3" />
+            {:else}
+              {@const d = catmullRomSVGPath(pts, trace.tension ?? 0.5)}
+              <path {d}
+                stroke="#fbbf24" stroke-width={trace.width}
+                stroke-linecap="round" stroke-linejoin="round" fill="none" opacity="0.4"
+              />
+            {/if}
           {:else}
             {#each getTraceSegments(trace) as seg}
               <line
@@ -1274,6 +1366,61 @@
           onmousedown={(e) => e.preventDefault()}
           onclick={() => { editingDip = { ...editingDip, socket: true }; applyDipEdit() }}
         >IC Socket</button>
+      </div>
+    </div>
+  {/if}
+
+  {#if editingCurve}
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
+    <div
+      class="absolute bg-slate-700 rounded border border-amber-400 z-10 p-1.5 flex flex-col gap-1.5"
+      style="left: {editingCurve.left}px; top: {editingCurve.top}px"
+      onfocusout={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) closeCurveEdit() }}
+    >
+      <div>
+        <label class="text-[10px] text-slate-400 block mb-0.5">Trace width (mm)</label>
+        <input
+          type="number"
+          value={editingCurve.width}
+          min="0.3" max="5" step="0.1"
+          class="bg-slate-800 text-xs text-slate-200 rounded px-2 py-1 border border-slate-600 outline-none w-28"
+          onkeydown={handleCurveEditKeydown}
+          oninput={(e) => { editingCurve = { ...editingCurve, width: parseFloat(e.target.value) || 0.3 }; applyCurveEdit() }}
+        />
+      </div>
+      <div>
+        <label class="text-[10px] text-slate-400 block mb-0.5">End width (mm)</label>
+        <input
+          type="number"
+          value={editingCurve.endWidth}
+          min="0.3" max="8" step="0.1"
+          class="bg-slate-800 text-xs text-slate-200 rounded px-2 py-1 border border-slate-600 outline-none w-28"
+          onkeydown={handleCurveEditKeydown}
+          oninput={(e) => { editingCurve = { ...editingCurve, endWidth: parseFloat(e.target.value) || 0.3 }; applyCurveEdit() }}
+        />
+      </div>
+      <div>
+        <label class="text-[10px] text-slate-400 block mb-0.5">Taper distance (mm)</label>
+        <input
+          type="number"
+          value={editingCurve.taperDistance}
+          min="0" max="50" step="0.5"
+          class="bg-slate-800 text-xs text-slate-200 rounded px-2 py-1 border border-slate-600 outline-none w-28"
+          onkeydown={handleCurveEditKeydown}
+          oninput={(e) => { editingCurve = { ...editingCurve, taperDistance: parseFloat(e.target.value) || 0 }; applyCurveEdit() }}
+        />
+        <div class="text-[9px] text-slate-500 mt-0.5">0 = auto (half curve length)</div>
+      </div>
+      <div>
+        <label class="text-[10px] text-slate-400 block mb-0.5">Tension</label>
+        <input
+          type="range"
+          value={editingCurve.tension}
+          min="0.05" max="1.5" step="0.05"
+          class="w-28 accent-amber-500"
+          oninput={(e) => { editingCurve = { ...editingCurve, tension: parseFloat(e.target.value) }; applyCurveEdit() }}
+        />
+        <div class="text-[9px] text-slate-500">{editingCurve.tension.toFixed(2)} — {editingCurve.tension < 0.3 ? 'loose' : editingCurve.tension < 0.7 ? 'smooth' : 'tight'}</div>
       </div>
     </div>
   {/if}

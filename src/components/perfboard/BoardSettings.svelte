@@ -5,6 +5,8 @@
     padDiameter = $bindable(2.0),
     drillDiameter = $bindable(1.0),
     traceWidth = $bindable(1.0),
+    curveEndWidth = $bindable(3.0),
+    curveTaperDistance = $bindable(0),
     boardThickness = $bindable(1.6),
     onBeforeChange = () => {},
   } = $props()
@@ -42,6 +44,16 @@
     <div>
       <label class="text-[10px] text-slate-400 block mb-0.5">Trace width</label>
       <input type="number" bind:value={traceWidth} min="0.3" max="5" step="0.1" onfocus={onBeforeChange}
+        class="w-full bg-slate-700 text-slate-200 text-xs rounded px-2 py-1 border border-slate-600 focus:border-slate-400 outline-none" />
+    </div>
+    <div>
+      <label class="text-[10px] text-slate-400 block mb-0.5">Curve end width</label>
+      <input type="number" bind:value={curveEndWidth} min="0.3" max="8" step="0.1" onfocus={onBeforeChange}
+        class="w-full bg-slate-700 text-slate-200 text-xs rounded px-2 py-1 border border-slate-600 focus:border-slate-400 outline-none" />
+    </div>
+    <div>
+      <label class="text-[10px] text-slate-400 block mb-0.5">Taper distance</label>
+      <input type="number" bind:value={curveTaperDistance} min="0" max="50" step="0.5" onfocus={onBeforeChange}
         class="w-full bg-slate-700 text-slate-200 text-xs rounded px-2 py-1 border border-slate-600 focus:border-slate-400 outline-none" />
     </div>
     <div>
