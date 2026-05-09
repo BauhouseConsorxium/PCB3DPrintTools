@@ -92,6 +92,11 @@
     doc.headers = [...doc.headers, { id: crypto.randomUUID(), col, row, count, orientation }]
   }
 
+  function addDip(col, row, count, orientation) {
+    pushUndo()
+    doc.dips = [...(doc.dips || []), { id: crypto.randomUUID(), col, row, count, orientation, rowSpacing: 3 }]
+  }
+
   function addTrace(points) {
     if (points.length < 2) return
     pushUndo()
@@ -145,6 +150,8 @@
       if (header) { header.col += dc; header.row += dr; continue }
       const trace = doc.traces.find(t => t.id === id)
       if (trace) { for (const pt of trace.points) { pt.col += dc; pt.row += dr }; continue }
+      const dip = (doc.dips || []).find(d => d.id === id)
+      if (dip) { dip.col += dc; dip.row += dr; continue }
       const jumper = doc.jumpers.find(j => j.id === id)
       if (jumper) { jumper.col1 += dc; jumper.row1 += dr; jumper.col2 += dc; jumper.row2 += dr; continue }
       const ann = doc.annotations.find(a => a.id === id)
@@ -152,6 +159,7 @@
     }
     doc.pads = [...doc.pads]
     doc.headers = [...doc.headers]
+    doc.dips = [...(doc.dips || [])]
     doc.traces = [...doc.traces]
     doc.jumpers = [...doc.jumpers]
     doc.annotations = [...doc.annotations]
@@ -161,6 +169,7 @@
     pushUndo()
     doc.pads = doc.pads.filter(p => p.id !== id)
     doc.headers = doc.headers.filter(h => h.id !== id)
+    doc.dips = (doc.dips || []).filter(d => d.id !== id)
     doc.traces = doc.traces.filter(t => t.id !== id)
     doc.jumpers = doc.jumpers.filter(j => j.id !== id)
     doc.annotations = doc.annotations.filter(a => a.id !== id)
@@ -222,6 +231,7 @@
 
   function loadFromSlot(entry) {
     pushUndo()
+    entry.doc.dips = entry.doc.dips ?? []
     entry.doc.jumpers = entry.doc.jumpers ?? []
     entry.doc.annotations = entry.doc.annotations ?? []
     doc = entry.doc
@@ -252,6 +262,7 @@
         const parsed = JSON.parse(reader.result)
         if (parsed.version !== 1 || !parsed.grid) { alert('Invalid perfboard file'); return }
         pushUndo()
+        parsed.dips = parsed.dips ?? []
         parsed.jumpers = parsed.jumpers ?? []
         parsed.annotations = parsed.annotations ?? []
         doc = parsed
@@ -272,6 +283,7 @@
       const parsed = await res.json()
       if (parsed.version !== 1 || !parsed.grid) { alert('Invalid example file'); return }
       pushUndo()
+      parsed.dips = parsed.dips ?? []
       parsed.jumpers = parsed.jumpers ?? []
       parsed.annotations = parsed.annotations ?? []
       doc = parsed
@@ -298,6 +310,7 @@
         const idSet = new Set(selectedIds)
         doc.pads = doc.pads.filter(p => !idSet.has(p.id))
         doc.headers = doc.headers.filter(h => !idSet.has(h.id))
+        doc.dips = (doc.dips || []).filter(d => !idSet.has(d.id))
         doc.traces = doc.traces.filter(t => !idSet.has(t.id))
         doc.jumpers = doc.jumpers.filter(j => !idSet.has(j.id))
         doc.annotations = doc.annotations.filter(a => !idSet.has(a.id))
@@ -466,7 +479,7 @@
       <!-- Board info -->
       <div class="text-[10px] text-slate-500 space-y-0.5">
         <div>Board: {((doc.grid.cols - 1) * doc.grid.pitch + doc.grid.pitch).toFixed(1)} &times; {((doc.grid.rows - 1) * doc.grid.pitch + doc.grid.pitch).toFixed(1)} mm</div>
-        <div>Pads: {doc.pads.length} | Headers: {doc.headers.length} | Traces: {doc.traces.length} | Jumpers: {doc.jumpers.length} | Labels: {doc.annotations.length}</div>
+        <div>Pads: {doc.pads.length} | Headers: {doc.headers.length} | DIPs: {(doc.dips || []).length} | Traces: {doc.traces.length} | Jumpers: {doc.jumpers.length} | Labels: {doc.annotations.length}</div>
       </div>
     </div>
 
@@ -498,6 +511,7 @@
             onAddPad={addPad}
             onAddHeader={addHeader}
             onAddTrace={addTrace}
+            onAddDip={addDip}
             onAddJumper={addJumper}
             onAddAnnotation={addAnnotation}
             onUpdateAnnotation={updateAnnotation}

@@ -5,10 +5,11 @@
     { id: 'select', label: 'Select', icon: 'pointer', key: null },
     { id: 'pad', label: 'Pad', icon: 'pad', key: '1' },
     { id: 'header', label: 'Header', icon: 'header', key: '2' },
-    { id: 'trace', label: 'Trace', icon: 'trace', key: '3' },
-    { id: 'jumper', label: 'Jumper', icon: 'jumper', key: '4' },
-    { id: 'label', label: 'Label', icon: 'label', key: '5' },
-    { id: 'erase', label: 'Erase', icon: 'erase', key: '6' },
+    { id: 'dip', label: 'DIP', icon: 'dip', key: '3' },
+    { id: 'trace', label: 'Trace', icon: 'trace', key: '4' },
+    { id: 'jumper', label: 'Jumper', icon: 'jumper', key: '5' },
+    { id: 'label', label: 'Label', icon: 'label', key: '6' },
+    { id: 'erase', label: 'Erase', icon: 'erase', key: '7' },
   ]
 </script>
 
@@ -34,6 +35,15 @@
           {:else if tool.icon === 'header'}
             <circle cx="5" cy="10" r="3" />
             <circle cx="15" cy="10" r="3" />
+          {:else if tool.icon === 'dip'}
+            <rect x="6" y="2" width="8" height="16" rx="1" />
+            <line x1="3" y1="5" x2="6" y2="5" />
+            <line x1="3" y1="10" x2="6" y2="10" />
+            <line x1="3" y1="15" x2="6" y2="15" />
+            <line x1="14" y1="5" x2="17" y2="5" />
+            <line x1="14" y1="10" x2="17" y2="10" />
+            <line x1="14" y1="15" x2="17" y2="15" />
+            <path d="M8.5 2 A1.5 1.5 0 0 0 11.5 2" fill="none" />
           {:else if tool.icon === 'trace'}
             <path d="M4 16L4 8L16 8" stroke-linecap="round" stroke-linejoin="round" />
           {:else if tool.icon === 'jumper'}

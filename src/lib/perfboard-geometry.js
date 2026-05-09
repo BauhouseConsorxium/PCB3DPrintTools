@@ -25,6 +25,19 @@ function collectPadPositions(doc) {
     }
   }
 
+  for (const dip of (doc.dips || [])) {
+    const spacing = dip.rowSpacing ?? 3
+    for (let i = 0; i < dip.count; i++) {
+      if (dip.orientation === 'v') {
+        addPad(dip.col, dip.row + i)
+        addPad(dip.col + spacing, dip.row + i)
+      } else {
+        addPad(dip.col + i, dip.row)
+        addPad(dip.col + i, dip.row + spacing)
+      }
+    }
+  }
+
   return positions
 }
 
@@ -203,6 +216,7 @@ export function createDefaultDocument() {
     traceWidth: 1.0,
     pads: [],
     headers: [],
+    dips: [],
     traces: [],
     jumpers: [],
     annotations: []

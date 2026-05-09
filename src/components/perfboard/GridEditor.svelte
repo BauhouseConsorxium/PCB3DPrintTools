@@ -7,6 +7,7 @@
     selectedIds = [],
     onAddPad = () => {},
     onAddHeader = () => {},
+    onAddDip = () => {},
     onAddTrace = () => {},
     onAddJumper = () => {},
     onAddAnnotation = () => {},
@@ -40,6 +41,10 @@
   // Header drawing state
   let headerStart = $state(null)
   let headerPreview = $state(null)
+
+  // DIP drawing state
+  let dipStart = $state(null)
+  let dipPreview = $state(null)
 
   // Jumper drawing state
   let jumperStart = $state(null)
@@ -108,6 +113,16 @@
         const hc = h.orientation === 'h' ? h.col + i : h.col
         const hr = h.orientation === 'v' ? h.row + i : h.row
         if (hc === col && hr === row) return h
+      }
+    }
+    for (const d of (doc.dips || [])) {
+      const spacing = d.rowSpacing ?? 3
+      for (let i = 0; i < d.count; i++) {
+        if (d.orientation === 'v') {
+          if ((d.col === col && d.row + i === row) || (d.col + spacing === col && d.row + i === row)) return d
+        } else {
+          if ((d.col + i === col && d.row === row) || (d.col + i === col && d.row + spacing === row)) return d
+        }
       }
     }
     for (const t of doc.traces) {
@@ -198,6 +213,27 @@
           headerPreview = null
         }
       }
+    } else if (activeTool === 'dip') {
+      if (!dipStart) {
+        dipStart = { col, row }
+      } else {
+        const dc = col - dipStart.col
+        const dr = row - dipStart.row
+        if (dc === 0 && dr === 0) {
+          dipStart = null
+          dipPreview = null
+        } else {
+          const orientation = Math.abs(dc) >= Math.abs(dr) ? 'h' : 'v'
+          const count = orientation === 'h' ? Math.abs(dc) + 1 : Math.abs(dr) + 1
+          const startCol = orientation === 'h' ? Math.min(dipStart.col, col) : dipStart.col
+          const startRow = orientation === 'v' ? Math.min(dipStart.row, row) : dipStart.row
+          if (count >= 2) {
+            onAddDip(startCol, startRow, count, orientation)
+          }
+          dipStart = null
+          dipPreview = null
+        }
+      }
     } else if (activeTool === 'trace') {
       if (tracePoints.length === 0) {
         tracePoints = [{ col, row }]
@@ -282,6 +318,16 @@
       const startRow = orientation === 'v' ? Math.min(headerStart.row, row) : headerStart.row
       headerPreview = { col: startCol, row: startRow, count, orientation }
     }
+
+    if (activeTool === 'dip' && dipStart) {
+      const dc = col - dipStart.col
+      const dr = row - dipStart.row
+      const orientation = Math.abs(dc) >= Math.abs(dr) ? 'h' : 'v'
+      const count = orientation === 'h' ? Math.abs(dc) + 1 : Math.abs(dr) + 1
+      const startCol = orientation === 'h' ? Math.min(dipStart.col, col) : dipStart.col
+      const startRow = orientation === 'v' ? Math.min(dipStart.row, row) : dipStart.row
+      dipPreview = { col: startCol, row: startRow, count, orientation }
+    }
   }
 
   function findElementsInRect(x1, y1, x2, y2) {
@@ -298,6 +344,18 @@
         const hr = h.orientation === 'v' ? h.row + i : h.row
         if (inRect(hc * pitch, hr * pitch)) { ids.push(h.id); break }
       }
+    }
+    for (const d of (doc.dips || [])) {
+      const spacing = d.rowSpacing ?? 3
+      let found = false
+      for (let i = 0; i < d.count && !found; i++) {
+        if (d.orientation === 'v') {
+          if (inRect(d.col * pitch, (d.row + i) * pitch) || inRect((d.col + spacing) * pitch, (d.row + i) * pitch)) found = true
+        } else {
+          if (inRect((d.col + i) * pitch, d.row * pitch) || inRect((d.col + i) * pitch, (d.row + spacing) * pitch)) found = true
+        }
+      }
+      if (found) ids.push(d.id)
     }
     for (const t of doc.traces) {
       for (const pt of t.points) {
@@ -421,6 +479,11 @@
       headerPreview = null
       return true
     }
+    if (activeTool === 'dip' && dipStart) {
+      dipStart = null
+      dipPreview = null
+      return true
+    }
     if (activeTool === 'jumper' && jumperStart) {
       jumperStart = null
       jumperPreview = null
@@ -438,7 +501,7 @@
     cancelDrawing()
   }
 
-  const toolHotkeys = { '1': 'pad', '2': 'header', '3': 'trace', '4': 'jumper', '5': 'label', '6': 'erase' }
+  const toolHotkeys = { '1': 'pad', '2': 'header', '3': 'dip', '4': 'trace', '5': 'jumper', '6': 'label', '7': 'erase' }
 
   function handleKeydown(e) {
     const isInput = e.target?.tagName === 'INPUT' || e.target?.tagName === 'TEXTAREA'
@@ -464,6 +527,21 @@
         col: header.orientation === 'h' ? header.col + i : header.col,
         row: header.orientation === 'v' ? header.row + i : header.row,
       })
+    }
+    return pads
+  }
+
+  function getDipPads(dip) {
+    const spacing = dip.rowSpacing ?? 3
+    const pads = []
+    for (let i = 0; i < dip.count; i++) {
+      if (dip.orientation === 'v') {
+        pads.push({ col: dip.col, row: dip.row + i, side: 'left' })
+        pads.push({ col: dip.col + spacing, row: dip.row + i, side: 'right' })
+      } else {
+        pads.push({ col: dip.col + i, row: dip.row, side: 'top' })
+        pads.push({ col: dip.col + i, row: dip.row + spacing, side: 'bottom' })
+      }
     }
     return pads
   }
@@ -624,12 +702,72 @@
 
     <!-- Header preview -->
     {#if headerPreview}
-      {@const pads = []}
       {#each Array(headerPreview.count) as _, i}
         {@const c = headerPreview.orientation === 'h' ? headerPreview.col + i : headerPreview.col}
         {@const r = headerPreview.orientation === 'v' ? headerPreview.row + i : headerPreview.row}
         <circle cx={c * pitch} cy={r * pitch} r={padR} fill="#d4a534" opacity="0.4" />
         <circle cx={c * pitch} cy={r * pitch} r={drillR} fill="#1a1a2e" opacity="0.4" />
+      {/each}
+    {/if}
+
+    <!-- DIP bodies -->
+    {#each (doc.dips || []) as dip}
+      {@const isSelected = selectedIds.includes(dip.id)}
+      {@const dpads = getDipPads(dip)}
+      {@const spacing = dip.rowSpacing ?? 3}
+      {@const bodyX = dip.orientation === 'v' ? dip.col * pitch + pitch * 0.3 : dip.col * pitch - padR - 0.2}
+      {@const bodyY = dip.orientation === 'v' ? dip.row * pitch - padR - 0.2 : dip.row * pitch + pitch * 0.3}
+      {@const bodyW = dip.orientation === 'v' ? (spacing * pitch - pitch * 0.6) : ((dip.count - 1) * pitch + 2 * padR + 0.4)}
+      {@const bodyH = dip.orientation === 'v' ? ((dip.count - 1) * pitch + 2 * padR + 0.4) : (spacing * pitch - pitch * 0.6)}
+      <rect
+        x={bodyX} y={bodyY}
+        width={bodyW} height={bodyH}
+        fill={isSelected ? 'rgba(251,191,36,0.15)' : 'rgba(40,40,60,0.8)'}
+        stroke={isSelected ? '#fbbf24' : 'rgba(255,255,255,0.25)'}
+        stroke-width="0.15"
+        rx="0.3"
+      />
+      {#if dip.orientation === 'v'}
+        <path
+          d="M{dip.col * pitch + spacing * pitch / 2 - pitch * 0.2},{bodyY} A{pitch * 0.2},{pitch * 0.2} 0 0 1 {dip.col * pitch + spacing * pitch / 2 + pitch * 0.2},{bodyY}"
+          fill="none" stroke={isSelected ? '#fbbf24' : 'rgba(255,255,255,0.35)'} stroke-width="0.12"
+        />
+      {:else}
+        <path
+          d="M{bodyX},{dip.row * pitch + spacing * pitch / 2 - pitch * 0.2} A{pitch * 0.2},{pitch * 0.2} 0 0 0 {bodyX},{dip.row * pitch + spacing * pitch / 2 + pitch * 0.2}"
+          fill="none" stroke={isSelected ? '#fbbf24' : 'rgba(255,255,255,0.35)'} stroke-width="0.12"
+        />
+      {/if}
+      {#each dpads as dp}
+        {#if isSelected}
+          <circle cx={dp.col * pitch} cy={dp.row * pitch} r={padR + pitch * 0.04} fill="rgba(255,255,255,0.45)" />
+        {/if}
+        <circle cx={dp.col * pitch} cy={dp.row * pitch} r={padR} fill={isSelected ? '#fbbf24' : '#d4a534'} />
+        <circle cx={dp.col * pitch} cy={dp.row * pitch} r={drillR} fill="#1a1a2e" />
+      {/each}
+    {/each}
+
+    <!-- DIP preview -->
+    {#if dipPreview && dipPreview.count >= 2}
+      {@const spacing = 3}
+      {@const bodyX = dipPreview.orientation === 'v' ? dipPreview.col * pitch + pitch * 0.3 : dipPreview.col * pitch - padR - 0.2}
+      {@const bodyY = dipPreview.orientation === 'v' ? dipPreview.row * pitch - padR - 0.2 : dipPreview.row * pitch + pitch * 0.3}
+      {@const bodyW = dipPreview.orientation === 'v' ? (spacing * pitch - pitch * 0.6) : ((dipPreview.count - 1) * pitch + 2 * padR + 0.4)}
+      {@const bodyH = dipPreview.orientation === 'v' ? ((dipPreview.count - 1) * pitch + 2 * padR + 0.4) : (spacing * pitch - pitch * 0.6)}
+      <rect x={bodyX} y={bodyY} width={bodyW} height={bodyH}
+        fill="rgba(40,40,60,0.3)" stroke="rgba(255,255,255,0.15)" stroke-width="0.15" rx="0.3" />
+      {#each Array(dipPreview.count) as _, i}
+        {#if dipPreview.orientation === 'v'}
+          <circle cx={dipPreview.col * pitch} cy={(dipPreview.row + i) * pitch} r={padR} fill="#d4a534" opacity="0.4" />
+          <circle cx={dipPreview.col * pitch} cy={(dipPreview.row + i) * pitch} r={drillR} fill="#1a1a2e" opacity="0.4" />
+          <circle cx={(dipPreview.col + spacing) * pitch} cy={(dipPreview.row + i) * pitch} r={padR} fill="#d4a534" opacity="0.4" />
+          <circle cx={(dipPreview.col + spacing) * pitch} cy={(dipPreview.row + i) * pitch} r={drillR} fill="#1a1a2e" opacity="0.4" />
+        {:else}
+          <circle cx={(dipPreview.col + i) * pitch} cy={dipPreview.row * pitch} r={padR} fill="#d4a534" opacity="0.4" />
+          <circle cx={(dipPreview.col + i) * pitch} cy={dipPreview.row * pitch} r={drillR} fill="#1a1a2e" opacity="0.4" />
+          <circle cx={(dipPreview.col + i) * pitch} cy={(dipPreview.row + spacing) * pitch} r={padR} fill="#d4a534" opacity="0.4" />
+          <circle cx={(dipPreview.col + i) * pitch} cy={(dipPreview.row + spacing) * pitch} r={drillR} fill="#1a1a2e" opacity="0.4" />
+        {/if}
       {/each}
     {/if}
 
@@ -677,7 +815,7 @@
     {/each}
 
     <!-- Ghost cursor -->
-    {#if ghostPos && (activeTool === 'pad' || activeTool === 'header')}
+    {#if ghostPos && (activeTool === 'pad' || activeTool === 'header' || (activeTool === 'dip' && !dipStart))}
       <circle
         cx={ghostPos.col * pitch} cy={ghostPos.row * pitch}
         r={padR}
@@ -791,6 +929,12 @@
           {#each getHeaderPads(header) as hp}
             <circle cx={(hp.col + dc) * pitch} cy={(hp.row + dr) * pitch} r={padR} fill="#fbbf24" opacity="0.4" />
             <circle cx={(hp.col + dc) * pitch} cy={(hp.row + dr) * pitch} r={drillR} fill="#1a1a2e" opacity="0.4" />
+          {/each}
+        {/each}
+        {#each (doc.dips || []).filter(d => selectedIds.includes(d.id)) as dip}
+          {#each getDipPads(dip) as dp}
+            <circle cx={(dp.col + dc) * pitch} cy={(dp.row + dr) * pitch} r={padR} fill="#fbbf24" opacity="0.4" />
+            <circle cx={(dp.col + dc) * pitch} cy={(dp.row + dr) * pitch} r={drillR} fill="#1a1a2e" opacity="0.4" />
           {/each}
         {/each}
         {#each doc.traces.filter(t => selectedIds.includes(t.id)) as trace}
