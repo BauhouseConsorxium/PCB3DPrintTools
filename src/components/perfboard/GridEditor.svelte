@@ -137,7 +137,7 @@
   function findControlPointAt(rawX, rawY) {
     const hitR = pitch * 0.2
     for (const trace of doc.traces) {
-      if (trace.type !== 'curve' || !selectedIds.includes(trace.id)) continue
+      if (!selectedIds.includes(trace.id)) continue
       for (let i = 0; i < trace.points.length; i++) {
         const px = trace.points[i].col * pitch
         const py = trace.points[i].row * pitch
@@ -1001,6 +1001,36 @@
             opacity={isSelected ? 1 : 0.85}
           />
         {/each}
+        {#if isSelected}
+          {#each trace.points as pt, i}
+            {@const isActiveCP = activeCP && activeCP.traceId === trace.id && activeCP.pointIndex === i}
+            <circle cx={pt.col * pitch} cy={pt.row * pitch} r={isActiveCP ? pitch * 0.14 : pitch * 0.1}
+              fill={isActiveCP ? '#fbbf24' : '#22c55e'} stroke="white" stroke-width={pitch * 0.02} opacity="0.9"
+            />
+            {#if isActiveCP && trace.points.length > 2}
+              <!-- svelte-ignore a11y_click_events_have_key_events -->
+              <!-- svelte-ignore a11y_no_static_element_interactions -->
+              <g
+                style="cursor: pointer"
+                onpointerdown={(e) => { e.stopPropagation(); onDeleteControlPoint(activeCP.traceId, activeCP.pointIndex); activeCP = null }}
+              >
+                <circle cx={pt.col * pitch + pitch * 0.25} cy={pt.row * pitch - pitch * 0.25} r={pitch * 0.1}
+                  fill="#ef4444" stroke="white" stroke-width={pitch * 0.02}
+                />
+                <line
+                  x1={pt.col * pitch + pitch * 0.25 - pitch * 0.05} y1={pt.row * pitch - pitch * 0.25 - pitch * 0.05}
+                  x2={pt.col * pitch + pitch * 0.25 + pitch * 0.05} y2={pt.row * pitch - pitch * 0.25 + pitch * 0.05}
+                  stroke="white" stroke-width={pitch * 0.025} stroke-linecap="round"
+                />
+                <line
+                  x1={pt.col * pitch + pitch * 0.25 + pitch * 0.05} y1={pt.row * pitch - pitch * 0.25 - pitch * 0.05}
+                  x2={pt.col * pitch + pitch * 0.25 - pitch * 0.05} y2={pt.row * pitch - pitch * 0.25 + pitch * 0.05}
+                  stroke="white" stroke-width={pitch * 0.025} stroke-linecap="round"
+                />
+              </g>
+            {/if}
+          {/each}
+        {/if}
       {/if}
     {/each}
 
@@ -1396,29 +1426,31 @@
           ? { x: (p.col + dc) * pitch, y: (p.row + dr) * pitch }
           : { x: p.col * pitch, y: p.row * pitch }
         )}
-        {@const ew = trace.endWidth ?? trace.width}
-        {@const tn = trace.tension ?? 0.5}
-        {#if ew > trace.width}
-          {@const outline = variableWidthOutlinePath(pts, trace.width, ew, 32, tn, trace.taperDistance ?? 0)}
-          <path d={outline} fill="#fbbf24" opacity="0.5" />
-        {:else}
-          {@const d = catmullRomSVGPath(pts, tn)}
-          <path {d}
-            stroke="#fbbf24" stroke-width={trace.width}
-            stroke-linecap="round" stroke-linejoin="round" fill="none" opacity="0.6"
-          />
-        {/if}
-        <!-- Control polygon ghost -->
-        {#each pts as pt, i}
-          {#if i > 0}
-            <line
-              x1={pts[i-1].x} y1={pts[i-1].y}
-              x2={pt.x} y2={pt.y}
-              stroke="rgba(34,197,94,0.4)" stroke-width={pitch * 0.03}
-              stroke-dasharray="{pitch * 0.08}"
+        {#if trace.type === 'curve'}
+          {@const ew = trace.endWidth ?? trace.width}
+          {@const tn = trace.tension ?? 0.5}
+          {#if ew > trace.width}
+            {@const outline = variableWidthOutlinePath(pts, trace.width, ew, 32, tn, trace.taperDistance ?? 0)}
+            <path d={outline} fill="#fbbf24" opacity="0.5" />
+          {:else}
+            {@const d = catmullRomSVGPath(pts, tn)}
+            <path {d}
+              stroke="#fbbf24" stroke-width={trace.width}
+              stroke-linecap="round" stroke-linejoin="round" fill="none" opacity="0.6"
             />
           {/if}
-        {/each}
+        {:else}
+          {#each pts as pt, i}
+            {#if i > 0}
+              <line
+                x1={pts[i-1].x} y1={pts[i-1].y}
+                x2={pt.x} y2={pt.y}
+                stroke="#fbbf24" stroke-width={trace.width}
+                stroke-linecap="round" fill="none" opacity="0.5"
+              />
+            {/if}
+          {/each}
+        {/if}
         {#each pts as pt, i}
           <circle cx={pt.x} cy={pt.y} r={pitch * 0.1}
             fill={i === cpDrag.pointIndex ? '#fbbf24' : '#22c55e'}
