@@ -13,6 +13,8 @@
   let selectedId = $state(null)
   let zScale = $state(8)
   let boardZScale = $state(1)
+  let annotationText = $state('VCC')
+  let annotationColor = $state('#ef4444')
 
   let doc = $state(createDefaultDocument())
 
@@ -45,8 +47,37 @@
     doc.traces = [...doc.traces, { id: crypto.randomUUID(), points, width: doc.traceWidth }]
   }
 
+  const WIRE_COLORS = [
+    '#ef4444', '#f97316', '#eab308', '#22c55e', '#06b6d4',
+    '#3b82f6', '#a855f7', '#ec4899', '#f0f0f0', '#a78bfa',
+  ]
+
   function addJumper(col1, row1, col2, row2) {
-    doc.jumpers = [...doc.jumpers, { id: crypto.randomUUID(), col1, row1, col2, row2 }]
+    const color = WIRE_COLORS[Math.floor(Math.random() * WIRE_COLORS.length)]
+    doc.jumpers = [...doc.jumpers, { id: crypto.randomUUID(), col1, row1, col2, row2, color }]
+  }
+
+  function updateJumperColor(id, color) {
+    const j = doc.jumpers.find(j => j.id === id)
+    if (j) { j.color = color; doc.jumpers = [...doc.jumpers] }
+  }
+
+  function addAnnotation(col, row) {
+    doc.annotations = [...doc.annotations, { id: crypto.randomUUID(), col, row, text: annotationText, color: annotationColor }]
+  }
+
+  function updateAnnotation(id, text, color) {
+    if (!text.trim()) {
+      doc.annotations = doc.annotations.filter(a => a.id !== id)
+      if (selectedId === id) selectedId = null
+      return
+    }
+    const ann = doc.annotations.find(a => a.id === id)
+    if (ann) {
+      ann.text = text
+      if (color) ann.color = color
+      doc.annotations = [...doc.annotations]
+    }
   }
 
   function moveElement(id, dc, dr) {
@@ -58,6 +89,8 @@
     if (trace) { for (const pt of trace.points) { pt.col += dc; pt.row += dr }; doc.traces = [...doc.traces]; return }
     const jumper = doc.jumpers.find(j => j.id === id)
     if (jumper) { jumper.col1 += dc; jumper.row1 += dr; jumper.col2 += dc; jumper.row2 += dr; doc.jumpers = [...doc.jumpers]; return }
+    const ann = doc.annotations.find(a => a.id === id)
+    if (ann) { ann.col += dc; ann.row += dr; doc.annotations = [...doc.annotations]; return }
   }
 
   function removeElement(id) {
@@ -65,6 +98,7 @@
     doc.headers = doc.headers.filter(h => h.id !== id)
     doc.traces = doc.traces.filter(t => t.id !== id)
     doc.jumpers = doc.jumpers.filter(j => j.id !== id)
+    doc.annotations = doc.annotations.filter(a => a.id !== id)
     if (selectedId === id) selectedId = null
   }
 
@@ -101,6 +135,7 @@
 
   function loadFromSlot(entry) {
     entry.doc.jumpers = entry.doc.jumpers ?? []
+    entry.doc.annotations = entry.doc.annotations ?? []
     doc = entry.doc
     selectedId = null
   }
@@ -129,6 +164,7 @@
         const parsed = JSON.parse(reader.result)
         if (parsed.version !== 1 || !parsed.grid) { alert('Invalid perfboard file'); return }
         parsed.jumpers = parsed.jumpers ?? []
+        parsed.annotations = parsed.annotations ?? []
         doc = parsed
         selectedId = null
       } catch { alert('Failed to parse file') }
@@ -147,6 +183,7 @@
       const parsed = await res.json()
       if (parsed.version !== 1 || !parsed.grid) { alert('Invalid example file'); return }
       parsed.jumpers = parsed.jumpers ?? []
+      parsed.annotations = parsed.annotations ?? []
       doc = parsed
       selectedId = null
     } catch { alert('Failed to load example') }
@@ -210,6 +247,29 @@
 
       <Toolbar {activeTool} onToolChange={(t) => { activeTool = t; selectedId = null }} />
 
+      {#if activeTool === 'label'}
+        <div class="mb-4">
+          <div class="text-[10px] uppercase tracking-wider text-slate-500 mb-2">Label</div>
+          <div class="space-y-1.5">
+            <input
+              type="text"
+              bind:value={annotationText}
+              class="w-full bg-slate-700 text-xs text-slate-300 rounded px-2 py-1 border border-slate-600 focus:border-slate-400 outline-none"
+              placeholder="Label text"
+            />
+            <div class="flex items-center gap-1.5">
+              {#each ['#ef4444', '#22c55e', '#3b82f6', '#eab308', '#f97316', '#a855f7', '#f0f0f0'] as c}
+                <button
+                  onclick={() => annotationColor = c}
+                  class="w-4 h-4 rounded-full border-2 transition-colors {annotationColor === c ? 'border-white' : 'border-transparent'}"
+                  style="background-color: {c}"
+                ></button>
+              {/each}
+            </div>
+          </div>
+        </div>
+      {/if}
+
       <PerfboardExportPanel
         bind:zScale
         bind:boardZScale
@@ -271,7 +331,7 @@
       <!-- Board info -->
       <div class="text-[10px] text-slate-500 space-y-0.5">
         <div>Board: {((doc.grid.cols - 1) * doc.grid.pitch + doc.grid.pitch).toFixed(1)} &times; {((doc.grid.rows - 1) * doc.grid.pitch + doc.grid.pitch).toFixed(1)} mm</div>
-        <div>Pads: {doc.pads.length} | Headers: {doc.headers.length} | Traces: {doc.traces.length} | Jumpers: {doc.jumpers.length}</div>
+        <div>Pads: {doc.pads.length} | Headers: {doc.headers.length} | Traces: {doc.traces.length} | Jumpers: {doc.jumpers.length} | Labels: {doc.annotations.length}</div>
       </div>
     </div>
 
@@ -304,6 +364,9 @@
             onAddHeader={addHeader}
             onAddTrace={addTrace}
             onAddJumper={addJumper}
+            onAddAnnotation={addAnnotation}
+            onUpdateAnnotation={updateAnnotation}
+            onUpdateJumperColor={updateJumperColor}
             onMoveElement={moveElement}
             onRemoveElement={removeElement}
             onSelect={selectElement}

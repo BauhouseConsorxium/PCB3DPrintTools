@@ -183,6 +183,7 @@ export function createDefaultDocument() {
     pads: [],
     headers: [],
     traces: [],
-    jumpers: []
+    jumpers: [],
+    annotations: []
   }
 }

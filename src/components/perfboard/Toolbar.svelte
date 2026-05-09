@@ -7,13 +7,14 @@
     { id: 'header', label: 'Header', icon: 'header' },
     { id: 'trace', label: 'Trace', icon: 'trace' },
     { id: 'jumper', label: 'Jumper', icon: 'jumper' },
+    { id: 'label', label: 'Label', icon: 'label' },
     { id: 'erase', label: 'Erase', icon: 'erase' },
   ]
 </script>
 
 <div class="flex flex-col gap-1 mb-4">
   <div class="text-[10px] uppercase tracking-wider text-slate-500 mb-1">Tools</div>
-  <div class="grid grid-cols-6 gap-1">
+  <div class="grid grid-cols-4 gap-1">
     {#each tools as tool}
       <button
         class="flex flex-col items-center gap-0.5 px-1 py-1.5 rounded text-[10px] transition-colors
@@ -36,6 +37,8 @@
             <circle cx="4" cy="16" r="2" />
             <path d="M4 16Q4 4 16 4" stroke-linecap="round" />
             <circle cx="16" cy="4" r="2" />
+          {:else if tool.icon === 'label'}
+            <text x="10" y="15" font-size="13" font-weight="bold" text-anchor="middle" fill="currentColor" stroke="none">A</text>
           {:else if tool.icon === 'erase'}
             <path d="M3 17h14M6 13l8-8M5 14l3-3M10 14l4-4" stroke-linecap="round" />
           {/if}

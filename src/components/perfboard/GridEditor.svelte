@@ -1,5 +1,5 @@
 <script>
-  import { onMount } from 'svelte'
+  import { onMount, tick } from 'svelte'
 
   let {
     doc,
@@ -9,6 +9,9 @@
     onAddHeader = () => {},
     onAddTrace = () => {},
     onAddJumper = () => {},
+    onAddAnnotation = () => {},
+    onUpdateAnnotation = () => {},
+    onUpdateJumperColor = () => {},
     onMoveElement = () => {},
     onRemoveElement = () => {},
     onSelect = () => {},
@@ -42,6 +45,16 @@
 
   // Drag-to-move state
   let dragInfo = $state(null)
+
+  // Inline editing
+  let editingAnnotation = $state(null)
+  let editingJumper = $state(null)
+  let editInput
+
+  const WIRE_COLORS = [
+    '#ef4444', '#f97316', '#eab308', '#22c55e', '#06b6d4',
+    '#3b82f6', '#a855f7', '#ec4899', '#f0f0f0', '#a78bfa',
+  ]
 
   // Ghost cursor
   let ghostPos = $state(null)
@@ -129,10 +142,22 @@
     for (const j of doc.jumpers) {
       if ((j.col1 === col && j.row1 === row) || (j.col2 === col && j.row2 === row)) return j
     }
+    for (const a of doc.annotations) {
+      if (rawX != null && rawY != null) {
+        const ax = a.col * pitch
+        const ay = a.row * pitch
+        const rx = ax + pitch * 0.2
+        const ry = ay - pitch * 0.45
+        const rw = a.text.length * pitch * 0.28 + pitch * 0.2
+        const rh = pitch * 0.5
+        if (rawX >= rx && rawX <= rx + rw && rawY >= ry && rawY <= ry + rh) return a
+      } else if (a.col === col && a.row === row) return a
+    }
     return null
   }
 
   function handlePointerDown(e) {
+    if (editingJumper) { editingJumper = null }
     if (e.button === 1 || (e.button === 0 && e.shiftKey)) {
       isPanning = true
       panStart = { x: e.clientX, y: e.clientY, vx: vb.x, vy: vb.y }
@@ -193,6 +218,8 @@
         jumperStart = null
         jumperPreview = null
       }
+    } else if (activeTool === 'label') {
+      onAddAnnotation(col, row)
     } else if (activeTool === 'select') {
       const el = findElementAt(col, row, sp.x, sp.y)
       if (el && el.id === selectedId) {
@@ -281,7 +308,47 @@
       onAddTrace([...tracePoints])
       tracePoints = []
       tracePreview = null
+      return
     }
+    if (activeTool === 'select') {
+      const sp = svgPoint(e)
+      if (!sp) return
+      const { col, row } = snapToGrid(sp.x, sp.y)
+      const el = findElementAt(col, row, sp.x, sp.y)
+      if (el && doc.annotations.find(a => a.id === el.id)) {
+        const rect = containerEl.getBoundingClientRect()
+        editingAnnotation = {
+          id: el.id,
+          text: el.text,
+          color: el.color,
+          left: e.clientX - rect.left,
+          top: e.clientY - rect.top - 20
+        }
+        tick().then(() => {
+          if (editInput) { editInput.focus(); editInput.select() }
+        })
+      } else if (el && doc.jumpers.find(j => j.id === el.id)) {
+        const rect = containerEl.getBoundingClientRect()
+        editingJumper = {
+          id: el.id,
+          color: el.color ?? '#67e8f9',
+          left: e.clientX - rect.left,
+          top: e.clientY - rect.top - 20
+        }
+      }
+    }
+  }
+
+  function commitEdit() {
+    if (!editingAnnotation) return
+    onUpdateAnnotation(editingAnnotation.id, editInput?.value ?? '', editingAnnotation.color)
+    editingAnnotation = null
+  }
+
+  function handleEditKeydown(e) {
+    e.stopPropagation()
+    if (e.key === 'Enter') commitEdit()
+    else if (e.key === 'Escape') editingAnnotation = null
   }
 
   function handleContextMenu(e) {
@@ -335,7 +402,7 @@
 
 <div
   bind:this={containerEl}
-  class="w-full h-full bg-slate-950 select-none"
+  class="w-full h-full bg-slate-950 select-none relative"
   oncontextmenu={handleContextMenu}
 >
   <svg
@@ -478,6 +545,31 @@
       />
     {/each}
 
+    <!-- Annotations -->
+    {#each doc.annotations as ann}
+      {@const isSelected = ann.id === selectedId}
+      {@const ax = ann.col * pitch}
+      {@const ay = ann.row * pitch}
+      <rect
+        x={ax + pitch * 0.2}
+        y={ay - pitch * 0.45}
+        width={ann.text.length * pitch * 0.28 + pitch * 0.2}
+        height={pitch * 0.5}
+        rx={pitch * 0.08}
+        fill="rgba(0,0,0,0.6)"
+        stroke={isSelected ? '#fbbf24' : 'none'}
+        stroke-width={pitch * 0.04}
+      />
+      <text
+        x={ax + pitch * 0.3}
+        y={ay - pitch * 0.1}
+        font-size={pitch * 0.35}
+        font-family="monospace"
+        font-weight="bold"
+        fill={ann.color}
+      >{ann.text}</text>
+    {/each}
+
     <!-- Ghost cursor -->
     {#if ghostPos && (activeTool === 'pad' || activeTool === 'header')}
       <circle
@@ -516,17 +608,18 @@
       {@const my = (y1 + y2) / 2}
       {@const nx = -dy / (dist || 1)}
       {@const ny = dx / (dist || 1)}
+      {@const jcolor = jumper.color ?? '#67e8f9'}
       <path
         d="M{x1},{y1} Q{mx + nx * arc},{my + ny * arc} {x2},{y2}"
-        stroke={isSelected ? '#fbbf24' : '#67e8f9'}
+        stroke={isSelected ? '#fbbf24' : jcolor}
         stroke-width={pitch * 0.12}
         stroke-linecap="round"
         stroke-dasharray="{pitch * 0.15} {pitch * 0.1}"
         fill="none"
         opacity={isSelected ? 1 : 0.8}
       />
-      <circle cx={x1} cy={y1} r={pitch * 0.12} fill={isSelected ? '#fbbf24' : '#67e8f9'} />
-      <circle cx={x2} cy={y2} r={pitch * 0.12} fill={isSelected ? '#fbbf24' : '#67e8f9'} />
+      <circle cx={x1} cy={y1} r={pitch * 0.12} fill={isSelected ? '#fbbf24' : jcolor} />
+      <circle cx={x2} cy={y2} r={pitch * 0.12} fill={isSelected ? '#fbbf24' : jcolor} />
     {/each}
 
     <!-- Jumper preview -->
@@ -598,7 +691,60 @@
             stroke-dasharray="{pitch * 0.15} {pitch * 0.1}" fill="none" opacity="0.4"
           />
         {/each}
+        {#each doc.annotations.filter(a => a.id === dragInfo.id) as ann}
+          {@const aax = (ann.col + dc) * pitch}
+          {@const aay = (ann.row + dr) * pitch}
+          <text
+            x={aax + pitch * 0.3} y={aay - pitch * 0.1}
+            font-size={pitch * 0.35} font-family="monospace" font-weight="bold"
+            fill="#fbbf24" opacity="0.5"
+          >{ann.text}</text>
+        {/each}
       {/if}
     {/if}
   </svg>
+
+  {#if editingAnnotation}
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
+    <div
+      class="absolute bg-slate-700 rounded border border-amber-400 z-10 p-1.5 flex flex-col gap-1.5"
+      style="left: {editingAnnotation.left}px; top: {editingAnnotation.top}px"
+      onfocusout={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) commitEdit() }}
+    >
+      <input
+        bind:this={editInput}
+        type="text"
+        value={editingAnnotation.text}
+        class="bg-slate-800 text-xs text-slate-200 rounded px-2 py-1 border border-slate-600 outline-none w-28"
+        onkeydown={handleEditKeydown}
+      />
+      <div class="flex items-center gap-1">
+        {#each ['#ef4444', '#22c55e', '#3b82f6', '#eab308', '#f97316', '#a855f7', '#f0f0f0'] as c}
+          <button
+            onmousedown={(e) => { e.preventDefault(); editingAnnotation.color = c }}
+            class="w-3.5 h-3.5 rounded-full border-2 transition-colors {editingAnnotation.color === c ? 'border-white' : 'border-transparent'}"
+            style="background-color: {c}"
+          ></button>
+        {/each}
+      </div>
+    </div>
+  {/if}
+
+  {#if editingJumper}
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
+    <div
+      class="absolute bg-slate-700 rounded border border-amber-400 z-10 p-1.5"
+      style="left: {editingJumper.left}px; top: {editingJumper.top}px"
+    >
+      <div class="flex items-center gap-1">
+        {#each WIRE_COLORS as c}
+          <button
+            onclick={() => { onUpdateJumperColor(editingJumper.id, c); editingJumper.color = c }}
+            class="w-3.5 h-3.5 rounded-full border-2 transition-colors {editingJumper.color === c ? 'border-white' : 'border-transparent'}"
+            style="background-color: {c}"
+          ></button>
+        {/each}
+      </div>
+    </div>
+  {/if}
 </div>
