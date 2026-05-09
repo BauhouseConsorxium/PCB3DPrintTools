@@ -3,6 +3,7 @@
     viewer = null, zScale = $bindable(8), textZScale = $bindable(8), textMode = $bindable('raise'), boardZScale = $bindable(1),
     traceMode = $bindable('raise'), traceWidthOffset = $bindable(0),
     drillDiameterOffset = $bindable(0), squareEnds = $bindable(false),
+    showDimensions = $bindable(false),
     enclosureEnabled = $bindable(false), encWallThickness = $bindable(2),
     encClearance = $bindable(0.3), encFloorThickness = $bindable(1.5),
     encWallHeight = $bindable(5), encShelfDepth = $bindable(1),
@@ -232,6 +233,12 @@
         <span>10×</span>
       </div>
     </div>
+
+    <!-- Dimensions toggle -->
+    <label class="flex items-center gap-2 mb-3 cursor-pointer group">
+      <input type="checkbox" bind:checked={showDimensions} class="accent-[#8888cc] w-3.5 h-3.5" />
+      <span class="text-xs text-slate-400 group-hover:text-slate-200">Show dimensions</span>
+    </label>
 
     <!-- Trace width offset -->
     <div class="mb-3">

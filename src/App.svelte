@@ -40,6 +40,7 @@
     let enclosureBody = $state(null);
     let filename = $state("");
     let viewer = $state(null);
+    let showDimensions = $state(false);
     let drcViolations = $state([]);
     let isRebuild = $state(false);
     let presetModalOpen = $state(false);
@@ -297,6 +298,7 @@
                 bind:traceWidthOffset
                 bind:drillDiameterOffset
                 bind:squareEnds
+                bind:showDimensions
                 bind:enclosureEnabled
                 bind:encWallThickness
                 bind:encClearance
@@ -348,6 +350,7 @@
                 {silkPolylines}
                 {copperTextPolylines}
                 {boardThickness}
+                {showDimensions}
             />
 
             <!-- Watermark -->
