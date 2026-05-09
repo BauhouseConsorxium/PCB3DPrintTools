@@ -1,0 +1,192 @@
+{
+  "version": 1,
+  "name": "cd4093-noise-gen",
+  "grid": { "cols": 16, "rows": 12, "pitch": 2.54 },
+  "boardThickness": 1.6,
+  "copperThickness": 0.035,
+  "drillDiameter": 1.0,
+  "padDiameter": 2.0,
+  "traceWidth": 1.0,
+  "pads": [
+    { "id": "r1a", "col": 3, "row": 2 },
+    { "id": "r1b", "col": 3, "row": 4 },
+    { "id": "r2a", "col": 3, "row": 5 },
+    { "id": "r2b", "col": 3, "row": 7 },
+    { "id": "c1a", "col": 2, "row": 2 },
+    { "id": "c1b", "col": 2, "row": 4 },
+    { "id": "c2a", "col": 2, "row": 6 },
+    { "id": "c2b", "col": 2, "row": 8 },
+    { "id": "c3a", "col": 10, "row": 5 },
+    { "id": "c3b", "col": 12, "row": 5 }
+  ],
+  "headers": [
+    { "id": "pwr", "col": 0, "row": 1, "count": 2, "orientation": "v" },
+    { "id": "ic-l", "col": 5, "row": 2, "count": 7, "orientation": "v" },
+    { "id": "ic-r", "col": 8, "row": 2, "count": 7, "orientation": "v" },
+    { "id": "audio", "col": 14, "row": 5, "count": 2, "orientation": "v" }
+  ],
+  "traces": [
+    {
+      "id": "vcc-bus",
+      "points": [
+        { "col": 0, "row": 1 },
+        { "col": 0, "row": 0 },
+        { "col": 8, "row": 0 },
+        { "col": 8, "row": 2 }
+      ],
+      "width": 1.0
+    },
+    {
+      "id": "gnd-bus",
+      "points": [
+        { "col": 0, "row": 2 },
+        { "col": 0, "row": 10 },
+        { "col": 14, "row": 10 }
+      ],
+      "width": 1.0
+    },
+    {
+      "id": "ic-gnd",
+      "points": [
+        { "col": 5, "row": 8 },
+        { "col": 5, "row": 10 }
+      ],
+      "width": 1.0
+    },
+    {
+      "id": "audio-gnd",
+      "points": [
+        { "col": 14, "row": 6 },
+        { "col": 14, "row": 10 }
+      ],
+      "width": 1.0
+    },
+    {
+      "id": "gate-a-tie",
+      "points": [
+        { "col": 5, "row": 2 },
+        { "col": 5, "row": 3 }
+      ],
+      "width": 1.0
+    },
+    {
+      "id": "r1a-pin1",
+      "points": [
+        { "col": 3, "row": 2 },
+        { "col": 5, "row": 2 }
+      ],
+      "width": 1.0
+    },
+    {
+      "id": "r1b-pin3",
+      "points": [
+        { "col": 3, "row": 4 },
+        { "col": 5, "row": 4 }
+      ],
+      "width": 1.0
+    },
+    {
+      "id": "c1a-node",
+      "points": [
+        { "col": 2, "row": 2 },
+        { "col": 3, "row": 2 }
+      ],
+      "width": 1.0
+    },
+    {
+      "id": "c1b-gnd",
+      "points": [
+        { "col": 2, "row": 4 },
+        { "col": 2, "row": 10 }
+      ],
+      "width": 1.0
+    },
+    {
+      "id": "gate-b-tie",
+      "points": [
+        { "col": 5, "row": 6 },
+        { "col": 5, "row": 7 }
+      ],
+      "width": 1.0
+    },
+    {
+      "id": "r2a-pin4",
+      "points": [
+        { "col": 3, "row": 5 },
+        { "col": 5, "row": 5 }
+      ],
+      "width": 1.0
+    },
+    {
+      "id": "r2b-pin6",
+      "points": [
+        { "col": 3, "row": 7 },
+        { "col": 5, "row": 7 }
+      ],
+      "width": 1.0
+    },
+    {
+      "id": "c2a-node",
+      "points": [
+        { "col": 2, "row": 6 },
+        { "col": 5, "row": 6 }
+      ],
+      "width": 1.0
+    },
+    {
+      "id": "c2b-gnd",
+      "points": [
+        { "col": 2, "row": 8 },
+        { "col": 2, "row": 10 }
+      ],
+      "width": 1.0
+    },
+    {
+      "id": "gateB-to-gateC",
+      "points": [
+        { "col": 5, "row": 5 },
+        { "col": 6, "row": 5 },
+        { "col": 6, "row": 7 },
+        { "col": 8, "row": 7 }
+      ],
+      "width": 1.0
+    },
+    {
+      "id": "gate-d-tie",
+      "points": [
+        { "col": 8, "row": 3 },
+        { "col": 8, "row": 4 }
+      ],
+      "width": 1.0
+    },
+    {
+      "id": "gateC-to-gateD",
+      "points": [
+        { "col": 8, "row": 6 },
+        { "col": 9, "row": 6 },
+        { "col": 9, "row": 4 },
+        { "col": 8, "row": 4 }
+      ],
+      "width": 1.0
+    },
+    {
+      "id": "pin11-to-c3",
+      "points": [
+        { "col": 8, "row": 5 },
+        { "col": 10, "row": 5 }
+      ],
+      "width": 1.0
+    },
+    {
+      "id": "c3-to-audio",
+      "points": [
+        { "col": 12, "row": 5 },
+        { "col": 14, "row": 5 }
+      ],
+      "width": 1.0
+    }
+  ],
+  "jumpers": [
+    { "id": "gateA-to-gateC", "col1": 5, "row1": 4, "col2": 8, "row2": 8 }
+  ]
+}

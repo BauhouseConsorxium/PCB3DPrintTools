@@ -30,7 +30,7 @@ PCB3DPrintTools/
         ├── FileDropzone.svelte    PCB tool only
         └── perfboard/
             ├── GridEditor.svelte        SVG 2D grid editor with tools
-            ├── Toolbar.svelte           Tool selection (select/pad/header/trace/erase)
+            ├── Toolbar.svelte           Tool selection (select/pad/header/trace/jumper/erase)
             ├── BoardSettings.svelte     Grid size, pad/drill/trace dimensions
             └── PerfboardExportPanel.svelte  Z-scale sliders + STL export
 ```
@@ -77,10 +77,11 @@ The perfboard tool targets the same copper-tape fabrication method but skips KiC
 3. Place pads on grid intersections (toggle on click)
 4. Place header strips (click-drag for multi-pin headers)
 5. Route traces between points (click waypoints, double-click to finish, Manhattan routing)
-6. Switch to 3D Preview tab → see raised copper pads and traces
-7. Adjust copper Z-scale for print depth
-8. Export STL → same raised-channel output as the PCB tool
-9. Save/load via localStorage or JSON file
+6. Add jumper wires where traces would cross (component-side wire, not copper)
+7. Switch to 3D Preview tab → see raised copper pads and traces
+8. Adjust copper Z-scale for print depth
+9. Export STL → same raised-channel output as the PCB tool (jumpers excluded — they're physical wire)
+10. Save/load via localStorage or JSON file
 
 ### Perfboard data model
 
@@ -96,7 +97,8 @@ The perfboard tool targets the same copper-tape fabrication method but skips KiC
   traceWidth: 1.0,          // mm
   pads: [{ id, col, row }],
   headers: [{ id, col, row, count, orientation: "h"|"v" }],
-  traces: [{ id, points: [{col, row}], width }]
+  traces: [{ id, points: [{col, row}], width }],
+  jumpers: [{ id, col1, row1, col2, row2 }]
 }
 ```
 
@@ -130,9 +132,11 @@ Pad rings are structurally identical to board geometry: outer circle CCW + inner
   - `'pad'` — click to toggle pad at intersection
   - `'header'` — click start → drag direction → click to place multi-pin header
   - `'trace'` — click waypoints → double-click to finish; L-shaped Manhattan routing per click
+  - `'jumper'` — click start → click end → creates component-side wire (2D only, no 3D geometry)
   - `'select'` — click to select, Delete to remove
   - `'erase'` — click to remove
-- Right-click or Escape cancels in-progress trace/header
+- Right-click or Escape cancels in-progress trace/header/jumper
+- Hit testing: pads/headers use exact grid match; traces and jumpers use proximity-based `distToSegment` with bezier curve sampling (jumpers render as quadratic bezier arcs)
 
 ### PerfboardApp state management
 
@@ -732,4 +736,6 @@ Two guard clauses prevent both no-op recomputes (key matches) and overlapping co
 - **Computing board metrics from `!isCopper(name)` instead of `isPcbBoard(name)`** → silkscreen text bodies (tiny bounding boxes) overwrite `boardBottomY`/`boardTop`, corrupting copper Z positioning for all modes.
 - **Fixing a geometry bug in only one place** → `buildBoardGeometry` and `buildTracesGeometry` exist in both `src/lib/geometry.js` (ES module, used by perfboard) and `public/pcb-worker.js` (classic worker, used by PCB tool). A fix in one must be mirrored in the other.
 - **Body names that don't match Viewer3D predicates** → perfboard bodies must be named `'PCB'`, `'Pads_F.Cu'`, `'F.Cu'` (or similar patterns containing `.cu` / ending with `pcb`) to get correct materials. A body named `'pads'` would get the component material (pink), not copper (gold).
+- **Hit testing curved SVG elements with straight-line distance** → jumper wires render as quadratic bezier arcs but `distToSegment` checks the chord. Clicks on the arc's curved portion miss. Sample the bezier into N line segments and check distance to each. SVG render order also matters: jumpers must be the topmost SVG layer so they visually "sit above" the board.
+- **Loading old perfboard JSON without `jumpers` field** → crashes on `doc.jumpers.filter(...)`. Always add `parsed.jumpers = parsed.jumpers ?? []` in every load path (file upload, localStorage, example fetch).
 

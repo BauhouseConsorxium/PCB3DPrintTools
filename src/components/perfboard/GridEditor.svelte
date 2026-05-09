@@ -8,6 +8,7 @@
     onAddPad = () => {},
     onAddHeader = () => {},
     onAddTrace = () => {},
+    onAddJumper = () => {},
     onRemoveElement = () => {},
     onSelect = () => {},
   } = $props()
@@ -33,6 +34,10 @@
   // Header drawing state
   let headerStart = $state(null)
   let headerPreview = $state(null)
+
+  // Jumper drawing state
+  let jumperStart = $state(null)
+  let jumperPreview = $state(null)
 
   // Ghost cursor
   let ghostPos = $state(null)
@@ -64,7 +69,15 @@
     }
   }
 
-  function findElementAt(col, row) {
+  function distToSegment(px, py, ax, ay, bx, by) {
+    const dx = bx - ax, dy = by - ay
+    const lenSq = dx * dx + dy * dy
+    if (lenSq === 0) return Math.hypot(px - ax, py - ay)
+    const t = Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / lenSq))
+    return Math.hypot(px - (ax + t * dx), py - (ay + t * dy))
+  }
+
+  function findElementAt(col, row, rawX, rawY) {
     for (const p of doc.pads) {
       if (p.col === col && p.row === row) return p
     }
@@ -79,6 +92,38 @@
       for (const pt of t.points) {
         if (pt.col === col && pt.row === row) return t
       }
+    }
+    const hitR = pitch * 0.4
+    if (rawX != null && rawY != null) {
+      for (const j of doc.jumpers) {
+        const x1 = j.col1 * pitch, y1 = j.row1 * pitch
+        const x2 = j.col2 * pitch, y2 = j.row2 * pitch
+        const dx = x2 - x1, dy = y2 - y1
+        const dist = Math.hypot(dx, dy) || 1
+        const arc = dist * 0.3
+        const mx = (x1 + x2) / 2 + (-dy / dist) * arc
+        const my = (y1 + y2) / 2 + (dx / dist) * arc
+        let hit = false
+        const N = 8
+        for (let i = 0; i < N && !hit; i++) {
+          const t0 = i / N, t1 = (i + 1) / N
+          const ax = (1-t0)*(1-t0)*x1 + 2*(1-t0)*t0*mx + t0*t0*x2
+          const ay = (1-t0)*(1-t0)*y1 + 2*(1-t0)*t0*my + t0*t0*y2
+          const bx = (1-t1)*(1-t1)*x1 + 2*(1-t1)*t1*mx + t1*t1*x2
+          const by = (1-t1)*(1-t1)*y1 + 2*(1-t1)*t1*my + t1*t1*y2
+          if (distToSegment(rawX, rawY, ax, ay, bx, by) < hitR) hit = true
+        }
+        if (hit) return j
+      }
+      for (const t of doc.traces) {
+        for (let i = 0; i < t.points.length - 1; i++) {
+          const d = distToSegment(rawX, rawY, t.points[i].col * pitch, t.points[i].row * pitch, t.points[i+1].col * pitch, t.points[i+1].row * pitch)
+          if (d < hitR) return t
+        }
+      }
+    }
+    for (const j of doc.jumpers) {
+      if ((j.col1 === col && j.row1 === row) || (j.col2 === col && j.row2 === row)) return j
     }
     return null
   }
@@ -134,11 +179,21 @@
           tracePoints = [...tracePoints, { col: col, row: last.row }, { col, row }]
         }
       }
+    } else if (activeTool === 'jumper') {
+      if (!jumperStart) {
+        jumperStart = { col, row }
+      } else {
+        if (jumperStart.col !== col || jumperStart.row !== row) {
+          onAddJumper(jumperStart.col, jumperStart.row, col, row)
+        }
+        jumperStart = null
+        jumperPreview = null
+      }
     } else if (activeTool === 'select') {
-      const el = findElementAt(col, row)
+      const el = findElementAt(col, row, sp.x, sp.y)
       onSelect(el?.id ?? null)
     } else if (activeTool === 'erase') {
-      const el = findElementAt(col, row)
+      const el = findElementAt(col, row, sp.x, sp.y)
       if (el) onRemoveElement(el.id)
     }
   }
@@ -159,6 +214,10 @@
     if (activeTool === 'trace' && tracePoints.length > 0) {
       const last = tracePoints[tracePoints.length - 1]
       tracePreview = { col1: last.col, row1: last.row, col2: col, row2: row }
+    }
+
+    if (activeTool === 'jumper' && jumperStart) {
+      jumperPreview = { col, row }
     }
 
     if (activeTool === 'header' && headerStart) {
@@ -213,6 +272,10 @@
     if (activeTool === 'header' && headerStart) {
       headerStart = null
       headerPreview = null
+    }
+    if (activeTool === 'jumper' && jumperStart) {
+      jumperStart = null
+      jumperPreview = null
     }
   }
 
@@ -399,12 +462,74 @@
         fill="#d4a534" opacity="0.25"
       />
     {/if}
+    {#if ghostPos && activeTool === 'jumper' && !jumperStart}
+      <circle
+        cx={ghostPos.col * pitch} cy={ghostPos.row * pitch}
+        r={pitch * 0.12}
+        fill="#67e8f9" opacity="0.3"
+      />
+    {/if}
     {#if ghostPos && activeTool === 'trace' && tracePoints.length === 0}
       <circle
         cx={ghostPos.col * pitch} cy={ghostPos.row * pitch}
         r={pitch * 0.15}
         fill="#f5c842" opacity="0.3"
       />
+    {/if}
+
+    <!-- Jumper wires (topmost layer) -->
+    {#each doc.jumpers as jumper}
+      {@const isSelected = jumper.id === selectedId}
+      {@const x1 = jumper.col1 * pitch}
+      {@const y1 = jumper.row1 * pitch}
+      {@const x2 = jumper.col2 * pitch}
+      {@const y2 = jumper.row2 * pitch}
+      {@const dx = x2 - x1}
+      {@const dy = y2 - y1}
+      {@const dist = Math.hypot(dx, dy)}
+      {@const arc = dist * 0.3}
+      {@const mx = (x1 + x2) / 2}
+      {@const my = (y1 + y2) / 2}
+      {@const nx = -dy / (dist || 1)}
+      {@const ny = dx / (dist || 1)}
+      <path
+        d="M{x1},{y1} Q{mx + nx * arc},{my + ny * arc} {x2},{y2}"
+        stroke={isSelected ? '#fbbf24' : '#67e8f9'}
+        stroke-width={pitch * 0.12}
+        stroke-linecap="round"
+        stroke-dasharray="{pitch * 0.15} {pitch * 0.1}"
+        fill="none"
+        opacity={isSelected ? 1 : 0.8}
+      />
+      <circle cx={x1} cy={y1} r={pitch * 0.12} fill={isSelected ? '#fbbf24' : '#67e8f9'} />
+      <circle cx={x2} cy={y2} r={pitch * 0.12} fill={isSelected ? '#fbbf24' : '#67e8f9'} />
+    {/each}
+
+    <!-- Jumper preview -->
+    {#if jumperPreview && jumperStart}
+      {@const x1 = jumperStart.col * pitch}
+      {@const y1 = jumperStart.row * pitch}
+      {@const x2 = jumperPreview.col * pitch}
+      {@const y2 = jumperPreview.row * pitch}
+      {@const dx = x2 - x1}
+      {@const dy = y2 - y1}
+      {@const dist = Math.hypot(dx, dy)}
+      {@const arc = dist * 0.3}
+      {@const mx = (x1 + x2) / 2}
+      {@const my = (y1 + y2) / 2}
+      {@const nx = -dy / (dist || 1)}
+      {@const ny = dx / (dist || 1)}
+      <path
+        d="M{x1},{y1} Q{mx + nx * arc},{my + ny * arc} {x2},{y2}"
+        stroke="#67e8f9"
+        stroke-width={pitch * 0.12}
+        stroke-linecap="round"
+        stroke-dasharray="{pitch * 0.15} {pitch * 0.1}"
+        fill="none"
+        opacity="0.4"
+      />
+      <circle cx={x1} cy={y1} r={pitch * 0.12} fill="#67e8f9" opacity="0.4" />
+      <circle cx={x2} cy={y2} r={pitch * 0.12} fill="#67e8f9" opacity="0.4" />
     {/if}
   </svg>
 </div>

@@ -182,6 +182,7 @@ export function createDefaultDocument() {
     traceWidth: 1.0,
     pads: [],
     headers: [],
-    traces: []
+    traces: [],
+    jumpers: []
   }
 }

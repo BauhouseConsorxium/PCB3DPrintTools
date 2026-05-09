@@ -45,10 +45,15 @@
     doc.traces = [...doc.traces, { id: crypto.randomUUID(), points, width: doc.traceWidth }]
   }
 
+  function addJumper(col1, row1, col2, row2) {
+    doc.jumpers = [...doc.jumpers, { id: crypto.randomUUID(), col1, row1, col2, row2 }]
+  }
+
   function removeElement(id) {
     doc.pads = doc.pads.filter(p => p.id !== id)
     doc.headers = doc.headers.filter(h => h.id !== id)
     doc.traces = doc.traces.filter(t => t.id !== id)
+    doc.jumpers = doc.jumpers.filter(j => j.id !== id)
     if (selectedId === id) selectedId = null
   }
 
@@ -84,6 +89,7 @@
   }
 
   function loadFromSlot(entry) {
+    entry.doc.jumpers = entry.doc.jumpers ?? []
     doc = entry.doc
     selectedId = null
   }
@@ -111,6 +117,7 @@
       try {
         const parsed = JSON.parse(reader.result)
         if (parsed.version !== 1 || !parsed.grid) { alert('Invalid perfboard file'); return }
+        parsed.jumpers = parsed.jumpers ?? []
         doc = parsed
         selectedId = null
       } catch { alert('Failed to parse file') }
@@ -122,6 +129,17 @@
   let saveMessage = $state('')
   let showSavePanel = $state(false)
   let savedSlots = $derived(getSaves())
+
+  async function loadExample(name) {
+    try {
+      const res = await fetch(`${import.meta.env.BASE_URL}examples/${name}`)
+      const parsed = await res.json()
+      if (parsed.version !== 1 || !parsed.grid) { alert('Invalid example file'); return }
+      parsed.jumpers = parsed.jumpers ?? []
+      doc = parsed
+      selectedId = null
+    } catch { alert('Failed to load example') }
+  }
 
   function handleKeydown(e) {
     if (e.key === 'Delete' || e.key === 'Backspace') {
@@ -230,10 +248,19 @@
         {/if}
       </div>
 
+      <!-- Examples -->
+      <div class="mb-4">
+        <div class="text-[10px] uppercase tracking-wider text-slate-500 mb-2">Examples</div>
+        <button onclick={() => loadExample('cd4093-noise-gen.perfboard.json')}
+          class="w-full text-left px-2 py-1.5 text-[10px] rounded bg-slate-700 hover:bg-slate-600 text-slate-300 transition-colors">
+          CD4093 Noise Generator
+        </button>
+      </div>
+
       <!-- Board info -->
       <div class="text-[10px] text-slate-500 space-y-0.5">
         <div>Board: {((doc.grid.cols - 1) * doc.grid.pitch + doc.grid.pitch).toFixed(1)} &times; {((doc.grid.rows - 1) * doc.grid.pitch + doc.grid.pitch).toFixed(1)} mm</div>
-        <div>Pads: {doc.pads.length} | Headers: {doc.headers.length} | Traces: {doc.traces.length}</div>
+        <div>Pads: {doc.pads.length} | Headers: {doc.headers.length} | Traces: {doc.traces.length} | Jumpers: {doc.jumpers.length}</div>
       </div>
     </div>
 
@@ -265,6 +292,7 @@
             onAddPad={addPad}
             onAddHeader={addHeader}
             onAddTrace={addTrace}
+            onAddJumper={addJumper}
             onRemoveElement={removeElement}
             onSelect={selectElement}
           />
