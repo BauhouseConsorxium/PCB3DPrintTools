@@ -989,7 +989,6 @@
         stroke={isSelected ? '#fbbf24' : jcolor}
         stroke-width={pitch * 0.12}
         stroke-linecap="round"
-        stroke-dasharray="{pitch * 0.15} {pitch * 0.1}"
         fill="none"
         opacity={isSelected ? 1 : 0.8}
       />
@@ -1016,7 +1015,6 @@
         stroke="#67e8f9"
         stroke-width={pitch * 0.12}
         stroke-linecap="round"
-        stroke-dasharray="{pitch * 0.15} {pitch * 0.1}"
         fill="none"
         opacity="0.4"
       />
@@ -1081,7 +1079,7 @@
           <path
             d="M{jx1},{jy1} Q{(jx1+jx2)/2 + jnx*jarc},{(jy1+jy2)/2 + jny*jarc} {jx2},{jy2}"
             stroke="#fbbf24" stroke-width={pitch * 0.12} stroke-linecap="round"
-            stroke-dasharray="{pitch * 0.15} {pitch * 0.1}" fill="none" opacity="0.4"
+            fill="none" opacity="0.4"
           />
         {/each}
         {#each doc.annotations.filter(a => selectedIds.includes(a.id)) as ann}
