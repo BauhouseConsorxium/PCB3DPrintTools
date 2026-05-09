@@ -181,6 +181,199 @@ function collectTraceSegments(doc, padPositions) {
   return segments
 }
 
+function buildCompoundBody(name, boxes) {
+  const allPos = [], allNrm = [], allIdx = []
+  let vOff = 0
+
+  for (const { cx, cy, hw, hd, zBot, zTop } of boxes) {
+    const x0 = cx - hw, x1 = cx + hw
+    const y0 = cy - hd, y1 = cy + hd
+
+    function quad(ax, ay, az, bx, by, bz, cx2, cy2, cz, dx, dy, dz, nx, ny, nz) {
+      allPos.push(ax,ay,az, bx,by,bz, cx2,cy2,cz, dx,dy,dz)
+      allNrm.push(nx,ny,nz, nx,ny,nz, nx,ny,nz, nx,ny,nz)
+      allIdx.push(vOff, vOff+1, vOff+2, vOff, vOff+2, vOff+3)
+      vOff += 4
+    }
+
+    quad(x0,y0,zTop, x1,y0,zTop, x1,y1,zTop, x0,y1,zTop, 0,0,1)
+    quad(x0,y1,zBot, x1,y1,zBot, x1,y0,zBot, x0,y0,zBot, 0,0,-1)
+    quad(x0,y0,zBot, x1,y0,zBot, x1,y0,zTop, x0,y0,zTop, 0,-1,0)
+    quad(x0,y1,zTop, x1,y1,zTop, x1,y1,zBot, x0,y1,zBot, 0,1,0)
+    quad(x0,y0,zBot, x0,y0,zTop, x0,y1,zTop, x0,y1,zBot, -1,0,0)
+    quad(x1,y0,zTop, x1,y0,zBot, x1,y1,zBot, x1,y1,zTop, 1,0,0)
+  }
+
+  return {
+    name,
+    positions: new Float32Array(allPos),
+    normals: new Float32Array(allNrm),
+    indices: new Uint32Array(allIdx)
+  }
+}
+
+function buildComponentBodies(doc) {
+  const { pitch } = doc.grid
+  const boardThickness = doc.boardThickness
+  const bodies = []
+
+  const HOUSING_H = 2.5
+  const PIN_ABOVE = 2.5
+  const PIN_BELOW = 6.0
+  const PIN_HW = 0.32
+
+  for (let hi = 0; hi < doc.headers.length; hi++) {
+    const h = doc.headers[hi]
+    const isH = h.orientation === 'h'
+    const len = (h.count - 1) * pitch
+
+    const cx = isH ? h.col * pitch + len / 2 : h.col * pitch
+    const cy = isH ? -(h.row * pitch) : -(h.row * pitch + len / 2)
+    const hw = isH ? (len + pitch) / 2 : pitch / 2
+    const hd = isH ? pitch / 2 : (len + pitch) / 2
+
+    const hBot = boardThickness
+    const boxes = [{ cx, cy, hw, hd, zBot: hBot, zTop: hBot + HOUSING_H }]
+
+    for (let i = 0; i < h.count; i++) {
+      const px = isH ? (h.col + i) * pitch : h.col * pitch
+      const py = isH ? -(h.row * pitch) : -((h.row + i) * pitch)
+      boxes.push({
+        cx: px, cy: py, hw: PIN_HW, hd: PIN_HW,
+        zBot: -PIN_ABOVE,
+        zTop: hBot + HOUSING_H + PIN_BELOW
+      })
+    }
+
+    bodies.push(buildCompoundBody(`Component_h${hi}`, boxes))
+  }
+
+  const DIP_PIN_W = 0.5
+  const DIP_PIN_T = 0.25
+  const DIP_SOLDER = 1.5
+
+  for (let di = 0; di < (doc.dips || []).length; di++) {
+    const d = (doc.dips || [])[di]
+    const spacing = d.rowSpacing ?? 3
+    const isH = d.orientation === 'h'
+    const pinLen = (d.count - 1) * pitch
+    const spanLen = spacing * pitch
+    const isSocket = d.socket ?? false
+
+    const cx = isH ? d.col * pitch + pinLen / 2 : d.col * pitch + spanLen / 2
+    const cy = isH ? -(d.row * pitch + spanLen / 2) : -(d.row * pitch + pinLen / 2)
+
+    const pinHw = DIP_PIN_W / 2
+    const pinHt = DIP_PIN_T / 2
+    const boxes = []
+
+    if (isSocket) {
+      const sH = 4.0
+      const sWall = 1.2
+      const sOvh = 0.8
+      const dBot = boardThickness + 0.2
+
+      const row1 = isH ? -(d.row * pitch) : cx - spanLen / 2
+      const row2 = isH ? -((d.row + spacing) * pitch) : cx + spanLen / 2
+      const lenHw = pinLen / 2 + sOvh
+
+      if (isH) {
+        boxes.push(
+          { cx, cy: row1, hw: lenHw, hd: sWall / 2, zBot: dBot, zTop: dBot + sH },
+          { cx, cy: row2, hw: lenHw, hd: sWall / 2, zBot: dBot, zTop: dBot + sH },
+          { cx: cx - lenHw + sWall / 2, cy, hw: sWall / 2,
+            hd: spanLen / 2 - sWall / 2, zBot: dBot, zTop: dBot + sH },
+          { cx: cx + lenHw - sWall / 2, cy, hw: sWall / 2,
+            hd: spanLen / 2 - sWall / 2, zBot: dBot, zTop: dBot + sH },
+          { cx, cy, hw: lenHw, hd: spanLen / 2, zBot: dBot, zTop: dBot + 0.5 }
+        )
+      } else {
+        boxes.push(
+          { cx: row1, cy, hw: sWall / 2, hd: lenHw, zBot: dBot, zTop: dBot + sH },
+          { cx: row2, cy, hw: sWall / 2, hd: lenHw, zBot: dBot, zTop: dBot + sH },
+          { cx, cy: cy + lenHw - sWall / 2, hw: spanLen / 2 - sWall / 2,
+            hd: sWall / 2, zBot: dBot, zTop: dBot + sH },
+          { cx, cy: cy - lenHw + sWall / 2, hw: spanLen / 2 - sWall / 2,
+            hd: sWall / 2, zBot: dBot, zTop: dBot + sH },
+          { cx, cy, hw: spanLen / 2, hd: lenHw, zBot: dBot, zTop: dBot + 0.5 }
+        )
+      }
+
+      for (let i = 0; i < d.count; i++) {
+        let p1x, p1y, p2x, p2y
+        if (isH) {
+          p1x = (d.col + i) * pitch; p1y = row1
+          p2x = (d.col + i) * pitch; p2y = row2
+        } else {
+          p1x = row1; p1y = -((d.row + i) * pitch)
+          p2x = row2; p2y = -((d.row + i) * pitch)
+        }
+        boxes.push(
+          { cx: p1x, cy: p1y, hw: pinHw, hd: pinHw,
+            zBot: -DIP_SOLDER, zTop: dBot + sH },
+          { cx: p2x, cy: p2y, hw: pinHw, hd: pinHw,
+            zBot: -DIP_SOLDER, zTop: dBot + sH }
+        )
+      }
+    } else {
+      const bodySpan = spanLen - pitch / 2
+      const bodyH = 3.3
+      const dBot = boardThickness + 0.5
+      const bodyHw = isH ? pinLen / 2 + 1.0 : bodySpan / 2
+      const bodyHd = isH ? bodySpan / 2 : pinLen / 2 + 1.0
+      const legZ0 = dBot
+      const legZ1 = dBot + DIP_PIN_T
+
+      boxes.push({ cx, cy, hw: bodyHw, hd: bodyHd, zBot: dBot, zTop: dBot + bodyH })
+
+      for (let i = 0; i < d.count; i++) {
+        let p1x, p1y, p2x, p2y
+        if (isH) {
+          p1x = (d.col + i) * pitch; p1y = -(d.row * pitch)
+          p2x = (d.col + i) * pitch; p2y = -((d.row + spacing) * pitch)
+
+          const edge1 = cy + bodyHd
+          boxes.push(
+            { cx: p1x, cy: (edge1 + p1y) / 2, hw: pinHw,
+              hd: (p1y - edge1) / 2 + pinHt, zBot: legZ0, zTop: legZ1 },
+            { cx: p1x, cy: p1y, hw: pinHw, hd: pinHt,
+              zBot: -DIP_SOLDER, zTop: legZ1 }
+          )
+          const edge2 = cy - bodyHd
+          boxes.push(
+            { cx: p2x, cy: (edge2 + p2y) / 2, hw: pinHw,
+              hd: (edge2 - p2y) / 2 + pinHt, zBot: legZ0, zTop: legZ1 },
+            { cx: p2x, cy: p2y, hw: pinHw, hd: pinHt,
+              zBot: -DIP_SOLDER, zTop: legZ1 }
+          )
+        } else {
+          p1x = d.col * pitch; p1y = -((d.row + i) * pitch)
+          p2x = (d.col + spacing) * pitch; p2y = -((d.row + i) * pitch)
+
+          const edge1 = cx - bodyHw
+          boxes.push(
+            { cx: (edge1 + p1x) / 2, cy: p1y,
+              hw: (edge1 - p1x) / 2 + pinHt, hd: pinHw, zBot: legZ0, zTop: legZ1 },
+            { cx: p1x, cy: p1y, hw: pinHt, hd: pinHw,
+              zBot: -DIP_SOLDER, zTop: legZ1 }
+          )
+          const edge2 = cx + bodyHw
+          boxes.push(
+            { cx: (edge2 + p2x) / 2, cy: p2y,
+              hw: (p2x - edge2) / 2 + pinHt, hd: pinHw, zBot: legZ0, zTop: legZ1 },
+            { cx: p2x, cy: p2y, hw: pinHt, hd: pinHw,
+              zBot: -DIP_SOLDER, zTop: legZ1 }
+          )
+        }
+      }
+    }
+
+    bodies.push(buildCompoundBody(`Component_d${di}`, boxes))
+  }
+
+  return bodies
+}
+
 export function buildPerfboardBodies(doc) {
   const boardPoly = buildBoardPolygon(doc)
   const padPositions = collectPadPositions(doc)
@@ -201,7 +394,8 @@ export function buildPerfboardBodies(doc) {
     ? buildTracesGeometry(traceSegments, drills, 'F.Cu', zBot, zTop, false)
     : null
 
-  return [boardBody, padsBody, tracesBody].filter(Boolean)
+  const componentBodies = buildComponentBodies(doc)
+  return [boardBody, padsBody, tracesBody, ...componentBodies].filter(Boolean)
 }
 
 export function createDefaultDocument() {

@@ -13,7 +13,7 @@
     onAddAnnotation = () => {},
     onUpdateAnnotation = () => {},
     onUpdateJumperColor = () => {},
-    onUpdateDipLabel = () => {},
+    onUpdateDip = () => {},
     onUpdatePadLabel = () => {},
     onUpdateHeaderLabels = () => {},
     onMoveSelected = () => {},
@@ -458,6 +458,7 @@
         editingDip = {
           id: el.id,
           label: dip.label ?? '',
+          socket: dip.socket ?? false,
           left: e.clientX - rect.left,
           top: e.clientY - rect.top - 20
         }
@@ -530,7 +531,7 @@
 
   function commitDipEdit() {
     if (!editingDip) return
-    onUpdateDipLabel(editingDip.id, dipEditInput?.value ?? '')
+    onUpdateDip(editingDip.id, dipEditInput?.value ?? '', editingDip.socket)
     editingDip = null
   }
 
@@ -1140,7 +1141,7 @@
   {#if editingDip}
     <!-- svelte-ignore a11y_no_static_element_interactions -->
     <div
-      class="absolute bg-slate-700 rounded border border-amber-400 z-10 p-1.5"
+      class="absolute bg-slate-700 rounded border border-amber-400 z-10 p-1.5 flex flex-col gap-1.5"
       style="left: {editingDip.left}px; top: {editingDip.top}px"
       onfocusout={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) commitDipEdit() }}
     >
@@ -1149,9 +1150,21 @@
         type="text"
         value={editingDip.label}
         placeholder="IC label (e.g. NE555)"
-        class="bg-slate-800 text-xs text-slate-200 rounded px-2 py-1 border border-slate-600 outline-none w-32"
+        class="bg-slate-800 text-xs text-slate-200 rounded px-2 py-1 border border-slate-600 outline-none w-36"
         onkeydown={handleDipEditKeydown}
       />
+      <div class="flex gap-1">
+        <button
+          class="flex-1 text-[10px] px-1.5 py-1 rounded {editingDip.socket ? 'bg-slate-600 text-slate-400' : 'bg-amber-600 text-white'}"
+          onmousedown={(e) => e.preventDefault()}
+          onclick={() => { editingDip = { ...editingDip, socket: false } }}
+        >DIP IC</button>
+        <button
+          class="flex-1 text-[10px] px-1.5 py-1 rounded {editingDip.socket ? 'bg-amber-600 text-white' : 'bg-slate-600 text-slate-400'}"
+          onmousedown={(e) => e.preventDefault()}
+          onclick={() => { editingDip = { ...editingDip, socket: true } }}
+        >IC Socket</button>
+      </div>
     </div>
   {/if}
 

@@ -132,10 +132,10 @@
     if (pad) { pad.label = label; doc.pads = [...doc.pads] }
   }
 
-  function updateDipLabel(id, label) {
+  function updateDip(id, label, socket) {
     pushUndo()
     const dip = (doc.dips || []).find(d => d.id === id)
-    if (dip) { dip.label = label; doc.dips = [...(doc.dips || [])] }
+    if (dip) { dip.label = label; dip.socket = socket; doc.dips = [...(doc.dips || [])] }
   }
 
   function addAnnotation(col, row) {
@@ -570,7 +570,7 @@
             onAddAnnotation={addAnnotation}
             onUpdateAnnotation={updateAnnotation}
             onUpdateJumperColor={updateJumperColor}
-            onUpdateDipLabel={updateDipLabel}
+            onUpdateDip={updateDip}
             onUpdateHeaderLabels={updateHeaderLabels}
             onUpdatePadLabel={updatePadLabel}
             onMoveSelected={moveSelected}
