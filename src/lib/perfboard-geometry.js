@@ -147,38 +147,42 @@ function collectTraceSegments(doc, padPositions) {
   const TOL = 0.01
   const segments = []
   for (const trace of doc.traces) {
-    let rawPairs
     if (trace.type === 'curve') {
-      const pts = trace.points.map(p => ({ x: p.col * pitch, y: p.row * pitch }))
       const ew = trace.endWidth ?? trace.width
-      if (ew > trace.width) {
-        const tn = trace.tension ?? 0.5
-        const samples = sampleCatmullRomWithWidth(pts, trace.width, ew, 16, tn, trace.taperDistance ?? 0)
-        rawPairs = []
-        for (let i = 0; i < samples.length - 1; i++) {
-          const w = (samples[i].w + samples[i + 1].w) / 2
-          rawPairs.push({ ax: samples[i].x, ay: samples[i].y, bx: samples[i + 1].x, by: samples[i + 1].y, w })
-        }
-      } else {
-        const samples = sampleCatmullRom(pts, 16, trace.tension ?? 0.5)
-        rawPairs = []
-        for (let i = 0; i < samples.length - 1; i++) {
-          rawPairs.push({ ax: samples[i].x, ay: samples[i].y, bx: samples[i + 1].x, by: samples[i + 1].y })
-        }
+      if (ew > trace.width) continue
+
+      const pts = trace.points.map(p => ({ x: p.col * pitch, y: p.row * pitch }))
+      const samples = sampleCatmullRom(pts, 32, trace.tension ?? 0.5)
+      const rawPairs = []
+      for (let i = 0; i < samples.length - 1; i++) {
+        rawPairs.push({ ax: samples[i].x, ay: samples[i].y, bx: samples[i + 1].x, by: samples[i + 1].y })
       }
-    } else {
-      rawPairs = []
-      for (let i = 0; i < trace.points.length - 1; i++) {
-        rawPairs.push({
-          ax: trace.points[i].col * pitch, ay: trace.points[i].row * pitch,
-          bx: trace.points[i + 1].col * pitch, by: trace.points[i + 1].row * pitch
-        })
+
+      for (const pair of rawPairs) {
+        const { ax, ay, bx, by } = pair
+        const segWidth = trace.width
+        const dx = bx - ax, dy = by - ay
+        const lenSq = dx * dx + dy * dy
+        if (lenSq < TOL * TOL) {
+          segments.push({ x1: ax, y1: ay, x2: bx, y2: by, width: segWidth, layer: 'F.Cu' })
+          continue
+        }
+        segments.push({ x1: ax, y1: ay, x2: bx, y2: by, width: segWidth, layer: 'F.Cu' })
       }
+      continue
+    }
+
+    const rawPairs = []
+    for (let i = 0; i < trace.points.length - 1; i++) {
+      rawPairs.push({
+        ax: trace.points[i].col * pitch, ay: trace.points[i].row * pitch,
+        bx: trace.points[i + 1].col * pitch, by: trace.points[i + 1].row * pitch
+      })
     }
 
     for (const pair of rawPairs) {
       const { ax, ay, bx, by } = pair
-      const segWidth = pair.w ?? trace.width
+      const segWidth = trace.width
       const dx = bx - ax, dy = by - ay
       const lenSq = dx * dx + dy * dy
       if (lenSq < TOL * TOL) {
@@ -208,6 +212,188 @@ function collectTraceSegments(doc, padPositions) {
     }
   }
   return segments
+}
+
+const ENDPOINT_CIRCLE_N = 32
+
+function buildCurveOutline(samples) {
+  const left = [], right = []
+  for (let i = 0; i < samples.length; i++) {
+    const prev = samples[Math.max(0, i - 1)]
+    const next = samples[Math.min(samples.length - 1, i + 1)]
+    let tx = next.x - prev.x, ty = next.y - prev.y
+    const len = Math.hypot(tx, ty) || 1
+    tx /= len; ty /= len
+    const nx = -ty, ny = tx
+    const hw = samples[i].w / 2
+    left.push([samples[i].x + nx * hw, -(samples[i].y + ny * hw)])
+    right.push([samples[i].x - nx * hw, -(samples[i].y - ny * hw)])
+  }
+  const first = samples[0], last = samples[samples.length - 1]
+  const outline = []
+
+  for (let i = 0; i < left.length; i++) outline.push(left[i])
+
+  const er = last.w / 2
+  const lastGy = -last.y
+  for (let i = 1; i < ENDPOINT_CIRCLE_N; i++) {
+    const prevPt = left[left.length - 1]
+    const nextPt = right[right.length - 1]
+    const startAngle = Math.atan2(prevPt[1] - lastGy, prevPt[0] - last.x)
+    const endAngle = Math.atan2(nextPt[1] - lastGy, nextPt[0] - last.x)
+    let sweep = endAngle - startAngle
+    if (sweep > Math.PI) sweep -= 2 * Math.PI
+    if (sweep < -Math.PI) sweep += 2 * Math.PI
+    const a = startAngle + sweep * i / ENDPOINT_CIRCLE_N
+    outline.push([last.x + er * Math.cos(a), lastGy + er * Math.sin(a)])
+  }
+
+  for (let i = right.length - 1; i >= 0; i--) outline.push(right[i])
+
+  const sr = first.w / 2
+  const firstGy = -first.y
+  {
+    const prevPt = right[0]
+    const nextPt = left[0]
+    const startAngle = Math.atan2(prevPt[1] - firstGy, prevPt[0] - first.x)
+    const endAngle = Math.atan2(nextPt[1] - firstGy, nextPt[0] - first.x)
+    let sweep = endAngle - startAngle
+    if (sweep > Math.PI) sweep -= 2 * Math.PI
+    if (sweep < -Math.PI) sweep += 2 * Math.PI
+    for (let i = 1; i < ENDPOINT_CIRCLE_N; i++) {
+      const a = startAngle + sweep * i / ENDPOINT_CIRCLE_N
+      outline.push([first.x + sr * Math.cos(a), firstGy + sr * Math.sin(a)])
+    }
+  }
+
+  const endpointCircles = []
+  for (const pt of [first, last]) {
+    const r = pt.w / 2
+    const gy = -pt.y
+    const circle = []
+    for (let i = 0; i < ENDPOINT_CIRCLE_N; i++) {
+      const a = i * 2 * Math.PI / ENDPOINT_CIRCLE_N
+      circle.push([pt.x + r * Math.cos(a), gy + r * Math.sin(a)])
+    }
+    endpointCircles.push(circle)
+  }
+
+  return { outline, endpointCircles }
+}
+
+function pointInPolygonLocal(px, py, poly) {
+  let inside = false
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const xi = poly[i][0], yi = poly[i][1]
+    const xj = poly[j][0], yj = poly[j][1]
+    if ((yi > py) !== (yj > py) && px < (xj - xi) * (py - yi) / (yj - yi) + xi)
+      inside = !inside
+  }
+  return inside
+}
+
+function buildCurveTraceGeometry(doc, drills, zBot, zTop) {
+  const { pitch } = doc.grid
+  const curveTraces = doc.traces.filter(t => t.type === 'curve' && (t.endWidth ?? t.width) > t.width)
+  if (!curveTraces.length) return null
+
+  const allPos = [], allNrm = [], allIdx = []
+  let vOff = 0
+
+  for (const trace of curveTraces) {
+    const pts = trace.points.map(p => ({ x: p.col * pitch, y: p.row * pitch }))
+    const ew = trace.endWidth ?? trace.width
+    const tn = trace.tension ?? 0.5
+    const samples = sampleCatmullRomWithWidth(pts, trace.width, ew, 32, tn, trace.taperDistance ?? 0)
+
+    const { outline, endpointCircles } = buildCurveOutline(samples)
+
+    const shapes = [outline, ...endpointCircles]
+    for (const shape of shapes) {
+      const flat = []
+      const holeIndices = []
+      for (const [x, y] of shape) flat.push(x, y)
+
+      for (const d of drills) {
+        const dlx = d.x, dly = -d.y
+        if (!pointInPolygonLocal(dlx, dly, shape)) continue
+        holeIndices.push(flat.length / 2)
+        for (let i = 0; i < HOLE_N; i++) {
+          const a = -i * 2 * Math.PI / HOLE_N
+          flat.push(dlx + d.r * Math.cos(a), dly + d.r * Math.sin(a))
+        }
+      }
+
+      const triIdx = earcut(flat, holeIndices.length ? holeIndices : null, 2)
+      if (!triIdx.length) continue
+
+      const nFace = flat.length / 2
+      const outN = shape.length
+      const pos = [], nrm = [], idx = []
+      let lvi = 0
+
+      const tB = lvi
+      for (let i = 0; i < nFace; i++) {
+        pos.push(flat[i * 2], flat[i * 2 + 1], zTop); nrm.push(0, 0, 1); lvi++
+      }
+      for (let i = 0; i < triIdx.length; i += 3)
+        idx.push(tB + triIdx[i], tB + triIdx[i + 1], tB + triIdx[i + 2])
+
+      const bB = lvi
+      for (let i = 0; i < nFace; i++) {
+        pos.push(flat[i * 2], flat[i * 2 + 1], zBot); nrm.push(0, 0, -1); lvi++
+      }
+      for (let i = 0; i < triIdx.length; i += 3)
+        idx.push(bB + triIdx[i], bB + triIdx[i + 2], bB + triIdx[i + 1])
+
+      for (let i = 0; i < outN; i++) {
+        const j = (i + 1) % outN
+        const [x0, y0] = shape[i], [x1, y1] = shape[j]
+        const edx = x1 - x0, edy = y1 - y0
+        const edL = Math.hypot(edx, edy) || 1
+        const onx = edy / edL, ony = -edx / edL
+        const a0 = lvi, a1 = lvi + 1, b0 = lvi + 2, b1 = lvi + 3
+        pos.push(x0, y0, zBot); nrm.push(onx, ony, 0); lvi++
+        pos.push(x0, y0, zTop); nrm.push(onx, ony, 0); lvi++
+        pos.push(x1, y1, zBot); nrm.push(onx, ony, 0); lvi++
+        pos.push(x1, y1, zTop); nrm.push(onx, ony, 0); lvi++
+        idx.push(a0, b0, b1, a0, b1, a1)
+      }
+
+      const nHoles = holeIndices.length
+      let hStart = outN
+      for (let hi = 0; hi < nHoles; hi++) {
+        for (let i = 0; i < HOLE_N; i++) {
+          const j = (i + 1) % HOLE_N
+          const gi = hStart + i, gj = hStart + j
+          const [x0, y0] = [flat[gi * 2], flat[gi * 2 + 1]]
+          const [x1, y1] = [flat[gj * 2], flat[gj * 2 + 1]]
+          const edx = x1 - x0, edy = y1 - y0
+          const edL = Math.hypot(edx, edy) || 1
+          const inx = edy / edL, iny = -edx / edL
+          const a0 = lvi, a1 = lvi + 1, b0 = lvi + 2, b1 = lvi + 3
+          pos.push(x0, y0, zBot); nrm.push(inx, iny, 0); lvi++
+          pos.push(x0, y0, zTop); nrm.push(inx, iny, 0); lvi++
+          pos.push(x1, y1, zBot); nrm.push(inx, iny, 0); lvi++
+          pos.push(x1, y1, zTop); nrm.push(inx, iny, 0); lvi++
+          idx.push(a0, b0, b1, a0, b1, a1)
+        }
+        hStart += HOLE_N
+      }
+
+      for (let i = 0; i < pos.length; i++) { allPos.push(pos[i]); allNrm.push(nrm[i]) }
+      for (const i of idx) allIdx.push(i + vOff)
+      vOff += lvi
+    }
+  }
+
+  if (!allPos.length) return null
+  return {
+    name: 'CurveTraces_F.Cu',
+    positions: new Float32Array(allPos),
+    normals: new Float32Array(allNrm),
+    indices: new Uint32Array(allIdx)
+  }
 }
 
 function buildCompoundBody(name, boxes) {
@@ -423,8 +609,10 @@ export function buildPerfboardBodies(doc) {
     ? buildTracesGeometry(traceSegments, drills, 'F.Cu', zBot, zTop, false)
     : null
 
+  const curveTracesBody = buildCurveTraceGeometry(doc, drills, zBot, zTop)
+
   const componentBodies = buildComponentBodies(doc)
-  return [boardBody, padsBody, tracesBody, ...componentBodies].filter(Boolean)
+  return [boardBody, padsBody, tracesBody, curveTracesBody, ...componentBodies].filter(Boolean)
 }
 
 export function createDefaultDocument() {

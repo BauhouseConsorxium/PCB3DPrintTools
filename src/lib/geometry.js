@@ -198,26 +198,23 @@ export function buildTracesGeometry(segments, drills, layer, zBot, zTop, squareE
     }
 
     const holes = []
-    const d1r = lookupDrill(p1x, p1y)
-    if (d1r > 0) {
-      const hr = Math.min(d1r, hw - 0.02)
-      if (hr > 0.05) {
-        const h = []
-        for (let i = 0; i < HOLE_N; i++) {
-          const a = -i * 2 * Math.PI / HOLE_N
-          h.push([p1x + hr * Math.cos(a), p1y + hr * Math.sin(a)])
-        }
-        holes.push(h)
+    const segLenSq = dx * dx + dy * dy
+    for (const d of drills) {
+      const dlx = d.x, dly = -d.y
+      let dist
+      if (segLenSq < 1e-8) {
+        dist = Math.hypot(dlx - p1x, dly - p1y)
+      } else {
+        const t = Math.max(0, Math.min(1, ((dlx - p1x) * dx + (dly - p1y) * dy) / segLenSq))
+        dist = Math.hypot(dlx - (p1x + t * dx), dly - (p1y + t * dy))
       }
-    }
-    const d2r = lookupDrill(p2x, p2y)
-    if (d2r > 0) {
-      const hr = Math.min(d2r, hw - 0.02)
+      if (dist >= hw) continue
+      const hr = Math.min(d.r, hw - dist - 0.02)
       if (hr > 0.05) {
         const h = []
         for (let i = 0; i < HOLE_N; i++) {
           const a = -i * 2 * Math.PI / HOLE_N
-          h.push([p2x + hr * Math.cos(a), p2y + hr * Math.sin(a)])
+          h.push([dlx + hr * Math.cos(a), dly + hr * Math.sin(a)])
         }
         holes.push(h)
       }
