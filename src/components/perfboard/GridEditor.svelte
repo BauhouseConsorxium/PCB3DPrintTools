@@ -98,6 +98,7 @@
 
   // Ghost cursor
   let ghostPos = $state(null)
+  let freeGhostPos = $state(null)
 
   $effect(() => {
     const w = boardW
@@ -126,6 +127,10 @@
     }
   }
 
+  function freePosition(x, y) {
+    return { col: x / pitch, row: y / pitch }
+  }
+
   function distToSegment(px, py, ax, ay, bx, by) {
     const dx = bx - ax, dy = by - ay
     const lenSq = dx * dx + dy * dy
@@ -135,7 +140,7 @@
   }
 
   function findControlPointAt(rawX, rawY) {
-    const hitR = pitch * 0.2
+    const hitR = pitch * 0.35
     for (const trace of doc.traces) {
       if (!selectedIds.includes(trace.id)) continue
       for (let i = 0; i < trace.points.length; i++) {
@@ -356,7 +361,13 @@
       // Check for control point click on selected curve traces
       const cpHit = findControlPointAt(sp.x, sp.y)
       if (cpHit) {
-        cpDrag = { traceId: cpHit.traceId, pointIndex: cpHit.pointIndex, startCol: col, startRow: row }
+        const trace = doc.traces.find(t => t.id === cpHit.traceId)
+        const pt = trace?.points[cpHit.pointIndex]
+        const isEdge = cpHit.pointIndex === 0 || cpHit.pointIndex === (trace?.points.length ?? 1) - 1
+        const useFree = trace?.freeform && !isEdge
+        const sc = useFree && pt ? pt.col : col
+        const sr = useFree && pt ? pt.row : row
+        cpDrag = { traceId: cpHit.traceId, pointIndex: cpHit.pointIndex, startCol: sc, startRow: sr }
         return
       }
       activeCP = null
@@ -392,6 +403,7 @@
     if (!sp) return
     const { col, row } = snapToGrid(sp.x, sp.y)
     ghostPos = { col, row }
+    freeGhostPos = freePosition(sp.x, sp.y)
 
     if (selectionBox) {
       selectionBox = { ...selectionBox, x2: sp.x, y2: sp.y }
@@ -404,7 +416,7 @@
     }
 
     if (activeTool === 'curve' && curvePoints.length > 0) {
-      curvePreview = { col, row }
+      curvePreview = freePosition(sp.x, sp.y)
     }
 
     if (activeTool === 'jumper' && jumperStart) {
@@ -502,14 +514,29 @@
     if (cpDrag) {
       const sp = svgPoint(e)
       if (sp) {
-        const { col, row } = snapToGrid(sp.x, sp.y)
-        const dc = col - cpDrag.startCol
-        const dr = row - cpDrag.startRow
-        if (dc !== 0 || dr !== 0) {
-          onMoveControlPoint(cpDrag.traceId, cpDrag.pointIndex, dc, dr)
-          activeCP = null
+        const trace = doc.traces.find(t => t.id === cpDrag.traceId)
+        const isEdge = cpDrag.pointIndex === 0 || cpDrag.pointIndex === (trace?.points.length ?? 1) - 1
+        const useFree = trace?.freeform && !isEdge
+        if (useFree) {
+          const free = freePosition(sp.x, sp.y)
+          const dc = free.col - cpDrag.startCol
+          const dr = free.row - cpDrag.startRow
+          if (Math.abs(dc) > 0.01 || Math.abs(dr) > 0.01) {
+            onMoveControlPoint(cpDrag.traceId, cpDrag.pointIndex, dc, dr)
+            activeCP = null
+          } else {
+            activeCP = { traceId: cpDrag.traceId, pointIndex: cpDrag.pointIndex }
+          }
         } else {
-          activeCP = { traceId: cpDrag.traceId, pointIndex: cpDrag.pointIndex }
+          const { col, row } = snapToGrid(sp.x, sp.y)
+          const dc = col - cpDrag.startCol
+          const dr = row - cpDrag.startRow
+          if (dc !== 0 || dr !== 0) {
+            onMoveControlPoint(cpDrag.traceId, cpDrag.pointIndex, dc, dr)
+            activeCP = null
+          } else {
+            activeCP = { traceId: cpDrag.traceId, pointIndex: cpDrag.pointIndex }
+          }
         }
       }
       cpDrag = null
@@ -628,8 +655,10 @@
           id: el.id,
           width: trace.width,
           endWidth: trace.endWidth ?? trace.width,
+          endWidth2: trace.endWidth2 ?? trace.endWidth ?? trace.width,
           taperDistance: trace.taperDistance ?? 0,
           tension: trace.tension ?? 0.5,
+          freeform: !!trace.freeform,
           left: e.clientX - rect.left,
           top: e.clientY - rect.top - 20
         }
@@ -693,7 +722,7 @@
 
   function applyCurveEdit() {
     if (!editingCurve) return
-    onUpdateCurve(editingCurve.id, editingCurve.width, editingCurve.endWidth, editingCurve.taperDistance, editingCurve.tension)
+    onUpdateCurve(editingCurve.id, editingCurve.width, editingCurve.endWidth, editingCurve.taperDistance, editingCurve.tension, editingCurve.endWidth2, editingCurve.freeform)
   }
 
   function closeCurveEdit() {
@@ -906,11 +935,12 @@
       {#if trace.type === 'curve'}
         {@const pts = trace.points.map(p => ({ x: p.col * pitch, y: p.row * pitch }))}
         {@const ew = trace.endWidth ?? trace.width}
-        {@const hasTaper = ew > trace.width}
+        {@const ew2 = trace.endWidth2 ?? ew}
+        {@const hasTaper = ew > trace.width || ew2 > trace.width}
         {@const td = trace.taperDistance ?? 0}
         {@const tn = trace.tension ?? 0.5}
         {#if hasTaper}
-          {@const outline = variableWidthOutlinePath(pts, trace.width, ew, 32, tn, td)}
+          {@const outline = variableWidthOutlinePath(pts, trace.width, ew, 32, tn, td, ew2)}
           {#if isSelected}
             <path d={outline}
               stroke="rgba(255,255,255,0.45)" stroke-width={pitch * 0.08}
@@ -952,28 +982,29 @@
           {/each}
           {#each trace.points as pt, i}
             {@const isActiveCP = activeCP && activeCP.traceId === trace.id && activeCP.pointIndex === i}
-            <circle cx={pt.col * pitch} cy={pt.row * pitch} r={isActiveCP ? pitch * 0.14 : pitch * 0.1}
+            <circle cx={pt.col * pitch} cy={pt.row * pitch} r={isActiveCP ? pitch * 0.18 : pitch * 0.14}
               fill={isActiveCP ? '#fbbf24' : '#22c55e'} stroke="white" stroke-width={pitch * 0.02} opacity="0.9"
+              style="cursor: pointer"
             />
-            {#if isActiveCP && trace.points.length > 2}
+            {#if isActiveCP && trace.points.length > 2 && i > 0 && i < trace.points.length - 1}
               <!-- svelte-ignore a11y_click_events_have_key_events -->
               <!-- svelte-ignore a11y_no_static_element_interactions -->
               <g
                 style="cursor: pointer"
                 onpointerdown={(e) => { e.stopPropagation(); onDeleteControlPoint(activeCP.traceId, activeCP.pointIndex); activeCP = null }}
               >
-                <circle cx={pt.col * pitch + pitch * 0.25} cy={pt.row * pitch - pitch * 0.25} r={pitch * 0.1}
+                <circle cx={pt.col * pitch + pitch * 0.3} cy={pt.row * pitch - pitch * 0.3} r={pitch * 0.13}
                   fill="#ef4444" stroke="white" stroke-width={pitch * 0.02}
                 />
                 <line
-                  x1={pt.col * pitch + pitch * 0.25 - pitch * 0.05} y1={pt.row * pitch - pitch * 0.25 - pitch * 0.05}
-                  x2={pt.col * pitch + pitch * 0.25 + pitch * 0.05} y2={pt.row * pitch - pitch * 0.25 + pitch * 0.05}
-                  stroke="white" stroke-width={pitch * 0.025} stroke-linecap="round"
+                  x1={pt.col * pitch + pitch * 0.3 - pitch * 0.06} y1={pt.row * pitch - pitch * 0.3 - pitch * 0.06}
+                  x2={pt.col * pitch + pitch * 0.3 + pitch * 0.06} y2={pt.row * pitch - pitch * 0.3 + pitch * 0.06}
+                  stroke="white" stroke-width={pitch * 0.03} stroke-linecap="round"
                 />
                 <line
-                  x1={pt.col * pitch + pitch * 0.25 + pitch * 0.05} y1={pt.row * pitch - pitch * 0.25 - pitch * 0.05}
-                  x2={pt.col * pitch + pitch * 0.25 - pitch * 0.05} y2={pt.row * pitch - pitch * 0.25 + pitch * 0.05}
-                  stroke="white" stroke-width={pitch * 0.025} stroke-linecap="round"
+                  x1={pt.col * pitch + pitch * 0.3 + pitch * 0.06} y1={pt.row * pitch - pitch * 0.3 - pitch * 0.06}
+                  x2={pt.col * pitch + pitch * 0.3 - pitch * 0.06} y2={pt.row * pitch - pitch * 0.3 + pitch * 0.06}
+                  stroke="white" stroke-width={pitch * 0.03} stroke-linecap="round"
                 />
               </g>
             {/if}
@@ -1004,28 +1035,29 @@
         {#if isSelected}
           {#each trace.points as pt, i}
             {@const isActiveCP = activeCP && activeCP.traceId === trace.id && activeCP.pointIndex === i}
-            <circle cx={pt.col * pitch} cy={pt.row * pitch} r={isActiveCP ? pitch * 0.14 : pitch * 0.1}
+            <circle cx={pt.col * pitch} cy={pt.row * pitch} r={isActiveCP ? pitch * 0.18 : pitch * 0.14}
               fill={isActiveCP ? '#fbbf24' : '#22c55e'} stroke="white" stroke-width={pitch * 0.02} opacity="0.9"
+              style="cursor: pointer"
             />
-            {#if isActiveCP && trace.points.length > 2}
+            {#if isActiveCP && trace.points.length > 2 && i > 0 && i < trace.points.length - 1}
               <!-- svelte-ignore a11y_click_events_have_key_events -->
               <!-- svelte-ignore a11y_no_static_element_interactions -->
               <g
                 style="cursor: pointer"
                 onpointerdown={(e) => { e.stopPropagation(); onDeleteControlPoint(activeCP.traceId, activeCP.pointIndex); activeCP = null }}
               >
-                <circle cx={pt.col * pitch + pitch * 0.25} cy={pt.row * pitch - pitch * 0.25} r={pitch * 0.1}
+                <circle cx={pt.col * pitch + pitch * 0.3} cy={pt.row * pitch - pitch * 0.3} r={pitch * 0.13}
                   fill="#ef4444" stroke="white" stroke-width={pitch * 0.02}
                 />
                 <line
-                  x1={pt.col * pitch + pitch * 0.25 - pitch * 0.05} y1={pt.row * pitch - pitch * 0.25 - pitch * 0.05}
-                  x2={pt.col * pitch + pitch * 0.25 + pitch * 0.05} y2={pt.row * pitch - pitch * 0.25 + pitch * 0.05}
-                  stroke="white" stroke-width={pitch * 0.025} stroke-linecap="round"
+                  x1={pt.col * pitch + pitch * 0.3 - pitch * 0.06} y1={pt.row * pitch - pitch * 0.3 - pitch * 0.06}
+                  x2={pt.col * pitch + pitch * 0.3 + pitch * 0.06} y2={pt.row * pitch - pitch * 0.3 + pitch * 0.06}
+                  stroke="white" stroke-width={pitch * 0.03} stroke-linecap="round"
                 />
                 <line
-                  x1={pt.col * pitch + pitch * 0.25 + pitch * 0.05} y1={pt.row * pitch - pitch * 0.25 - pitch * 0.05}
-                  x2={pt.col * pitch + pitch * 0.25 - pitch * 0.05} y2={pt.row * pitch - pitch * 0.25 + pitch * 0.05}
-                  stroke="white" stroke-width={pitch * 0.025} stroke-linecap="round"
+                  x1={pt.col * pitch + pitch * 0.3 + pitch * 0.06} y1={pt.row * pitch - pitch * 0.3 - pitch * 0.06}
+                  x2={pt.col * pitch + pitch * 0.3 - pitch * 0.06} y2={pt.row * pitch - pitch * 0.3 + pitch * 0.06}
+                  stroke="white" stroke-width={pitch * 0.03} stroke-linecap="round"
                 />
               </g>
             {/if}
@@ -1067,8 +1099,9 @@
     {#if curvePoints.length >= 2}
       {@const pts = curvePoints.map(p => ({ x: p.col * pitch, y: p.row * pitch }))}
       {@const ew = doc.curveEndWidth ?? doc.traceWidth}
-      {#if ew > doc.traceWidth}
-        {@const outline = variableWidthOutlinePath(pts, doc.traceWidth, ew)}
+      {@const ew2 = doc.curveEndWidth2 ?? ew}
+      {#if ew > doc.traceWidth || ew2 > doc.traceWidth}
+        {@const outline = variableWidthOutlinePath(pts, doc.traceWidth, ew, 32, 0.5, 0, ew2)}
         <path d={outline} fill="#f5c842" opacity="0.5" stroke="#b8941f" stroke-width={pitch * 0.02} />
       {:else}
         {@const d = catmullRomSVGPath(pts)}
@@ -1092,8 +1125,9 @@
     {#if curvePreview && curvePoints.length >= 1}
       {@const pts = [...curvePoints, { col: curvePreview.col, row: curvePreview.row }].map(p => ({ x: p.col * pitch, y: p.row * pitch }))}
       {@const ew = doc.curveEndWidth ?? doc.traceWidth}
-      {#if ew > doc.traceWidth}
-        {@const outline = variableWidthOutlinePath(pts, doc.traceWidth, ew)}
+      {@const ew2 = doc.curveEndWidth2 ?? ew}
+      {#if ew > doc.traceWidth || ew2 > doc.traceWidth}
+        {@const outline = variableWidthOutlinePath(pts, doc.traceWidth, ew, 32, 0.5, 0, ew2)}
         <path d={outline} fill="#f5c842" opacity="0.2" stroke="#b8941f" stroke-width={pitch * 0.02} />
       {:else}
         {@const d = catmullRomSVGPath(pts)}
@@ -1417,10 +1451,13 @@
       {/if}
     {/if}
 
-    {#if cpDrag && ghostPos}
-      {@const dc = ghostPos.col - cpDrag.startCol}
-      {@const dr = ghostPos.row - cpDrag.startRow}
+    {#if cpDrag && ghostPos && freeGhostPos}
       {@const trace = doc.traces.find(t => t.id === cpDrag.traceId)}
+      {@const isEdge = cpDrag.pointIndex === 0 || cpDrag.pointIndex === (trace?.points.length ?? 1) - 1}
+      {@const useFree = trace?.freeform && !isEdge}
+      {@const gp = useFree ? freeGhostPos : ghostPos}
+      {@const dc = gp.col - cpDrag.startCol}
+      {@const dr = gp.row - cpDrag.startRow}
       {#if trace}
         {@const pts = trace.points.map((p, i) => i === cpDrag.pointIndex
           ? { x: (p.col + dc) * pitch, y: (p.row + dr) * pitch }
@@ -1428,9 +1465,10 @@
         )}
         {#if trace.type === 'curve'}
           {@const ew = trace.endWidth ?? trace.width}
+          {@const ew2 = trace.endWidth2 ?? ew}
           {@const tn = trace.tension ?? 0.5}
-          {#if ew > trace.width}
-            {@const outline = variableWidthOutlinePath(pts, trace.width, ew, 32, tn, trace.taperDistance ?? 0)}
+          {#if ew > trace.width || ew2 > trace.width}
+            {@const outline = variableWidthOutlinePath(pts, trace.width, ew, 32, tn, trace.taperDistance ?? 0, ew2)}
             <path d={outline} fill="#fbbf24" opacity="0.5" />
           {:else}
             {@const d = catmullRomSVGPath(pts, tn)}
@@ -1485,8 +1523,9 @@
           {#if trace.type === 'curve'}
             {@const pts = trace.points.map(p => ({ x: (p.col + dc) * pitch, y: (p.row + dr) * pitch }))}
             {@const ew = trace.endWidth ?? trace.width}
-            {#if ew > trace.width}
-              {@const outline = variableWidthOutlinePath(pts, trace.width, ew, 32, trace.tension ?? 0.5, trace.taperDistance ?? 0)}
+            {@const ew2 = trace.endWidth2 ?? ew}
+            {#if ew > trace.width || ew2 > trace.width}
+              {@const outline = variableWidthOutlinePath(pts, trace.width, ew, 32, trace.tension ?? 0.5, trace.taperDistance ?? 0, ew2)}
               <path d={outline} fill="#fbbf24" opacity="0.3" />
             {:else}
               {@const d = catmullRomSVGPath(pts, trace.tension ?? 0.5)}
@@ -1630,7 +1669,7 @@
         />
       </div>
       <div>
-        <label class="text-[10px] text-slate-400 block mb-0.5">End width (mm)</label>
+        <label class="text-[10px] text-slate-400 block mb-0.5">Start end width (mm)</label>
         <input
           type="number"
           value={editingCurve.endWidth}
@@ -1638,6 +1677,17 @@
           class="bg-slate-800 text-xs text-slate-200 rounded px-2 py-1 border border-slate-600 outline-none w-28"
           onkeydown={handleCurveEditKeydown}
           oninput={(e) => { editingCurve = { ...editingCurve, endWidth: parseFloat(e.target.value) || 0.3 }; applyCurveEdit() }}
+        />
+      </div>
+      <div>
+        <label class="text-[10px] text-slate-400 block mb-0.5">Finish end width (mm)</label>
+        <input
+          type="number"
+          value={editingCurve.endWidth2}
+          min="0.3" max="8" step="0.1"
+          class="bg-slate-800 text-xs text-slate-200 rounded px-2 py-1 border border-slate-600 outline-none w-28"
+          onkeydown={handleCurveEditKeydown}
+          oninput={(e) => { editingCurve = { ...editingCurve, endWidth2: parseFloat(e.target.value) || 0.3 }; applyCurveEdit() }}
         />
       </div>
       <div>
@@ -1668,6 +1718,15 @@
         onmousedown={(e) => e.preventDefault()}
         onclick={() => { onSubdivideCurve(editingCurve.id); closeCurveEdit() }}
       >+ Add Points (Subdivide)</button>
+      <label class="flex items-center gap-1.5 text-[10px] text-slate-400 mt-1 cursor-pointer">
+        <input
+          type="checkbox"
+          checked={editingCurve.freeform}
+          class="accent-amber-500"
+          onchange={(e) => { editingCurve = { ...editingCurve, freeform: e.target.checked }; applyCurveEdit() }}
+        />
+        Free-form control points
+      </label>
     </div>
   {/if}
 

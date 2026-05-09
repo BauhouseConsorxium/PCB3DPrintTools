@@ -104,6 +104,7 @@
     if (type) trace.type = type
     if (type === 'curve') {
       trace.endWidth = doc.curveEndWidth ?? doc.traceWidth
+      trace.endWidth2 = doc.curveEndWidth2 ?? trace.endWidth
       trace.taperDistance = doc.curveTaperDistance ?? 0
       trace.tension = 0.5
     }
@@ -154,14 +155,16 @@
     }
   }
 
-  function updateCurve(id, width, endWidth, taperDistance, tension) {
+  function updateCurve(id, width, endWidth, taperDistance, tension, endWidth2, freeform) {
     pushUndo()
     const trace = doc.traces.find(t => t.id === id)
     if (trace) {
       trace.width = width
       trace.endWidth = endWidth
+      trace.endWidth2 = endWidth2 ?? endWidth
       trace.taperDistance = taperDistance
       trace.tension = tension
+      trace.freeform = !!freeform
       doc.traces = [...doc.traces]
     }
   }
@@ -217,6 +220,7 @@
     for (const trace of targets) {
       trace.type = 'curve'
       trace.endWidth = trace.endWidth ?? doc.curveEndWidth ?? doc.traceWidth
+      trace.endWidth2 = trace.endWidth2 ?? trace.endWidth
       trace.taperDistance = trace.taperDistance ?? doc.curveTaperDistance ?? 0
       trace.tension = trace.tension ?? 0.5
     }
@@ -374,6 +378,7 @@
     entry.doc.jumpers = entry.doc.jumpers ?? []
     entry.doc.annotations = entry.doc.annotations ?? []
     entry.doc.curveEndWidth = entry.doc.curveEndWidth ?? 3.0
+    entry.doc.curveEndWidth2 = entry.doc.curveEndWidth2 ?? entry.doc.curveEndWidth
     entry.doc.curveTaperDistance = entry.doc.curveTaperDistance ?? 0
     doc = entry.doc
     selectedIds = []
@@ -407,6 +412,7 @@
         parsed.jumpers = parsed.jumpers ?? []
         parsed.annotations = parsed.annotations ?? []
         parsed.curveEndWidth = parsed.curveEndWidth ?? 3.0
+        parsed.curveEndWidth2 = parsed.curveEndWidth2 ?? parsed.curveEndWidth
         parsed.curveTaperDistance = parsed.curveTaperDistance ?? 0
         doc = parsed
         selectedIds = []
@@ -430,6 +436,7 @@
       parsed.jumpers = parsed.jumpers ?? []
       parsed.annotations = parsed.annotations ?? []
       parsed.curveEndWidth = parsed.curveEndWidth ?? 3.0
+      parsed.curveEndWidth2 = parsed.curveEndWidth2 ?? parsed.curveEndWidth
       doc = parsed
       selectedIds = []
     } catch { alert('Failed to load example') }
@@ -534,6 +541,7 @@
         bind:drillDiameter={doc.drillDiameter}
         bind:traceWidth={doc.traceWidth}
         bind:curveEndWidth={doc.curveEndWidth}
+        bind:curveEndWidth2={doc.curveEndWidth2}
         bind:curveTaperDistance={doc.curveTaperDistance}
         bind:boardThickness={doc.boardThickness}
         onBeforeChange={pushUndo}

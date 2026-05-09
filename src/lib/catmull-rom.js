@@ -62,8 +62,10 @@ export function sampleCatmullRom(points, segmentsPerSpan = 16, tension = 0.5) {
   return samples
 }
 
-export function sampleCatmullRomWithWidth(points, traceWidth, endWidth, segmentsPerSpan = 16, tension = 0.5, taperDistance = 0) {
+export function sampleCatmullRomWithWidth(points, traceWidth, endWidth, segmentsPerSpan = 16, tension = 0.5, taperDistance = 0, endWidth2 = null) {
   if (!points || points.length < 2) return []
+  const ew1 = endWidth
+  const ew2 = endWidth2 ?? endWidth
 
   const segs = catmullRomToCubicBeziers(points, tension)
   const samples = [{ x: segs[0].p0.x, y: segs[0].p0.y }]
@@ -94,12 +96,12 @@ export function sampleCatmullRomWithWidth(points, traceWidth, endWidth, segments
     if (dStart < td) {
       const f = dStart / td
       const ct = Math.cos(Math.PI / 2 * f)
-      w = traceWidth + (endWidth - traceWidth) * ct * ct
+      w = traceWidth + (ew1 - traceWidth) * ct * ct
     }
     if (dEnd < td) {
       const f = dEnd / td
       const ct = Math.cos(Math.PI / 2 * f)
-      const wEnd = traceWidth + (endWidth - traceWidth) * ct * ct
+      const wEnd = traceWidth + (ew2 - traceWidth) * ct * ct
       w = Math.max(w, wEnd)
     }
     samples[i].w = w
@@ -108,10 +110,10 @@ export function sampleCatmullRomWithWidth(points, traceWidth, endWidth, segments
   return samples
 }
 
-export function variableWidthOutlinePath(points, traceWidth, endWidth, segmentsPerSpan = 32, tension = 0.5, taperDistance = 0) {
+export function variableWidthOutlinePath(points, traceWidth, endWidth, segmentsPerSpan = 32, tension = 0.5, taperDistance = 0, endWidth2 = null) {
   if (!points || points.length < 2) return ''
 
-  const samples = sampleCatmullRomWithWidth(points, traceWidth, endWidth, segmentsPerSpan, tension, taperDistance)
+  const samples = sampleCatmullRomWithWidth(points, traceWidth, endWidth, segmentsPerSpan, tension, taperDistance, endWidth2)
   const left = [], right = []
 
   for (let i = 0; i < samples.length; i++) {

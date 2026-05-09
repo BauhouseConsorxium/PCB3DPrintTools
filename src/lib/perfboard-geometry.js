@@ -148,8 +148,9 @@ function collectTraceSegments(doc, padPositions) {
   const segments = []
   for (const trace of doc.traces) {
     if (trace.type === 'curve') {
-      const ew = trace.endWidth ?? trace.width
-      if (ew > trace.width) continue
+      const ew1 = trace.endWidth ?? trace.width
+      const ew2 = trace.endWidth2 ?? ew1
+      if (ew1 > trace.width || ew2 > trace.width) continue
 
       const pts = trace.points.map(p => ({ x: p.col * pitch, y: p.row * pitch }))
       const samples = sampleCatmullRom(pts, 32, trace.tension ?? 0.5)
@@ -294,7 +295,12 @@ function pointInPolygonLocal(px, py, poly) {
 
 function buildCurveTraceGeometry(doc, drills, zBot, zTop) {
   const { pitch } = doc.grid
-  const curveTraces = doc.traces.filter(t => t.type === 'curve' && (t.endWidth ?? t.width) > t.width)
+  const curveTraces = doc.traces.filter(t => {
+    if (t.type !== 'curve') return false
+    const ew1 = t.endWidth ?? t.width
+    const ew2 = t.endWidth2 ?? ew1
+    return ew1 > t.width || ew2 > t.width
+  })
   if (!curveTraces.length) return null
 
   const allPos = [], allNrm = [], allIdx = []
@@ -302,9 +308,10 @@ function buildCurveTraceGeometry(doc, drills, zBot, zTop) {
 
   for (const trace of curveTraces) {
     const pts = trace.points.map(p => ({ x: p.col * pitch, y: p.row * pitch }))
-    const ew = trace.endWidth ?? trace.width
+    const ew1 = trace.endWidth ?? trace.width
+    const ew2 = trace.endWidth2 ?? ew1
     const tn = trace.tension ?? 0.5
-    const samples = sampleCatmullRomWithWidth(pts, trace.width, ew, 32, tn, trace.taperDistance ?? 0)
+    const samples = sampleCatmullRomWithWidth(pts, trace.width, ew1, 32, tn, trace.taperDistance ?? 0, ew2)
 
     const { outline, endpointCircles } = buildCurveOutline(samples)
 
@@ -624,9 +631,10 @@ export function createDefaultDocument() {
     copperThickness: 0.035,
     drillDiameter: 1.0,
     padDiameter: 2.0,
-    traceWidth: 1.0,
-    curveEndWidth: 3.0,
-    curveTaperDistance: 0,
+    traceWidth: 0.5,
+    curveEndWidth: 2.0,
+    curveEndWidth2: 2.0,
+    curveTaperDistance: 3.5,
     pads: [],
     headers: [],
     dips: [],
