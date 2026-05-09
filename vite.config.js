@@ -2,7 +2,7 @@ import { defineConfig } from 'vite'
 import { svelte } from '@sveltejs/vite-plugin-svelte'
 import tailwindcss from '@tailwindcss/vite'
 import { copyFileSync, existsSync, mkdirSync } from 'fs'
-import { join } from 'path'
+import { join, resolve } from 'path'
 
 function copyDepsPlugin() {
   return {
@@ -21,6 +21,14 @@ function copyDepsPlugin() {
 export default defineConfig({
   base: process.env.GITHUB_ACTIONS ? '/PCB3DPrintTools/' : '/',
   plugins: [copyDepsPlugin(), tailwindcss(), svelte()],
+  build: {
+    rollupOptions: {
+      input: {
+        main: resolve(__dirname, 'index.html'),
+        perfboard: resolve(__dirname, 'perfboard.html'),
+      },
+    },
+  },
   server: {
     headers: {
       'Cross-Origin-Opener-Policy': 'same-origin',
