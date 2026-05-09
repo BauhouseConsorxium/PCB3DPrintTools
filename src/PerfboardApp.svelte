@@ -8,13 +8,14 @@
   import { buildPerfboardBodies, createDefaultDocument } from './lib/perfboard-geometry.js'
 
   let viewer
+  let showIntro = $state(!localStorage.getItem('perfboard-intro-seen'))
   let activeTab = $state('editor')
   let activeTool = $state('select')
   let selectedIds = $state([])
   let zScale = $state(8)
   let boardZScale = $state(1)
   let annotationText = $state('VCC')
-  let annotationColor = $state('#ef4444')
+  let annotationColor = $state('#ff2d95')
 
   let doc = $state(createDefaultDocument())
 
@@ -112,8 +113,8 @@
   }
 
   const WIRE_COLORS = [
-    '#ef4444', '#f97316', '#eab308', '#22c55e', '#06b6d4',
-    '#3b82f6', '#a855f7', '#ec4899', '#f0f0f0', '#a78bfa',
+    '#ff2d95', '#ff6bcb', '#00f0ff', '#7df9ff', '#a855f7',
+    '#c084fc', '#a3e635', '#fbbf24', '#f0f0f0', '#84cc16',
   ]
 
   function addJumper(col1, row1, col2, row2) {
@@ -473,11 +474,11 @@
 
 <svelte:window onkeydown={handleKeydown} />
 
-<div class="h-screen flex flex-col bg-slate-900 text-slate-200 overflow-hidden">
+<div class="h-screen flex flex-col bg-surface-0 text-cyan-light overflow-hidden">
   <!-- Header -->
-  <div class="h-11 flex items-center px-4 bg-slate-800 border-b border-slate-700 shrink-0">
+  <div class="h-11 flex items-center px-4 bg-surface-1 border-b-3 border-black shrink-0">
     <div class="flex items-center gap-2">
-      <svg viewBox="0 0 20 20" class="w-5 h-5 text-amber-400" fill="none" stroke="currentColor" stroke-width="1.5">
+      <svg viewBox="0 0 20 20" class="w-5 h-5 text-accent" fill="none" stroke="currentColor" stroke-width="1.5">
         <rect x="2" y="2" width="16" height="16" rx="1" />
         <circle cx="6" cy="6" r="1.5" />
         <circle cx="10" cy="6" r="1.5" />
@@ -488,21 +489,21 @@
         <circle cx="10" cy="14" r="1.5" />
         <circle cx="14" cy="14" r="1.5" />
       </svg>
-      <span class="text-sm font-semibold text-slate-200">Perfboard 3D Print Tools</span>
+      <span class="text-sm font-semibold text-cyan-light">Perfboard 3D Print Tools</span>
     </div>
     <div class="ml-4 flex items-center gap-2">
       <input
         type="text"
         bind:value={doc.name}
         onfocus={pushUndo}
-        class="bg-slate-700 text-xs text-slate-300 rounded px-2 py-0.5 border border-slate-600 focus:border-slate-400 outline-none w-32"
+        class="bg-surface-2 text-xs text-cyan-light rounded-lg px-2 py-0.5 border-2 border-black focus:border-accent outline-none w-32 shadow-[2px_2px_0_black]"
         placeholder="Project name"
       />
       <div class="flex items-center gap-0.5 ml-2">
         <button
           onclick={undo}
           disabled={undoStack.length === 0}
-          class="p-1 rounded text-slate-400 hover:text-slate-200 hover:bg-slate-700 transition-colors disabled:opacity-30 disabled:cursor-default disabled:hover:bg-transparent disabled:hover:text-slate-400"
+          class="p-1 rounded-lg text-purple-light hover:text-cyan hover:bg-surface-2 transition-colors disabled:opacity-30 disabled:cursor-default disabled:hover:bg-transparent disabled:hover:text-purple-light"
           title="Undo (Ctrl+Z)"
         >
           <svg viewBox="0 0 16 16" class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
@@ -513,7 +514,7 @@
         <button
           onclick={redo}
           disabled={redoStack.length === 0}
-          class="p-1 rounded text-slate-400 hover:text-slate-200 hover:bg-slate-700 transition-colors disabled:opacity-30 disabled:cursor-default disabled:hover:bg-transparent disabled:hover:text-slate-400"
+          class="p-1 rounded-lg text-purple-light hover:text-cyan hover:bg-surface-2 transition-colors disabled:opacity-30 disabled:cursor-default disabled:hover:bg-transparent disabled:hover:text-purple-light"
           title="Redo (Ctrl+Shift+Z)"
         >
           <svg viewBox="0 0 16 16" class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
@@ -523,8 +524,11 @@
         </button>
       </div>
     </div>
-    <div class="ml-auto">
-      <a href="index.html" class="text-[10px] text-slate-500 hover:text-slate-300 transition-colors">
+    <div class="ml-auto flex items-center gap-3">
+      <button onclick={() => showIntro = true} class="text-[10px] text-purple-light/60 hover:text-accent transition-colors">
+        About
+      </button>
+      <a href="index.html" class="text-[10px] text-purple-light/60 hover:text-accent transition-colors">
         PCB 3D Print Tools &rarr;
       </a>
     </div>
@@ -533,7 +537,7 @@
   <!-- Main -->
   <div class="flex flex-1 min-h-0">
     <!-- Sidebar -->
-    <div class="w-56 bg-slate-800 border-r border-slate-700 overflow-y-auto p-3 shrink-0">
+    <div class="w-56 bg-surface-1 border-r-3 border-black overflow-y-auto p-3 shrink-0">
       <BoardSettings
         bind:cols={doc.grid.cols}
         bind:rows={doc.grid.rows}
@@ -551,16 +555,16 @@
 
       {#if activeTool === 'label'}
         <div class="mb-4">
-          <div class="text-[10px] uppercase tracking-wider text-slate-500 mb-2">Label</div>
+          <div class="text-[10px] uppercase tracking-wider text-accent font-bold mb-2">Label</div>
           <div class="space-y-1.5">
             <input
               type="text"
               bind:value={annotationText}
-              class="w-full bg-slate-700 text-xs text-slate-300 rounded px-2 py-1 border border-slate-600 focus:border-slate-400 outline-none"
+              class="w-full bg-surface-2 text-xs text-cyan-light rounded-lg px-2 py-1 border-2 border-black focus:border-accent outline-none shadow-[2px_2px_0_black]"
               placeholder="Label text"
             />
             <div class="flex items-center gap-1.5">
-              {#each ['#ef4444', '#22c55e', '#3b82f6', '#eab308', '#f97316', '#a855f7', '#f0f0f0'] as c}
+              {#each ['#ff2d95', '#00f0ff', '#a855f7', '#a3e635', '#fbbf24', '#ff6bcb', '#f0f0f0'] as c}
                 <button
                   onclick={() => annotationColor = c}
                   class="w-4 h-4 rounded-full border-2 transition-colors {annotationColor === c ? 'border-white' : 'border-transparent'}"
@@ -580,26 +584,26 @@
 
       <!-- Save/Load -->
       <div class="mb-4">
-        <div class="text-[10px] uppercase tracking-wider text-slate-500 mb-2">Project</div>
+        <div class="text-[10px] uppercase tracking-wider text-accent font-bold mb-2">Project</div>
         <div class="flex gap-1 mb-2">
           <button onclick={saveToSlot}
-            class="flex-1 px-2 py-1.5 text-[10px] rounded bg-slate-700 hover:bg-slate-600 text-slate-300 transition-colors">
+            class="flex-1 px-2 py-1.5 text-[10px] rounded-lg bg-surface-2 hover:bg-surface-3 text-cyan-light font-bold border-2 border-black shadow-[2px_2px_0_black] transition-colors">
             Save
           </button>
           <button onclick={downloadJSON}
-            class="flex-1 px-2 py-1.5 text-[10px] rounded bg-slate-700 hover:bg-slate-600 text-slate-300 transition-colors">
+            class="flex-1 px-2 py-1.5 text-[10px] rounded-lg bg-surface-2 hover:bg-surface-3 text-cyan-light font-bold border-2 border-black shadow-[2px_2px_0_black] transition-colors">
             Download
           </button>
-          <label class="flex-1 px-2 py-1.5 text-[10px] rounded bg-slate-700 hover:bg-slate-600 text-slate-300 transition-colors text-center cursor-pointer">
+          <label class="flex-1 px-2 py-1.5 text-[10px] rounded-lg bg-surface-2 hover:bg-surface-3 text-cyan-light font-bold border-2 border-black shadow-[2px_2px_0_black] transition-colors text-center cursor-pointer">
             Load
             <input type="file" accept=".json" onchange={uploadJSON} class="hidden" />
           </label>
         </div>
         {#if saveMessage}
-          <div class="text-[10px] text-emerald-400 mb-1">{saveMessage}</div>
+          <div class="text-[10px] text-lime mb-1">{saveMessage}</div>
         {/if}
         <button onclick={() => showSavePanel = !showSavePanel}
-          class="text-[10px] text-slate-500 hover:text-slate-300 transition-colors">
+          class="text-[10px] text-purple-light/60 hover:text-accent transition-colors">
           {showSavePanel ? 'Hide saves' : 'Show saves'} ({getSaves().length})
         </button>
         {#if showSavePanel}
@@ -607,15 +611,15 @@
             {#each getSaves() as save}
               <div class="flex items-center gap-1 text-[10px]">
                 <button onclick={() => loadFromSlot(save)}
-                  class="flex-1 text-left px-1.5 py-1 rounded bg-slate-700 hover:bg-slate-600 text-slate-300 truncate">
+                  class="flex-1 text-left px-1.5 py-1 rounded-lg bg-surface-2 hover:bg-surface-3 text-cyan-light truncate">
                   {save.name}
                 </button>
                 <button onclick={() => deleteSlot(save.name)}
-                  class="text-slate-500 hover:text-red-400 px-1">&times;</button>
+                  class="text-purple-light/60 hover:text-red-400 px-1">&times;</button>
               </div>
             {/each}
             {#if getSaves().length === 0}
-              <div class="text-[10px] text-slate-500 italic">No saves yet</div>
+              <div class="text-[10px] text-purple-light/40 italic">No saves yet</div>
             {/if}
           </div>
         {/if}
@@ -623,15 +627,15 @@
 
       <!-- Examples -->
       <div class="mb-4">
-        <div class="text-[10px] uppercase tracking-wider text-slate-500 mb-2">Examples</div>
+        <div class="text-[10px] uppercase tracking-wider text-accent font-bold mb-2">Examples</div>
         <button onclick={() => loadExample('cd4093-noise-gen.perfboard.json')}
-          class="w-full text-left px-2 py-1.5 text-[10px] rounded bg-slate-700 hover:bg-slate-600 text-slate-300 transition-colors">
+          class="w-full text-left px-2 py-1.5 text-[10px] rounded-lg bg-surface-2 hover:bg-surface-3 text-cyan-light font-bold border-2 border-black shadow-[2px_2px_0_black] transition-colors">
           CD4093 Noise Generator
         </button>
       </div>
 
       <!-- Board info -->
-      <div class="text-[10px] text-slate-500 space-y-0.5">
+      <div class="text-[10px] text-purple-light/50 space-y-0.5">
         <div>Board: {((doc.grid.cols - 1) * doc.grid.pitch + doc.grid.pitch).toFixed(1)} &times; {((doc.grid.rows - 1) * doc.grid.pitch + doc.grid.pitch).toFixed(1)} mm</div>
         <div>Pads: {doc.pads.length} | Headers: {doc.headers.length} | DIPs: {(doc.dips || []).length} | Traces: {doc.traces.length} | Jumpers: {doc.jumpers.length} | Labels: {doc.annotations.length}</div>
       </div>
@@ -640,15 +644,15 @@
     <!-- Content area -->
     <div class="flex-1 flex flex-col min-h-0">
       <!-- Tabs -->
-      <div class="flex bg-slate-800 border-b border-slate-700 shrink-0">
+      <div class="flex bg-surface-1 border-b-3 border-black shrink-0">
         <button
-          class="px-4 py-2 text-xs transition-colors {activeTab === 'editor' ? 'text-white border-b-2 border-amber-400' : 'text-slate-400 hover:text-slate-200'}"
+          class="px-4 py-2 text-xs transition-colors {activeTab === 'editor' ? 'text-cyan font-bold border-b-3 border-accent' : 'text-purple-light hover:text-cyan'}"
           onclick={() => activeTab = 'editor'}
         >
           2D Editor
         </button>
         <button
-          class="px-4 py-2 text-xs transition-colors {activeTab === 'preview' ? 'text-white border-b-2 border-amber-400' : 'text-slate-400 hover:text-slate-200'}"
+          class="px-4 py-2 text-xs transition-colors {activeTab === 'preview' ? 'text-cyan font-bold border-b-3 border-accent' : 'text-purple-light hover:text-cyan'}"
           onclick={() => activeTab = 'preview'}
         >
           3D Preview
@@ -712,4 +716,39 @@
       </div>
     </div>
   </div>
+
+  {#if showIntro}
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
+    <div
+      class="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
+      onclick={() => { showIntro = false; localStorage.setItem('perfboard-intro-seen', '1') }}
+    >
+      <!-- svelte-ignore a11y_no_static_element_interactions -->
+      <div
+        class="bg-surface-1 border-3 border-black rounded-2xl shadow-[8px_8px_0_black] max-w-md w-full mx-4 p-8 text-center"
+        onclick={(e) => e.stopPropagation()}
+      >
+        <div class="text-5xl mb-4">&#x1f4cb;&#x26a1;&#x1f331;</div>
+        <h2 class="text-2xl font-black text-accent mb-2">Perfboard 3D Print Tools</h2>
+        <p class="text-cyan-light text-sm leading-relaxed mb-4">
+          Design your own perfboard PCB layouts and export them as 3D-printable STL files.
+          Artistic, hands-on, and eco-friendly — no chemical etching required!
+        </p>
+        <div class="flex flex-wrap justify-center gap-2 mb-6">
+          <span class="px-3 py-1 text-[11px] font-bold rounded-lg border-2 border-black bg-accent text-white shadow-[2px_2px_0_black]">DIY PCB Design</span>
+          <span class="px-3 py-1 text-[11px] font-bold rounded-lg border-2 border-black bg-cyan text-black shadow-[2px_2px_0_black]">3D Printable</span>
+          <span class="px-3 py-1 text-[11px] font-bold rounded-lg border-2 border-black bg-lime text-black shadow-[2px_2px_0_black]">Eco-Friendly</span>
+          <span class="px-3 py-1 text-[11px] font-bold rounded-lg border-2 border-black bg-purple text-white shadow-[2px_2px_0_black]">Artistic</span>
+        </div>
+        <button
+          class="px-6 py-3 text-sm font-black rounded-xl bg-accent hover:bg-accent-light text-white border-3 border-black shadow-[6px_6px_0_black] transition-all hover:shadow-[7px_7px_0_black] hover:-translate-x-px hover:-translate-y-px active:translate-x-1 active:translate-y-1 active:shadow-[2px_2px_0_black]"
+          onclick={() => { showIntro = false; localStorage.setItem('perfboard-intro-seen', '1') }}
+        >
+          Let's Build!
+        </button>
+        <p class="text-purple-light/60 text-xs font-bold mt-4">By Bauhouse Consorxium</p>
+        <p class="text-purple-light/40 text-[10px] mt-1">Skip etching. Start printing.</p>
+      </div>
+    </div>
+  {/if}
 </div>

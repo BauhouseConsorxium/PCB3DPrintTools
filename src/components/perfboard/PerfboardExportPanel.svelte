@@ -9,28 +9,28 @@
 </script>
 
 <div class="mb-4">
-  <div class="text-[10px] uppercase tracking-wider text-slate-500 mb-2">3D Settings</div>
+  <div class="text-[10px] uppercase tracking-wider text-accent font-bold mb-2">3D Settings</div>
 
   <div class="mb-3">
     <div class="flex justify-between items-center mb-1">
-      <span class="text-xs text-slate-400">Copper Z-scale</span>
-      <span class="text-[10px] text-amber-400/80 tabular-nums">{zScale}x ({copperMM} mm)</span>
+      <span class="text-xs text-purple-light">Copper Z-scale</span>
+      <span class="text-[10px] text-cyan tabular-nums">{zScale}x ({copperMM} mm)</span>
     </div>
     <input type="range" bind:value={zScale} min="1" max="143" step="1"
-      class="w-full h-1 accent-amber-500 cursor-pointer" />
+      class="w-full h-1 accent-[#ff2d95] cursor-pointer" />
   </div>
 
   <div class="mb-3">
     <div class="flex justify-between items-center mb-1">
-      <span class="text-xs text-slate-400">Board Z-scale</span>
-      <span class="text-[10px] text-emerald-400/80 tabular-nums">{boardZScale}x</span>
+      <span class="text-xs text-purple-light">Board Z-scale</span>
+      <span class="text-[10px] text-lime tabular-nums">{boardZScale}x</span>
     </div>
     <input type="range" bind:value={boardZScale} min="0.25" max="10" step="0.25"
-      class="w-full h-1 accent-emerald-500 cursor-pointer" />
+      class="w-full h-1 accent-[#a3e635] cursor-pointer" />
   </div>
 
   <button
-    class="w-full px-3 py-2 text-xs font-medium rounded bg-amber-600 hover:bg-amber-500 text-white transition-colors"
+    class="w-full px-3 py-2 text-xs font-bold rounded-lg bg-accent hover:bg-accent-light text-white border-2 border-black shadow-[4px_4px_0_black] transition-all hover:shadow-[5px_5px_0_black] hover:-translate-x-px hover:-translate-y-px active:translate-x-0.5 active:translate-y-0.5 active:shadow-[1px_1px_0_black]"
     onclick={onExport}
   >
     Export STL

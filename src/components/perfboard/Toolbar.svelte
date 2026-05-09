@@ -15,17 +15,17 @@
 </script>
 
 <div class="flex flex-col gap-1 mb-4">
-  <div class="text-[10px] uppercase tracking-wider text-slate-500 mb-1">Tools</div>
+  <div class="text-[10px] uppercase tracking-wider text-accent font-bold mb-1">Tools</div>
   <div class="grid grid-cols-4 gap-1">
     {#each tools as tool}
       <button
-        class="relative flex flex-col items-center gap-0.5 px-1 py-1.5 rounded text-[10px] transition-colors
-          {activeTool === tool.id ? 'bg-slate-600 text-white' : 'text-slate-400 hover:bg-slate-700 hover:text-slate-200'}"
+        class="relative flex flex-col items-center gap-0.5 px-1 py-1.5 rounded-lg text-[10px] transition-all
+          {activeTool === tool.id ? 'bg-accent text-white border-2 border-black shadow-[3px_3px_0_black]' : 'text-purple-light hover:bg-surface-2 hover:text-cyan border-2 border-transparent hover:border-black'}"
         onclick={() => onToolChange(tool.id)}
         title={tool.key ? `${tool.label} (${tool.key})` : tool.label}
       >
         {#if tool.key}
-          <span class="absolute top-0.5 right-0.5 text-[8px] text-slate-500 leading-none">{tool.key}</span>
+          <span class="absolute top-0.5 right-0.5 text-[8px] text-cyan/40 leading-none">{tool.key}</span>
         {/if}
         <svg viewBox="0 0 20 20" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.5">
           {#if tool.icon === 'pointer'}

@@ -14,58 +14,58 @@
 </script>
 
 <div class="mb-4">
-  <div class="text-[10px] uppercase tracking-wider text-slate-500 mb-2">Board</div>
+  <div class="text-[10px] uppercase tracking-wider text-accent font-bold mb-2">Board</div>
 
   <div class="grid grid-cols-2 gap-2 mb-2">
     <div>
-      <label class="text-[10px] text-slate-400 block mb-0.5">Columns</label>
+      <label class="text-[10px] text-purple-light block mb-0.5">Columns</label>
       <input type="number" bind:value={cols} min="2" max="40" onfocus={onBeforeChange}
-        class="w-full bg-slate-700 text-slate-200 text-xs rounded px-2 py-1 border border-slate-600 focus:border-slate-400 outline-none" />
+        class="w-full bg-surface-2 text-cyan-light text-xs rounded-lg px-2 py-1 border-2 border-black focus:border-accent outline-none shadow-[2px_2px_0_black]" />
     </div>
     <div>
-      <label class="text-[10px] text-slate-400 block mb-0.5">Rows</label>
+      <label class="text-[10px] text-purple-light block mb-0.5">Rows</label>
       <input type="number" bind:value={rows} min="2" max="40" onfocus={onBeforeChange}
-        class="w-full bg-slate-700 text-slate-200 text-xs rounded px-2 py-1 border border-slate-600 focus:border-slate-400 outline-none" />
+        class="w-full bg-surface-2 text-cyan-light text-xs rounded-lg px-2 py-1 border-2 border-black focus:border-accent outline-none shadow-[2px_2px_0_black]" />
     </div>
   </div>
 
-  <div class="text-[10px] uppercase tracking-wider text-slate-500 mb-2 mt-3">Dimensions (mm)</div>
+  <div class="text-[10px] uppercase tracking-wider text-accent font-bold mb-2 mt-3">Dimensions (mm)</div>
 
   <div class="grid grid-cols-2 gap-2">
     <div>
-      <label class="text-[10px] text-slate-400 block mb-0.5">Pad diameter</label>
+      <label class="text-[10px] text-purple-light block mb-0.5">Pad diameter</label>
       <input type="number" bind:value={padDiameter} min="0.5" max="4" step="0.1" onfocus={onBeforeChange}
-        class="w-full bg-slate-700 text-slate-200 text-xs rounded px-2 py-1 border border-slate-600 focus:border-slate-400 outline-none" />
+        class="w-full bg-surface-2 text-cyan-light text-xs rounded-lg px-2 py-1 border-2 border-black focus:border-accent outline-none shadow-[2px_2px_0_black]" />
     </div>
     <div>
-      <label class="text-[10px] text-slate-400 block mb-0.5">Drill diameter</label>
+      <label class="text-[10px] text-purple-light block mb-0.5">Drill diameter</label>
       <input type="number" bind:value={drillDiameter} min="0.3" max="3" step="0.1" onfocus={onBeforeChange}
-        class="w-full bg-slate-700 text-slate-200 text-xs rounded px-2 py-1 border border-slate-600 focus:border-slate-400 outline-none" />
+        class="w-full bg-surface-2 text-cyan-light text-xs rounded-lg px-2 py-1 border-2 border-black focus:border-accent outline-none shadow-[2px_2px_0_black]" />
     </div>
     <div>
-      <label class="text-[10px] text-slate-400 block mb-0.5">Trace width</label>
+      <label class="text-[10px] text-purple-light block mb-0.5">Trace width</label>
       <input type="number" bind:value={traceWidth} min="0.3" max="5" step="0.1" onfocus={onBeforeChange}
-        class="w-full bg-slate-700 text-slate-200 text-xs rounded px-2 py-1 border border-slate-600 focus:border-slate-400 outline-none" />
+        class="w-full bg-surface-2 text-cyan-light text-xs rounded-lg px-2 py-1 border-2 border-black focus:border-accent outline-none shadow-[2px_2px_0_black]" />
     </div>
     <div>
-      <label class="text-[10px] text-slate-400 block mb-0.5">Start end width</label>
+      <label class="text-[10px] text-purple-light block mb-0.5">Start end width</label>
       <input type="number" bind:value={curveEndWidth} min="0.3" max="8" step="0.1" onfocus={onBeforeChange}
-        class="w-full bg-slate-700 text-slate-200 text-xs rounded px-2 py-1 border border-slate-600 focus:border-slate-400 outline-none" />
+        class="w-full bg-surface-2 text-cyan-light text-xs rounded-lg px-2 py-1 border-2 border-black focus:border-accent outline-none shadow-[2px_2px_0_black]" />
     </div>
     <div>
-      <label class="text-[10px] text-slate-400 block mb-0.5">Finish end width</label>
+      <label class="text-[10px] text-purple-light block mb-0.5">Finish end width</label>
       <input type="number" bind:value={curveEndWidth2} min="0.3" max="8" step="0.1" onfocus={onBeforeChange}
-        class="w-full bg-slate-700 text-slate-200 text-xs rounded px-2 py-1 border border-slate-600 focus:border-slate-400 outline-none" />
+        class="w-full bg-surface-2 text-cyan-light text-xs rounded-lg px-2 py-1 border-2 border-black focus:border-accent outline-none shadow-[2px_2px_0_black]" />
     </div>
     <div>
-      <label class="text-[10px] text-slate-400 block mb-0.5">Taper distance</label>
+      <label class="text-[10px] text-purple-light block mb-0.5">Taper distance</label>
       <input type="number" bind:value={curveTaperDistance} min="0" max="50" step="0.5" onfocus={onBeforeChange}
-        class="w-full bg-slate-700 text-slate-200 text-xs rounded px-2 py-1 border border-slate-600 focus:border-slate-400 outline-none" />
+        class="w-full bg-surface-2 text-cyan-light text-xs rounded-lg px-2 py-1 border-2 border-black focus:border-accent outline-none shadow-[2px_2px_0_black]" />
     </div>
     <div>
-      <label class="text-[10px] text-slate-400 block mb-0.5">Board thickness</label>
+      <label class="text-[10px] text-purple-light block mb-0.5">Board thickness</label>
       <input type="number" bind:value={boardThickness} min="0.5" max="5" step="0.1" onfocus={onBeforeChange}
-        class="w-full bg-slate-700 text-slate-200 text-xs rounded px-2 py-1 border border-slate-600 focus:border-slate-400 outline-none" />
+        class="w-full bg-surface-2 text-cyan-light text-xs rounded-lg px-2 py-1 border-2 border-black focus:border-accent outline-none shadow-[2px_2px_0_black]" />
     </div>
   </div>
 </div>

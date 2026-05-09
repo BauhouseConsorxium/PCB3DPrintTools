@@ -92,8 +92,8 @@
   let padEditInput
 
   const WIRE_COLORS = [
-    '#ef4444', '#f97316', '#eab308', '#22c55e', '#06b6d4',
-    '#3b82f6', '#a855f7', '#ec4899', '#f0f0f0', '#a78bfa',
+    '#ff2d95', '#ff6bcb', '#00f0ff', '#7df9ff', '#a855f7',
+    '#c084fc', '#a3e635', '#fbbf24', '#f0f0f0', '#84cc16',
   ]
 
   // Ghost cursor
@@ -1578,7 +1578,7 @@
   {#if editingAnnotation}
     <!-- svelte-ignore a11y_no_static_element_interactions -->
     <div
-      class="absolute bg-slate-700 rounded border border-amber-400 z-10 p-1.5 flex flex-col gap-1.5"
+      class="absolute bg-surface-1 rounded-lg border-2 border-black shadow-[4px_4px_0_black] z-10 p-1.5 flex flex-col gap-1.5"
       style="left: {editingAnnotation.left}px; top: {editingAnnotation.top}px"
       onfocusout={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) commitEdit() }}
     >
@@ -1586,11 +1586,11 @@
         bind:this={editInput}
         type="text"
         value={editingAnnotation.text}
-        class="bg-slate-800 text-xs text-slate-200 rounded px-2 py-1 border border-slate-600 outline-none w-28"
+        class="bg-surface-2 text-xs text-cyan-light rounded-lg px-2 py-1 border-2 border-black outline-none shadow-[2px_2px_0_black] w-28"
         onkeydown={handleEditKeydown}
       />
       <div class="flex items-center gap-1">
-        {#each ['#ef4444', '#22c55e', '#3b82f6', '#eab308', '#f97316', '#a855f7', '#f0f0f0'] as c}
+        {#each ['#ff2d95', '#00f0ff', '#a855f7', '#a3e635', '#fbbf24', '#ff6bcb', '#f0f0f0'] as c}
           <button
             onmousedown={(e) => { e.preventDefault(); editingAnnotation.color = c }}
             class="w-3.5 h-3.5 rounded-full border-2 transition-colors {editingAnnotation.color === c ? 'border-white' : 'border-transparent'}"
@@ -1604,7 +1604,7 @@
   {#if editingJumper}
     <!-- svelte-ignore a11y_no_static_element_interactions -->
     <div
-      class="absolute bg-slate-700 rounded border border-amber-400 z-10 p-1.5"
+      class="absolute bg-surface-1 rounded-lg border-2 border-black shadow-[4px_4px_0_black] z-10 p-1.5"
       style="left: {editingJumper.left}px; top: {editingJumper.top}px"
     >
       <div class="flex items-center gap-1">
@@ -1622,7 +1622,7 @@
   {#if editingDip}
     <!-- svelte-ignore a11y_no_static_element_interactions -->
     <div
-      class="absolute bg-slate-700 rounded border border-amber-400 z-10 p-1.5 flex flex-col gap-1.5"
+      class="absolute bg-surface-1 rounded-lg border-2 border-black shadow-[4px_4px_0_black] z-10 p-1.5 flex flex-col gap-1.5"
       style="left: {editingDip.left}px; top: {editingDip.top}px"
       onfocusout={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) closeDipEdit() }}
     >
@@ -1631,18 +1631,18 @@
         type="text"
         value={editingDip.label}
         placeholder="IC label (e.g. NE555)"
-        class="bg-slate-800 text-xs text-slate-200 rounded px-2 py-1 border border-slate-600 outline-none w-36"
+        class="bg-surface-2 text-xs text-cyan-light rounded-lg px-2 py-1 border-2 border-black outline-none shadow-[2px_2px_0_black] w-36"
         onkeydown={handleDipEditKeydown}
         oninput={() => applyDipEdit()}
       />
       <div class="flex gap-1">
         <button
-          class="flex-1 text-[10px] px-1.5 py-1 rounded {editingDip.socket ? 'bg-slate-600 text-slate-400' : 'bg-amber-600 text-white'}"
+          class="flex-1 text-[10px] px-1.5 py-1 rounded-lg border-2 border-black {editingDip.socket ? 'bg-surface-2 text-purple-light' : 'bg-accent text-white shadow-[2px_2px_0_black]'}"
           onmousedown={(e) => e.preventDefault()}
           onclick={() => { editingDip = { ...editingDip, socket: false }; applyDipEdit() }}
         >DIP IC</button>
         <button
-          class="flex-1 text-[10px] px-1.5 py-1 rounded {editingDip.socket ? 'bg-amber-600 text-white' : 'bg-slate-600 text-slate-400'}"
+          class="flex-1 text-[10px] px-1.5 py-1 rounded-lg border-2 border-black {editingDip.socket ? 'bg-accent text-white shadow-[2px_2px_0_black]' : 'bg-surface-2 text-purple-light'}"
           onmousedown={(e) => e.preventDefault()}
           onclick={() => { editingDip = { ...editingDip, socket: true }; applyDipEdit() }}
         >IC Socket</button>
@@ -1653,76 +1653,76 @@
   {#if editingCurve}
     <!-- svelte-ignore a11y_no_static_element_interactions -->
     <div
-      class="absolute bg-slate-700 rounded border border-amber-400 z-10 p-1.5 flex flex-col gap-1.5"
+      class="absolute bg-surface-1 rounded-lg border-2 border-black shadow-[4px_4px_0_black] z-10 p-1.5 flex flex-col gap-1.5"
       style="left: {editingCurve.left}px; top: {editingCurve.top}px"
       onfocusout={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) closeCurveEdit() }}
     >
       <div>
-        <label class="text-[10px] text-slate-400 block mb-0.5">Trace width (mm)</label>
+        <label class="text-[10px] text-purple-light block mb-0.5">Trace width (mm)</label>
         <input
           type="number"
           value={editingCurve.width}
           min="0.3" max="5" step="0.1"
-          class="bg-slate-800 text-xs text-slate-200 rounded px-2 py-1 border border-slate-600 outline-none w-28"
+          class="bg-surface-2 text-xs text-cyan-light rounded-lg px-2 py-1 border-2 border-black outline-none shadow-[2px_2px_0_black] w-28"
           onkeydown={handleCurveEditKeydown}
           oninput={(e) => { editingCurve = { ...editingCurve, width: parseFloat(e.target.value) || 0.3 }; applyCurveEdit() }}
         />
       </div>
       <div>
-        <label class="text-[10px] text-slate-400 block mb-0.5">Start end width (mm)</label>
+        <label class="text-[10px] text-purple-light block mb-0.5">Start end width (mm)</label>
         <input
           type="number"
           value={editingCurve.endWidth}
           min="0.3" max="8" step="0.1"
-          class="bg-slate-800 text-xs text-slate-200 rounded px-2 py-1 border border-slate-600 outline-none w-28"
+          class="bg-surface-2 text-xs text-cyan-light rounded-lg px-2 py-1 border-2 border-black outline-none shadow-[2px_2px_0_black] w-28"
           onkeydown={handleCurveEditKeydown}
           oninput={(e) => { editingCurve = { ...editingCurve, endWidth: parseFloat(e.target.value) || 0.3 }; applyCurveEdit() }}
         />
       </div>
       <div>
-        <label class="text-[10px] text-slate-400 block mb-0.5">Finish end width (mm)</label>
+        <label class="text-[10px] text-purple-light block mb-0.5">Finish end width (mm)</label>
         <input
           type="number"
           value={editingCurve.endWidth2}
           min="0.3" max="8" step="0.1"
-          class="bg-slate-800 text-xs text-slate-200 rounded px-2 py-1 border border-slate-600 outline-none w-28"
+          class="bg-surface-2 text-xs text-cyan-light rounded-lg px-2 py-1 border-2 border-black outline-none shadow-[2px_2px_0_black] w-28"
           onkeydown={handleCurveEditKeydown}
           oninput={(e) => { editingCurve = { ...editingCurve, endWidth2: parseFloat(e.target.value) || 0.3 }; applyCurveEdit() }}
         />
       </div>
       <div>
-        <label class="text-[10px] text-slate-400 block mb-0.5">Taper distance (mm)</label>
+        <label class="text-[10px] text-purple-light block mb-0.5">Taper distance (mm)</label>
         <input
           type="number"
           value={editingCurve.taperDistance}
           min="0" max="50" step="0.5"
-          class="bg-slate-800 text-xs text-slate-200 rounded px-2 py-1 border border-slate-600 outline-none w-28"
+          class="bg-surface-2 text-xs text-cyan-light rounded-lg px-2 py-1 border-2 border-black outline-none shadow-[2px_2px_0_black] w-28"
           onkeydown={handleCurveEditKeydown}
           oninput={(e) => { editingCurve = { ...editingCurve, taperDistance: parseFloat(e.target.value) || 0 }; applyCurveEdit() }}
         />
-        <div class="text-[9px] text-slate-500 mt-0.5">0 = auto (half curve length)</div>
+        <div class="text-[9px] text-purple-light/50 mt-0.5">0 = auto (half curve length)</div>
       </div>
       <div>
-        <label class="text-[10px] text-slate-400 block mb-0.5">Tension</label>
+        <label class="text-[10px] text-purple-light block mb-0.5">Tension</label>
         <input
           type="range"
           value={editingCurve.tension}
           min="0.05" max="1.5" step="0.05"
-          class="w-28 accent-amber-500"
+          class="w-28 accent-[#ff2d95]"
           oninput={(e) => { editingCurve = { ...editingCurve, tension: parseFloat(e.target.value) }; applyCurveEdit() }}
         />
-        <div class="text-[9px] text-slate-500">{editingCurve.tension.toFixed(2)} — {editingCurve.tension < 0.3 ? 'loose' : editingCurve.tension < 0.7 ? 'smooth' : 'tight'}</div>
+        <div class="text-[9px] text-purple-light/50">{editingCurve.tension.toFixed(2)} — {editingCurve.tension < 0.3 ? 'loose' : editingCurve.tension < 0.7 ? 'smooth' : 'tight'}</div>
       </div>
       <button
-        class="w-full text-[10px] px-2 py-1 rounded bg-slate-600 text-slate-200 hover:bg-slate-500"
+        class="w-full text-[10px] px-2 py-1 rounded-lg bg-surface-2 text-cyan-light hover:bg-surface-3 border-2 border-black shadow-[2px_2px_0_black]"
         onmousedown={(e) => e.preventDefault()}
         onclick={() => { onSubdivideCurve(editingCurve.id); closeCurveEdit() }}
       >+ Add Points (Subdivide)</button>
-      <label class="flex items-center gap-1.5 text-[10px] text-slate-400 mt-1 cursor-pointer">
+      <label class="flex items-center gap-1.5 text-[10px] text-purple-light mt-1 cursor-pointer">
         <input
           type="checkbox"
           checked={editingCurve.freeform}
-          class="accent-amber-500"
+          class="accent-[#ff2d95]"
           onchange={(e) => { editingCurve = { ...editingCurve, freeform: e.target.checked }; applyCurveEdit() }}
         />
         Free-form control points
@@ -1733,17 +1733,17 @@
   {#if editingTrace}
     <!-- svelte-ignore a11y_no_static_element_interactions -->
     <div
-      class="absolute bg-slate-700 rounded border border-amber-400 z-10 p-1.5"
+      class="absolute bg-surface-1 rounded-lg border-2 border-black shadow-[4px_4px_0_black] z-10 p-1.5"
       style="left: {editingTrace.left}px; top: {editingTrace.top}px"
       onfocusout={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) closeTraceEdit() }}
     >
       <div>
-        <label class="text-[10px] text-slate-400 block mb-0.5">Trace width (mm)</label>
+        <label class="text-[10px] text-purple-light block mb-0.5">Trace width (mm)</label>
         <input
           type="number"
           value={editingTrace.width}
           min="0.3" max="5" step="0.1"
-          class="bg-slate-800 text-xs text-slate-200 rounded px-2 py-1 border border-slate-600 outline-none w-28"
+          class="bg-surface-2 text-xs text-cyan-light rounded-lg px-2 py-1 border-2 border-black outline-none shadow-[2px_2px_0_black] w-28"
           onkeydown={handleTraceEditKeydown}
           oninput={(e) => { editingTrace = { ...editingTrace, width: parseFloat(e.target.value) || 0.3 }; applyTraceEdit() }}
           onfocus={(e) => e.target.select()}
@@ -1755,7 +1755,7 @@
   {#if editingPad}
     <!-- svelte-ignore a11y_no_static_element_interactions -->
     <div
-      class="absolute bg-slate-700 rounded border border-amber-400 z-10 p-1.5"
+      class="absolute bg-surface-1 rounded-lg border-2 border-black shadow-[4px_4px_0_black] z-10 p-1.5"
       style="left: {editingPad.left}px; top: {editingPad.top}px"
       onfocusout={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) commitPadEdit() }}
     >
@@ -1764,7 +1764,7 @@
         type="text"
         value={editingPad.label}
         placeholder="Pad label (e.g. VCC)"
-        class="bg-slate-800 text-xs text-slate-200 rounded px-2 py-1 border border-slate-600 outline-none w-28"
+        class="bg-surface-2 text-xs text-cyan-light rounded-lg px-2 py-1 border-2 border-black outline-none shadow-[2px_2px_0_black] w-28"
         onkeydown={handlePadEditKeydown}
       />
     </div>
@@ -1773,15 +1773,15 @@
   {#if editingHeader}
     <!-- svelte-ignore a11y_no_static_element_interactions -->
     <div
-      class="absolute bg-slate-700 rounded border border-amber-400 z-10 p-1.5"
+      class="absolute bg-surface-1 rounded-lg border-2 border-black shadow-[4px_4px_0_black] z-10 p-1.5"
       style="left: {editingHeader.left}px; top: {editingHeader.top}px; max-height: 200px; overflow-y: auto"
       onfocusout={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) commitHeaderEdit() }}
     >
-      <div class="text-[10px] text-slate-400 mb-1">Pin labels</div>
+      <div class="text-[10px] text-purple-light mb-1">Pin labels</div>
       <div class="flex flex-col gap-0.5">
         {#each editingHeader.labels as label, i}
           <div class="flex items-center gap-1">
-            <span class="text-[9px] text-slate-500 w-3 text-right">{i + 1}</span>
+            <span class="text-[9px] text-purple-light/50 w-3 text-right">{i + 1}</span>
             <input
               type="text"
               value={label}
@@ -1797,7 +1797,7 @@
                 } else if (e.key === 'Escape') { editingHeader = null }
               }}
               placeholder="Pin {i + 1}"
-              class="bg-slate-800 text-[11px] text-slate-200 rounded px-1.5 py-0.5 border border-slate-600 outline-none w-20"
+              class="bg-surface-2 text-[11px] text-cyan-light rounded-lg px-1.5 py-0.5 border-2 border-black outline-none shadow-[2px_2px_0_black] w-20"
             />
           </div>
         {/each}
