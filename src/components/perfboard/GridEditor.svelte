@@ -17,6 +17,7 @@
     onUpdatePadLabel = () => {},
     onUpdateHeaderLabels = () => {},
     onMoveSelected = () => {},
+    onRotateSelected = () => {},
     onRemoveElement = () => {},
     onSelect = () => {},
     onBulkSelect = () => {},
@@ -591,6 +592,10 @@
       if (!cancelled && activeTool !== 'select') {
         onToolChange('select')
       }
+      return
+    }
+    if ((e.key === 'r' || e.key === 'R') && activeTool === 'select' && selectedIds.length > 0) {
+      onRotateSelected()
       return
     }
     const tool = toolHotkeys[e.key]

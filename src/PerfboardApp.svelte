@@ -183,6 +183,42 @@
     doc.annotations = [...doc.annotations]
   }
 
+  function rotateSelected() {
+    if (selectedIds.length === 0) return
+    pushUndo()
+    for (const id of selectedIds) {
+      const header = doc.headers.find(h => h.id === id)
+      if (header) { header.orientation = header.orientation === 'h' ? 'v' : 'h'; continue }
+      const dip = (doc.dips || []).find(d => d.id === id)
+      if (dip) { dip.orientation = dip.orientation === 'h' ? 'v' : 'h'; continue }
+      const trace = doc.traces.find(t => t.id === id)
+      if (trace && trace.points.length >= 2) {
+        const pivot = trace.points[0]
+        for (let i = 1; i < trace.points.length; i++) {
+          const dc = trace.points[i].col - pivot.col
+          const dr = trace.points[i].row - pivot.row
+          trace.points[i].col = pivot.col + dr
+          trace.points[i].row = pivot.row - dc
+        }
+        continue
+      }
+      const jumper = doc.jumpers.find(j => j.id === id)
+      if (jumper) {
+        const mc = (jumper.col1 + jumper.col2) / 2
+        const mr = (jumper.row1 + jumper.row2) / 2
+        const dc1 = jumper.col1 - mc, dr1 = jumper.row1 - mr
+        const dc2 = jumper.col2 - mc, dr2 = jumper.row2 - mr
+        jumper.col1 = mc + dr1; jumper.row1 = mr - dc1
+        jumper.col2 = mc + dr2; jumper.row2 = mr - dc2
+        continue
+      }
+    }
+    doc.headers = [...doc.headers]
+    doc.dips = [...(doc.dips || [])]
+    doc.traces = [...doc.traces]
+    doc.jumpers = [...doc.jumpers]
+  }
+
   function removeElement(id) {
     pushUndo()
     doc.pads = doc.pads.filter(p => p.id !== id)
@@ -538,6 +574,7 @@
             onUpdateHeaderLabels={updateHeaderLabels}
             onUpdatePadLabel={updatePadLabel}
             onMoveSelected={moveSelected}
+            onRotateSelected={rotateSelected}
             onRemoveElement={removeElement}
             onSelect={selectElement}
             onBulkSelect={bulkSelect}
