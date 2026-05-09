@@ -530,6 +530,17 @@
     <!-- Traces -->
     {#each doc.traces as trace}
       {@const isSelected = selectedIds.includes(trace.id)}
+      {#if isSelected}
+        {#each getTraceSegments(trace) as seg}
+          <line
+            x1={seg.x1} y1={seg.y1}
+            x2={seg.x2} y2={seg.y2}
+            stroke="white"
+            stroke-width={trace.width + pitch * 0.12}
+            stroke-linecap="round"
+          />
+        {/each}
+      {/if}
       {#each getTraceSegments(trace) as seg}
         <line
           x1={seg.x1} y1={seg.y1}
@@ -592,7 +603,10 @@
         />
       {/if}
       {#each hpads as hp}
-        <circle cx={hp.col * pitch} cy={hp.row * pitch} r={padR} fill="#d4a534" />
+        {#if isSelected}
+          <circle cx={hp.col * pitch} cy={hp.row * pitch} r={padR + pitch * 0.06} fill="white" />
+        {/if}
+        <circle cx={hp.col * pitch} cy={hp.row * pitch} r={padR} fill={isSelected ? '#fbbf24' : '#d4a534'} />
         <circle cx={hp.col * pitch} cy={hp.row * pitch} r={drillR} fill="#1a1a2e" />
       {/each}
     {/each}
@@ -611,6 +625,9 @@
     <!-- Pads -->
     {#each doc.pads as pad}
       {@const isSelected = selectedIds.includes(pad.id)}
+      {#if isSelected}
+        <circle cx={pad.col * pitch} cy={pad.row * pitch} r={padR + pitch * 0.06} fill="white" />
+      {/if}
       <circle
         cx={pad.col * pitch} cy={pad.row * pitch}
         r={padR}
@@ -687,6 +704,17 @@
       {@const nx = -dy / (dist || 1)}
       {@const ny = dx / (dist || 1)}
       {@const jcolor = jumper.color ?? '#67e8f9'}
+      {#if isSelected}
+        <path
+          d="M{x1},{y1} Q{mx + nx * arc},{my + ny * arc} {x2},{y2}"
+          stroke="white"
+          stroke-width={pitch * 0.12 + pitch * 0.1}
+          stroke-linecap="round"
+          fill="none"
+        />
+        <circle cx={x1} cy={y1} r={pitch * 0.12 + pitch * 0.05} fill="white" />
+        <circle cx={x2} cy={y2} r={pitch * 0.12 + pitch * 0.05} fill="white" />
+      {/if}
       <path
         d="M{x1},{y1} Q{mx + nx * arc},{my + ny * arc} {x2},{y2}"
         stroke={isSelected ? '#fbbf24' : jcolor}
