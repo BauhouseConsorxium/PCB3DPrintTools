@@ -192,8 +192,8 @@ export function buildPerfboardBodies(doc) {
 
   const boardBody = buildBoardGeometry(boardPoly, drills, boardThickness)
 
-  const zBot = boardThickness
-  const zTop = boardThickness + copperThickness
+  const zBot = -copperThickness
+  const zTop = 0
   const padsBody = buildPadRingsGeometry(padPositions, drillR, padR, zBot, zTop)
 
   const traceSegments = collectTraceSegments(doc, padPositions)

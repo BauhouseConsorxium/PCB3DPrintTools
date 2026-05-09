@@ -30,7 +30,7 @@ PCB3DPrintTools/
         ├── FileDropzone.svelte    PCB tool only
         └── perfboard/
             ├── GridEditor.svelte        SVG 2D grid editor with tools
-            ├── Toolbar.svelte           Tool selection (select/pad/header/trace/jumper/label/erase) with hotkeys 1-6
+            ├── Toolbar.svelte           Tool selection (select/pad/header/dip/trace/jumper/label/erase) with hotkeys 1-7
             ├── BoardSettings.svelte     Grid size, pad/drill/trace dimensions
             └── PerfboardExportPanel.svelte  Z-scale sliders + STL export
 ```
@@ -95,8 +95,9 @@ The perfboard tool targets the same copper-tape fabrication method but skips KiC
   drillDiameter: 1.0,       // mm — converted to radius in geometry
   padDiameter: 2.0,         // mm — converted to radius in geometry
   traceWidth: 1.0,          // mm
-  pads: [{ id, col, row }],
-  headers: [{ id, col, row, count, orientation: "h"|"v" }],
+  pads: [{ id, col, row, label? }],
+  headers: [{ id, col, row, count, orientation: "h"|"v", labels?: string[] }],
+  dips: [{ id, col, row, count, orientation: "h"|"v", rowSpacing: 3, label? }],
   traces: [{ id, points: [{col, row}], width }],
   jumpers: [{ id, col1, row1, col2, row2 }]
 }
@@ -130,16 +131,18 @@ Pad rings are structurally identical to board geometry: outer circle CCW + inner
 - SVG-based with `viewBox` pan/zoom (wheel = zoom around cursor, shift+drag or middle-drag = pan)
 - Grid snap: half-pitch (`Math.round(x / pitch * 2) / 2`) via `svg.getScreenCTM().inverse()` — grid dots render at full and half-pitch
 - Tool system: `activeTool` state drives click/move handlers (default: `'select'`)
-  - `'pad'` — click to toggle pad at intersection (hotkey: 1)
-  - `'header'` — click start → drag direction → click to place multi-pin header (hotkey: 2)
-  - `'trace'` — click waypoints → double-click to finish; L-shaped Manhattan routing per click (hotkey: 3)
-  - `'jumper'` — click start → click end → creates component-side wire (2D only, no 3D geometry) (hotkey: 4)
-  - `'label'` — click to place text annotation (hotkey: 5)
+  - `'pad'` — click to toggle pad at intersection (hotkey: 1). Double-click in select mode to edit pad label.
+  - `'header'` — click start → drag direction → click to place multi-pin header (hotkey: 2). Double-click in select mode to edit per-pin labels.
+  - `'dip'` — click start → drag direction → click to place DIP IC package, 2 rows with 3-pitch spacing (hotkey: 3). Requires count ≥ 2. Double-click in select mode to edit IC label.
+  - `'trace'` — click waypoints → double-click to finish; L-shaped Manhattan routing per click (hotkey: 4)
+  - `'jumper'` — click start → click end → creates component-side wire (2D only, no 3D geometry) (hotkey: 5)
+  - `'label'` — click to place text annotation (hotkey: 6)
   - `'select'` — click to select, shift+click to toggle multi-select, drag empty area for rubber band selection, Delete to remove all selected
-  - `'erase'` — click to remove (hotkey: 6)
-- Right-click or Escape cancels in-progress trace/header/jumper; Escape with no drawing in progress switches to select tool
+  - `'erase'` — click to remove (hotkey: 7)
+- Right-click or Escape cancels in-progress trace/header/dip/jumper; Escape with no drawing in progress switches to select tool
+- Double-click editing: pads show single label input; headers show per-pin label list (Enter advances to next pin); DIPs show IC label input; jumpers show color picker; annotations show text+color editor
 - Multi-select: `selectedIds` array (not single `selectedId`), shift+click toggles, rubber band drag selects enclosed elements, drag-move and delete operate on full selection as single undo step
-- Hit testing: pads/headers use exact grid match; traces and jumpers use proximity-based `distToSegment` with bezier curve sampling (jumpers render as quadratic bezier arcs)
+- Hit testing: pads/headers/DIPs use exact grid match; traces and jumpers use proximity-based `distToSegment` with bezier curve sampling (jumpers render as quadratic bezier arcs)
 - Selection highlight: amber fill (`#fbbf24`) with semi-transparent white border (`rgba(255,255,255,0.45)`)
 
 ### PerfboardApp state management
@@ -357,13 +360,13 @@ copperOriginalY[name] = copperMesh.position.y
 board.scale.z      = bS
 board.position.y   = boardBottomY + (boardOriginalPosY - boardBottomY) * bS
 copper.scale.z     = zS
-copper.position.y  = copperOriginalY[name] + boardHeight * (bS - 1) + boardHeight * (zS - 1)
+copper.position.y  = copperOriginalY[name] + boardHeight * (bS - 1) + copperLocalZBottom[name] * (zS - 1)
 grid.position.y    = boardBottomY - 0.05
 ```
 
 **Pitfall 1**: `boardHalfHeight * (scale-1)` is wrong for copper offset — it ignores the board's position shift. Use full `boardHeight * (scale-1)`.
 
-**Pitfall 2**: Copper meshes have vertices at local Z ≈ boardThickness (not near zero). When `scale.z > 1`, vertices scale around the mesh origin, pushing copper away from the board surface. The `boardHeight * (zS - 1)` term compensates for this drift. Without it, copper at zScale=8 drifts 11.2mm below the board (visible as gap in 3D view).
+**Pitfall 2**: Copper meshes have vertices at varying local Z depending on the app. PCB F.Cu is at local Z ≈ boardThickness; perfboard copper is at local Z ≈ 0. When `scale.z > 1`, vertices scale around the mesh origin by `localZ * (s-1)`. Use per-body `copperLocalZBottom[name]` (geometry bounding box max Z) — NOT `boardHeight`. Using `boardHeight` works for PCB F.Cu but breaks perfboard copper (localZ ≈ 0 needs zero compensation).
 
 ## Viewer3D as shared component
 
@@ -748,7 +751,8 @@ Two guard clauses prevent both no-op recomputes (key matches) and overlapping co
 - **Fixing a geometry bug in only one place** → `buildBoardGeometry` and `buildTracesGeometry` exist in both `src/lib/geometry.js` (ES module, used by perfboard) and `public/pcb-worker.js` (classic worker, used by PCB tool). A fix in one must be mirrored in the other.
 - **Body names that don't match Viewer3D predicates** → perfboard bodies must be named `'PCB'`, `'Pads_F.Cu'`, `'F.Cu'` (or similar patterns containing `.cu` / ending with `pcb`) to get correct materials. A body named `'pads'` would get the component material (pink), not copper (gold).
 - **Hit testing curved SVG elements with straight-line distance** → jumper wires render as quadratic bezier arcs but `distToSegment` checks the chord. Clicks on the arc's curved portion miss. Sample the bezier into N line segments and check distance to each. SVG render order also matters: jumpers must be the topmost SVG layer so they visually "sit above" the board.
-- **Loading old perfboard JSON without `jumpers` field** → crashes on `doc.jumpers.filter(...)`. Always add `parsed.jumpers = parsed.jumpers ?? []` in every load path (file upload, localStorage, example fetch).
+- **Loading old perfboard JSON without `dips`/`jumpers` field** → crashes on `doc.dips.filter(...)` or `doc.jumpers.filter(...)`. Always add `parsed.dips = parsed.dips ?? []` and `parsed.jumpers = parsed.jumpers ?? []` in every load path (file upload, localStorage, example fetch).
 - **Traces covering pad drill holes in 3D** → `buildTracesGeometry` only punches drill holes at segment endpoints. If a trace passes through a pad that isn't a waypoint, no hole appears. `collectTraceSegments` in `perfboard-geometry.js` splits segments at intermediate pad positions to fix this. Also, when drill radius ≥ half trace width, clamp the effective hole radius to `hw - 0.02` instead of skipping — skipping would leave the trace covering the pad's drill hole.
-- **Copper Z-scale drift** → copper meshes have vertices at local Z ≈ boardThickness. `scale.z > 1` scales around mesh origin, pushing copper away from the board. Must add `boardHeight * (zS - 1)` to `position.y` in `applyCopperScale`. Without this, copper at zScale=8 drifts ~11mm below the board.
+- **Copper Z-scale drift** → copper meshes have vertices at local Z that varies by app. PCB tool F.Cu is at local Z ≈ boardThickness; perfboard copper is at local Z ≈ 0. `scale.z > 1` scales around mesh origin, pushing copper away by `localZ * (s-1)`. `applyCopperScale` uses per-body `copperLocalZBottom[name]` (geometry bounding box max Z) for the drift term — NOT `boardHeight`. Using `boardHeight` works for PCB F.Cu (where localZ ≈ boardHeight) but breaks perfboard copper (where localZ ≈ 0, so no drift compensation is needed).
+- **Perfboard copper Z convention** → In the viewer, `rotation.x = π/2` maps local Z to world Y with `world_Y = position.y - z * scale.z`. Higher local Z = lower world Y (further down). The board spans z=0 (visual top) to z=thickness (visual bottom). Perfboard copper must be at z=-copperThickness to z=0 (above board surface, like B.Cu in PCB tool), NOT at z=thickness to z=thickness+copperThickness (which puts it below the board).
 

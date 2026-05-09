@@ -120,6 +120,24 @@
     if (j) { j.color = color; doc.jumpers = [...doc.jumpers] }
   }
 
+  function updateHeaderLabels(id, labels) {
+    pushUndo()
+    const header = doc.headers.find(h => h.id === id)
+    if (header) { header.labels = labels; doc.headers = [...doc.headers] }
+  }
+
+  function updatePadLabel(id, label) {
+    pushUndo()
+    const pad = doc.pads.find(p => p.id === id)
+    if (pad) { pad.label = label; doc.pads = [...doc.pads] }
+  }
+
+  function updateDipLabel(id, label) {
+    pushUndo()
+    const dip = (doc.dips || []).find(d => d.id === id)
+    if (dip) { dip.label = label; doc.dips = [...(doc.dips || [])] }
+  }
+
   function addAnnotation(col, row) {
     pushUndo()
     doc.annotations = [...doc.annotations, { id: crypto.randomUUID(), col, row, text: annotationText, color: annotationColor }]
@@ -516,6 +534,9 @@
             onAddAnnotation={addAnnotation}
             onUpdateAnnotation={updateAnnotation}
             onUpdateJumperColor={updateJumperColor}
+            onUpdateDipLabel={updateDipLabel}
+            onUpdateHeaderLabels={updateHeaderLabels}
+            onUpdatePadLabel={updatePadLabel}
             onMoveSelected={moveSelected}
             onRemoveElement={removeElement}
             onSelect={selectElement}

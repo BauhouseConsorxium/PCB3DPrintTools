@@ -24,6 +24,7 @@
   let boardBottomY = 0
   let boardTop = 0
   let copperOriginalY = {}
+  let copperLocalZBottom = {}
   // distance from copper mesh's position.y to its world Y top at scale.z=1 — invariant to centering
   let copperNaturalTopOffset = {}
 
@@ -155,7 +156,7 @@
         const offset = copperNaturalTopOffset[name] ?? 0
         mesh.position.y = boardTopCurrent - offset * s
       } else {
-        mesh.position.y = (copperOriginalY[name] ?? 0) + boardHeight * (bS - 1) + boardHeight * (s - 1)
+        mesh.position.y = (copperOriginalY[name] ?? 0) + boardHeight * (bS - 1) + (copperLocalZBottom[name] ?? 0) * (s - 1)
       }
     }
   }
@@ -282,6 +283,7 @@
 
         originalMaterials = {}
         copperOriginalY = {}
+        copperLocalZBottom = {}
         boardOriginalPosY = 0
         boardBottomY = 0
         boardTop = 0
@@ -297,6 +299,8 @@
             boardTop = box.max.y
           } else if (isCopper(name)) {
             copperOriginalY[name] = mesh.position.y
+            mesh.geometry.computeBoundingBox()
+            copperLocalZBottom[name] = mesh.geometry.boundingBox.max.z
           }
         }
 

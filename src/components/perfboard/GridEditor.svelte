@@ -13,6 +13,9 @@
     onAddAnnotation = () => {},
     onUpdateAnnotation = () => {},
     onUpdateJumperColor = () => {},
+    onUpdateDipLabel = () => {},
+    onUpdatePadLabel = () => {},
+    onUpdateHeaderLabels = () => {},
     onMoveSelected = () => {},
     onRemoveElement = () => {},
     onSelect = () => {},
@@ -59,7 +62,12 @@
   // Inline editing
   let editingAnnotation = $state(null)
   let editingJumper = $state(null)
+  let editingDip = $state(null)
+  let editingPad = $state(null)
+  let editingHeader = $state(null)
   let editInput
+  let dipEditInput
+  let padEditInput
 
   const WIRE_COLORS = [
     '#ef4444', '#f97316', '#eab308', '#22c55e', '#06b6d4',
@@ -178,6 +186,9 @@
 
   function handlePointerDown(e) {
     if (editingJumper) { editingJumper = null }
+    if (editingDip) { editingDip = null }
+    if (editingPad) { editingPad = null }
+    if (editingHeader) { commitHeaderEdit() }
     if (e.button === 1 || (e.button === 0 && e.shiftKey && activeTool !== 'select')) {
       isPanning = true
       panStart = { x: e.clientX, y: e.clientY, vx: vb.x, vy: vb.y }
@@ -440,6 +451,40 @@
         tick().then(() => {
           if (editInput) { editInput.focus(); editInput.select() }
         })
+      } else if (el && (doc.dips || []).find(d => d.id === el.id)) {
+        const dip = (doc.dips || []).find(d => d.id === el.id)
+        const rect = containerEl.getBoundingClientRect()
+        editingDip = {
+          id: el.id,
+          label: dip.label ?? '',
+          left: e.clientX - rect.left,
+          top: e.clientY - rect.top - 20
+        }
+        tick().then(() => {
+          if (dipEditInput) { dipEditInput.focus(); dipEditInput.select() }
+        })
+      } else if (el && doc.headers.find(h => h.id === el.id)) {
+        const header = doc.headers.find(h => h.id === el.id)
+        const rect = containerEl.getBoundingClientRect()
+        const labels = header.labels ?? Array(header.count).fill('')
+        editingHeader = {
+          id: el.id,
+          labels: labels.length >= header.count ? labels.slice(0, header.count) : [...labels, ...Array(header.count - labels.length).fill('')],
+          left: e.clientX - rect.left,
+          top: e.clientY - rect.top - 20
+        }
+      } else if (el && doc.pads.find(p => p.id === el.id)) {
+        const pad = doc.pads.find(p => p.id === el.id)
+        const rect = containerEl.getBoundingClientRect()
+        editingPad = {
+          id: el.id,
+          label: pad.label ?? '',
+          left: e.clientX - rect.left,
+          top: e.clientY - rect.top - 20
+        }
+        tick().then(() => {
+          if (padEditInput) { padEditInput.focus(); padEditInput.select() }
+        })
       } else if (el && doc.jumpers.find(j => j.id === el.id)) {
         const rect = containerEl.getBoundingClientRect()
         editingJumper = {
@@ -462,6 +507,36 @@
     e.stopPropagation()
     if (e.key === 'Enter') commitEdit()
     else if (e.key === 'Escape') editingAnnotation = null
+  }
+
+  function commitHeaderEdit() {
+    if (!editingHeader) return
+    onUpdateHeaderLabels(editingHeader.id, editingHeader.labels)
+    editingHeader = null
+  }
+
+  function commitPadEdit() {
+    if (!editingPad) return
+    onUpdatePadLabel(editingPad.id, padEditInput?.value ?? '')
+    editingPad = null
+  }
+
+  function handlePadEditKeydown(e) {
+    e.stopPropagation()
+    if (e.key === 'Enter') commitPadEdit()
+    else if (e.key === 'Escape') editingPad = null
+  }
+
+  function commitDipEdit() {
+    if (!editingDip) return
+    onUpdateDipLabel(editingDip.id, dipEditInput?.value ?? '')
+    editingDip = null
+  }
+
+  function handleDipEditKeydown(e) {
+    e.stopPropagation()
+    if (e.key === 'Enter') commitDipEdit()
+    else if (e.key === 'Escape') editingDip = null
   }
 
   function cancelDrawing() {
@@ -508,6 +583,9 @@
     if (isInput) return
     if (e.key === 'Escape') {
       if (editingAnnotation) { editingAnnotation = null; return }
+      if (editingPad) { editingPad = null; return }
+      if (editingHeader) { commitHeaderEdit(); return }
+      if (editingDip) { editingDip = null; return }
       if (editingJumper) { editingJumper = null; return }
       const cancelled = cancelDrawing()
       if (!cancelled && activeTool !== 'select') {
@@ -691,12 +769,19 @@
           rx="0.3"
         />
       {/if}
-      {#each hpads as hp}
+      {#each hpads as hp, i}
         {#if isSelected}
           <circle cx={hp.col * pitch} cy={hp.row * pitch} r={padR + pitch * 0.04} fill="rgba(255,255,255,0.45)" />
         {/if}
         <circle cx={hp.col * pitch} cy={hp.row * pitch} r={padR} fill={isSelected ? '#fbbf24' : '#d4a534'} />
         <circle cx={hp.col * pitch} cy={hp.row * pitch} r={drillR} fill="#1a1a2e" />
+        {#if header.labels?.[i]}
+          <text
+            x={hp.col * pitch} y={hp.row * pitch - padR - pitch * 0.08}
+            text-anchor="middle" dominant-baseline="auto"
+            fill="rgba(255,255,255,0.7)" font-size={pitch * 0.35} font-family="monospace" font-weight="bold"
+          >{header.labels[i]}</text>
+        {/if}
       {/each}
     {/each}
 
@@ -744,6 +829,13 @@
           d="M{bodyX},{dip.row * pitch + spacing * pitch / 2 - pitch * 0.2} A{pitch * 0.2},{pitch * 0.2} 0 0 0 {bodyX},{dip.row * pitch + spacing * pitch / 2 + pitch * 0.2}"
           fill="none" stroke={isSelected ? '#fbbf24' : 'rgba(255,255,255,0.35)'} stroke-width="0.12"
         />
+      {/if}
+      {#if dip.label}
+        <text
+          x={bodyX + bodyW / 2} y={bodyY + bodyH / 2}
+          text-anchor="middle" dominant-baseline="central"
+          fill="rgba(255,255,255,0.7)" font-size={pitch * 0.5} font-family="monospace" font-weight="bold"
+        >{dip.label}</text>
       {/if}
       {#each dpads as dp}
         {#if isSelected}
@@ -799,6 +891,13 @@
         r={drillR}
         fill="#1a1a2e"
       />
+      {#if pad.label}
+        <text
+          x={pad.col * pitch} y={pad.row * pitch - padR - pitch * 0.08}
+          text-anchor="middle" dominant-baseline="auto"
+          fill="rgba(255,255,255,0.7)" font-size={pitch * 0.35} font-family="monospace" font-weight="bold"
+        >{pad.label}</text>
+      {/if}
     {/each}
 
     <!-- Annotations -->
@@ -1028,6 +1127,77 @@
             class="w-3.5 h-3.5 rounded-full border-2 transition-colors {editingJumper.color === c ? 'border-white' : 'border-transparent'}"
             style="background-color: {c}"
           ></button>
+        {/each}
+      </div>
+    </div>
+  {/if}
+
+  {#if editingDip}
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
+    <div
+      class="absolute bg-slate-700 rounded border border-amber-400 z-10 p-1.5"
+      style="left: {editingDip.left}px; top: {editingDip.top}px"
+      onfocusout={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) commitDipEdit() }}
+    >
+      <input
+        bind:this={dipEditInput}
+        type="text"
+        value={editingDip.label}
+        placeholder="IC label (e.g. NE555)"
+        class="bg-slate-800 text-xs text-slate-200 rounded px-2 py-1 border border-slate-600 outline-none w-32"
+        onkeydown={handleDipEditKeydown}
+      />
+    </div>
+  {/if}
+
+  {#if editingPad}
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
+    <div
+      class="absolute bg-slate-700 rounded border border-amber-400 z-10 p-1.5"
+      style="left: {editingPad.left}px; top: {editingPad.top}px"
+      onfocusout={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) commitPadEdit() }}
+    >
+      <input
+        bind:this={padEditInput}
+        type="text"
+        value={editingPad.label}
+        placeholder="Pad label (e.g. VCC)"
+        class="bg-slate-800 text-xs text-slate-200 rounded px-2 py-1 border border-slate-600 outline-none w-28"
+        onkeydown={handlePadEditKeydown}
+      />
+    </div>
+  {/if}
+
+  {#if editingHeader}
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
+    <div
+      class="absolute bg-slate-700 rounded border border-amber-400 z-10 p-1.5"
+      style="left: {editingHeader.left}px; top: {editingHeader.top}px; max-height: 200px; overflow-y: auto"
+      onfocusout={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) commitHeaderEdit() }}
+    >
+      <div class="text-[10px] text-slate-400 mb-1">Pin labels</div>
+      <div class="flex flex-col gap-0.5">
+        {#each editingHeader.labels as label, i}
+          <div class="flex items-center gap-1">
+            <span class="text-[9px] text-slate-500 w-3 text-right">{i + 1}</span>
+            <input
+              type="text"
+              value={label}
+              oninput={(e) => { editingHeader.labels[i] = e.target.value; editingHeader = editingHeader }}
+              onkeydown={(e) => {
+                e.stopPropagation()
+                if (e.key === 'Enter') {
+                  if (i < editingHeader.labels.length - 1) {
+                    e.target.parentElement.nextElementSibling?.querySelector('input')?.focus()
+                  } else {
+                    commitHeaderEdit()
+                  }
+                } else if (e.key === 'Escape') { editingHeader = null }
+              }}
+              placeholder="Pin {i + 1}"
+              class="bg-slate-800 text-[11px] text-slate-200 rounded px-1.5 py-0.5 border border-slate-600 outline-none w-20"
+            />
+          </div>
         {/each}
       </div>
     </div>
