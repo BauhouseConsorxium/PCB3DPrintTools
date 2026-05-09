@@ -506,6 +506,7 @@
             onRemoveElement={removeElement}
             onSelect={selectElement}
             onBulkSelect={bulkSelect}
+            onToolChange={(t) => { activeTool = t; selectedIds = [] }}
           />
         </div>
         <div class="absolute inset-0" class:hidden={activeTab !== 'preview'}>

@@ -16,6 +16,7 @@
     onRemoveElement = () => {},
     onSelect = () => {},
     onBulkSelect = () => {},
+    onToolChange = () => {},
   } = $props()
 
   let svgEl
@@ -441,7 +442,10 @@
     if (e.key === 'Escape') {
       if (editingAnnotation) { editingAnnotation = null; return }
       if (editingJumper) { editingJumper = null; return }
-      cancelDrawing()
+      const cancelled = cancelDrawing()
+      if (!cancelled && activeTool !== 'select') {
+        onToolChange('select')
+      }
     }
   }
 
