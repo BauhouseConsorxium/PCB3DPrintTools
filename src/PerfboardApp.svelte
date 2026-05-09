@@ -49,6 +49,17 @@
     doc.jumpers = [...doc.jumpers, { id: crypto.randomUUID(), col1, row1, col2, row2 }]
   }
 
+  function moveElement(id, dc, dr) {
+    const pad = doc.pads.find(p => p.id === id)
+    if (pad) { pad.col += dc; pad.row += dr; doc.pads = [...doc.pads]; return }
+    const header = doc.headers.find(h => h.id === id)
+    if (header) { header.col += dc; header.row += dr; doc.headers = [...doc.headers]; return }
+    const trace = doc.traces.find(t => t.id === id)
+    if (trace) { for (const pt of trace.points) { pt.col += dc; pt.row += dr }; doc.traces = [...doc.traces]; return }
+    const jumper = doc.jumpers.find(j => j.id === id)
+    if (jumper) { jumper.col1 += dc; jumper.row1 += dr; jumper.col2 += dc; jumper.row2 += dr; doc.jumpers = [...doc.jumpers]; return }
+  }
+
   function removeElement(id) {
     doc.pads = doc.pads.filter(p => p.id !== id)
     doc.headers = doc.headers.filter(h => h.id !== id)
@@ -293,6 +304,7 @@
             onAddHeader={addHeader}
             onAddTrace={addTrace}
             onAddJumper={addJumper}
+            onMoveElement={moveElement}
             onRemoveElement={removeElement}
             onSelect={selectElement}
           />

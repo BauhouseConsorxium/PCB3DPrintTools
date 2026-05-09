@@ -9,6 +9,7 @@
     onAddHeader = () => {},
     onAddTrace = () => {},
     onAddJumper = () => {},
+    onMoveElement = () => {},
     onRemoveElement = () => {},
     onSelect = () => {},
   } = $props()
@@ -38,6 +39,9 @@
   // Jumper drawing state
   let jumperStart = $state(null)
   let jumperPreview = $state(null)
+
+  // Drag-to-move state
+  let dragInfo = $state(null)
 
   // Ghost cursor
   let ghostPos = $state(null)
@@ -191,7 +195,11 @@
       }
     } else if (activeTool === 'select') {
       const el = findElementAt(col, row, sp.x, sp.y)
-      onSelect(el?.id ?? null)
+      if (el && el.id === selectedId) {
+        dragInfo = { id: el.id, startCol: col, startRow: row }
+      } else {
+        onSelect(el?.id ?? null)
+      }
     } else if (activeTool === 'erase') {
       const el = findElementAt(col, row, sp.x, sp.y)
       if (el) onRemoveElement(el.id)
@@ -234,6 +242,19 @@
   function handlePointerUp(e) {
     if (isPanning) {
       isPanning = false
+      return
+    }
+    if (dragInfo) {
+      const sp = svgPoint(e)
+      if (sp) {
+        const { col, row } = snapToGrid(sp.x, sp.y)
+        const dc = col - dragInfo.startCol
+        const dr = row - dragInfo.startRow
+        if (dc !== 0 || dr !== 0) {
+          onMoveElement(dragInfo.id, dc, dr)
+        }
+      }
+      dragInfo = null
     }
   }
 
@@ -276,6 +297,9 @@
     if (activeTool === 'jumper' && jumperStart) {
       jumperStart = null
       jumperPreview = null
+    }
+    if (dragInfo) {
+      dragInfo = null
     }
   }
 
@@ -530,6 +554,51 @@
       />
       <circle cx={x1} cy={y1} r={pitch * 0.12} fill="#67e8f9" opacity="0.4" />
       <circle cx={x2} cy={y2} r={pitch * 0.12} fill="#67e8f9" opacity="0.4" />
+    {/if}
+
+    <!-- Drag ghost -->
+    {#if dragInfo && ghostPos}
+      {@const dc = ghostPos.col - dragInfo.startCol}
+      {@const dr = ghostPos.row - dragInfo.startRow}
+      {#if dc !== 0 || dr !== 0}
+        {#each doc.pads.filter(p => p.id === dragInfo.id) as pad}
+          <circle cx={(pad.col + dc) * pitch} cy={(pad.row + dr) * pitch} r={padR} fill="#fbbf24" opacity="0.4" />
+          <circle cx={(pad.col + dc) * pitch} cy={(pad.row + dr) * pitch} r={drillR} fill="#1a1a2e" opacity="0.4" />
+        {/each}
+        {#each doc.headers.filter(h => h.id === dragInfo.id) as header}
+          {#each getHeaderPads(header) as hp}
+            <circle cx={(hp.col + dc) * pitch} cy={(hp.row + dr) * pitch} r={padR} fill="#fbbf24" opacity="0.4" />
+            <circle cx={(hp.col + dc) * pitch} cy={(hp.row + dr) * pitch} r={drillR} fill="#1a1a2e" opacity="0.4" />
+          {/each}
+        {/each}
+        {#each doc.traces.filter(t => t.id === dragInfo.id) as trace}
+          {#each getTraceSegments(trace) as seg}
+            <line
+              x1={seg.x1 + dc * pitch} y1={seg.y1 + dr * pitch}
+              x2={seg.x2 + dc * pitch} y2={seg.y2 + dr * pitch}
+              stroke="#fbbf24" stroke-width={trace.width}
+              stroke-linecap="round" opacity="0.4"
+            />
+          {/each}
+        {/each}
+        {#each doc.jumpers.filter(j => j.id === dragInfo.id) as jumper}
+          {@const jx1 = (jumper.col1 + dc) * pitch}
+          {@const jy1 = (jumper.row1 + dr) * pitch}
+          {@const jx2 = (jumper.col2 + dc) * pitch}
+          {@const jy2 = (jumper.row2 + dr) * pitch}
+          {@const jdx = jx2 - jx1}
+          {@const jdy = jy2 - jy1}
+          {@const jdist = Math.hypot(jdx, jdy)}
+          {@const jarc = jdist * 0.3}
+          {@const jnx = -jdy / (jdist || 1)}
+          {@const jny = jdx / (jdist || 1)}
+          <path
+            d="M{jx1},{jy1} Q{(jx1+jx2)/2 + jnx*jarc},{(jy1+jy2)/2 + jny*jarc} {jx2},{jy2}"
+            stroke="#fbbf24" stroke-width={pitch * 0.12} stroke-linecap="round"
+            stroke-dasharray="{pitch * 0.15} {pitch * 0.1}" fill="none" opacity="0.4"
+          />
+        {/each}
+      {/if}
     {/if}
   </svg>
 </div>
