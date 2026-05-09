@@ -176,6 +176,15 @@
     }
   }
 
+  function moveJumperEndpoint(jumperId, endpoint, dc, dr) {
+    pushUndo()
+    const j = doc.jumpers.find(j => j.id === jumperId)
+    if (!j) return
+    if (endpoint === 1) { j.col1 += dc; j.row1 += dr }
+    else { j.col2 += dc; j.row2 += dr }
+    doc.jumpers = [...doc.jumpers]
+  }
+
   function deleteControlPoint(traceId, pointIndex) {
     const trace = doc.traces.find(t => t.id === traceId)
     if (!trace || trace.points.length <= 2) return
@@ -661,6 +670,7 @@
             onUpdatePadLabel={updatePadLabel}
             onMoveSelected={moveSelected}
             onMoveControlPoint={moveControlPoint}
+            onMoveJumperEndpoint={moveJumperEndpoint}
             onDeleteControlPoint={deleteControlPoint}
             onSubdivideCurve={subdivideCurve}
             onRotateSelected={rotateSelected}

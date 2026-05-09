@@ -22,6 +22,7 @@
     onUpdateHeaderLabels = () => {},
     onMoveSelected = () => {},
     onMoveControlPoint = () => {},
+    onMoveJumperEndpoint = () => {},
     onDeleteControlPoint = () => {},
     onSubdivideCurve = () => {},
     onRotateSelected = () => {},
@@ -71,6 +72,9 @@
   // Control point drag state
   let cpDrag = $state(null)
   let activeCP = $state(null)
+
+  // Jumper endpoint drag state
+  let jpDrag = $state(null)
 
   // Rubber band selection
   let selectionBox = $state(null)
@@ -141,6 +145,18 @@
           return { traceId: trace.id, pointIndex: i }
         }
       }
+    }
+    return null
+  }
+
+  function findJumperEndpointAt(rawX, rawY) {
+    const hitR = pitch * 0.2
+    for (const j of doc.jumpers) {
+      if (!selectedIds.includes(j.id)) continue
+      const x1 = j.col1 * pitch, y1 = j.row1 * pitch
+      const x2 = j.col2 * pitch, y2 = j.row2 * pitch
+      if (Math.hypot(rawX - x1, rawY - y1) < hitR) return { jumperId: j.id, endpoint: 1 }
+      if (Math.hypot(rawX - x2, rawY - y2) < hitR) return { jumperId: j.id, endpoint: 2 }
     }
     return null
   }
@@ -331,6 +347,12 @@
     } else if (activeTool === 'label') {
       onAddAnnotation(col, row)
     } else if (activeTool === 'select') {
+      // Check for jumper endpoint click on selected jumpers
+      const jpHit = findJumperEndpointAt(sp.x, sp.y)
+      if (jpHit) {
+        jpDrag = { ...jpHit, startCol: col, startRow: row }
+        return
+      }
       // Check for control point click on selected curve traces
       const cpHit = findControlPointAt(sp.x, sp.y)
       if (cpHit) {
@@ -462,6 +484,19 @@
         onBulkSelect(ids, selectionBox.add)
       }
       selectionBox = null
+      return
+    }
+    if (jpDrag) {
+      const sp = svgPoint(e)
+      if (sp) {
+        const { col, row } = snapToGrid(sp.x, sp.y)
+        const dc = col - jpDrag.startCol
+        const dr = row - jpDrag.startRow
+        if (dc !== 0 || dr !== 0) {
+          onMoveJumperEndpoint(jpDrag.jumperId, jpDrag.endpoint, dc, dr)
+        }
+      }
+      jpDrag = null
       return
     }
     if (cpDrag) {
@@ -722,6 +757,10 @@
     }
     if (dragInfo) {
       dragInfo = null
+      return true
+    }
+    if (jpDrag) {
+      jpDrag = null
       return true
     }
     return false
@@ -1323,6 +1362,31 @@
     {/if}
 
     <!-- Control point drag ghost -->
+    {#if jpDrag && ghostPos}
+      {@const dc = ghostPos.col - jpDrag.startCol}
+      {@const dr = ghostPos.row - jpDrag.startRow}
+      {@const jumper = doc.jumpers.find(j => j.id === jpDrag.jumperId)}
+      {#if jumper && (dc !== 0 || dr !== 0)}
+        {@const jx1 = (jpDrag.endpoint === 1 ? jumper.col1 + dc : jumper.col1) * pitch}
+        {@const jy1 = (jpDrag.endpoint === 1 ? jumper.row1 + dr : jumper.row1) * pitch}
+        {@const jx2 = (jpDrag.endpoint === 2 ? jumper.col2 + dc : jumper.col2) * pitch}
+        {@const jy2 = (jpDrag.endpoint === 2 ? jumper.row2 + dr : jumper.row2) * pitch}
+        {@const jdx = jx2 - jx1}
+        {@const jdy = jy2 - jy1}
+        {@const jdist = Math.hypot(jdx, jdy)}
+        {@const jarc = jdist * 0.3}
+        {@const jnx = -jdy / (jdist || 1)}
+        {@const jny = jdx / (jdist || 1)}
+        <path
+          d="M{jx1},{jy1} Q{(jx1+jx2)/2 + jnx*jarc},{(jy1+jy2)/2 + jny*jarc} {jx2},{jy2}"
+          stroke="#fbbf24" stroke-width={pitch * 0.12} stroke-linecap="round"
+          fill="none" opacity="0.5"
+        />
+        <circle cx={jx1} cy={jy1} r={pitch * 0.12} fill={jpDrag.endpoint === 1 ? '#fbbf24' : '#67e8f9'} opacity="0.6" />
+        <circle cx={jx2} cy={jy2} r={pitch * 0.12} fill={jpDrag.endpoint === 2 ? '#fbbf24' : '#67e8f9'} opacity="0.6" />
+      {/if}
+    {/if}
+
     {#if cpDrag && ghostPos}
       {@const dc = ghostPos.col - cpDrag.startCol}
       {@const dr = ghostPos.row - cpDrag.startRow}
