@@ -78,8 +78,8 @@
   }
 
   function snapToGrid(x, y) {
-    const col = Math.round(x / pitch)
-    const row = Math.round(y / pitch)
+    const col = Math.round(x / pitch * 2) / 2
+    const row = Math.round(y / pitch * 2) / 2
     return {
       col: Math.max(0, Math.min(cols - 1, col)),
       row: Math.max(0, Math.min(rows - 1, row)),
@@ -457,13 +457,14 @@
       />
     {/each}
 
-    <!-- Grid dots -->
-    {#each Array(cols) as _, c}
-      {#each Array(rows) as _, r}
+    <!-- Grid dots (full + half grid) -->
+    {#each Array(cols * 2 - 1) as _, ci}
+      {#each Array(rows * 2 - 1) as _, ri}
+        {@const isFull = ci % 2 === 0 && ri % 2 === 0}
         <circle
-          cx={c * pitch} cy={r * pitch}
-          r={pitch * 0.06}
-          fill="rgba(255,255,255,0.15)"
+          cx={ci * pitch / 2} cy={ri * pitch / 2}
+          r={isFull ? pitch * 0.06 : pitch * 0.03}
+          fill={isFull ? 'rgba(255,255,255,0.15)' : 'rgba(255,255,255,0.06)'}
         />
       {/each}
     {/each}
