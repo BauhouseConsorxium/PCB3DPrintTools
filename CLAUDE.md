@@ -30,7 +30,7 @@ PCB3DPrintTools/
         ├── FileDropzone.svelte    PCB tool only
         └── perfboard/
             ├── GridEditor.svelte        SVG 2D grid editor with tools
-            ├── Toolbar.svelte           Tool selection (select/pad/header/trace/jumper/erase)
+            ├── Toolbar.svelte           Tool selection (select/pad/header/trace/jumper/label/erase) with hotkeys 1-6
             ├── BoardSettings.svelte     Grid size, pad/drill/trace dimensions
             └── PerfboardExportPanel.svelte  Z-scale sliders + STL export
 ```
@@ -102,7 +102,7 @@ The perfboard tool targets the same copper-tape fabrication method but skips KiC
 }
 ```
 
-Grid coords are integer col/row (0-based). World positions = `col * pitch`, `row * pitch`. The geometry converter Y-flips during conversion (`row → -row * pitch`), matching the existing Y-down → Y-up convention.
+Grid coords are half-integer col/row (0-based, snapped to 0.5 increments for half-pitch placement). World positions = `col * pitch`, `row * pitch`. The geometry converter Y-flips during conversion (`row → -row * pitch`), matching the existing Y-down → Y-up convention.
 
 ### Perfboard body naming
 
@@ -120,29 +120,37 @@ These names are chosen to trigger the correct Viewer3D material predicates. If y
 2. `collectPadPositions(doc)` → deduped pad positions from pads + expanded headers
 3. `buildBoardGeometry(polygon, drills, thickness)` → board body with drill holes (from `geometry.js`)
 4. `buildPadRingsGeometry(positions, drillR, padR, zBot, zTop)` → annular copper rings per pad
-5. `buildTracesGeometry(segments, drills, layer, zBot, zTop)` → stadium copper traces (from `geometry.js`)
+5. `collectTraceSegments(doc, padPositions)` → splits segments at intermediate pad positions so every pad gets a drill hole
+6. `buildTracesGeometry(segments, drills, layer, zBot, zTop)` → stadium copper traces (from `geometry.js`)
 
 Pad rings are structurally identical to board geometry: outer circle CCW + inner circle CW hole → earcut → extrude. All pads batched into a single body.
 
 ### Perfboard SVG grid editor (`GridEditor.svelte`)
 
 - SVG-based with `viewBox` pan/zoom (wheel = zoom around cursor, shift+drag or middle-drag = pan)
-- Grid snap: `Math.round(svgX / pitch)` via `svg.getScreenCTM().inverse()`
-- Tool system: `activeTool` state drives click/move handlers
-  - `'pad'` — click to toggle pad at intersection
-  - `'header'` — click start → drag direction → click to place multi-pin header
-  - `'trace'` — click waypoints → double-click to finish; L-shaped Manhattan routing per click
-  - `'jumper'` — click start → click end → creates component-side wire (2D only, no 3D geometry)
-  - `'select'` — click to select, Delete to remove
-  - `'erase'` — click to remove
-- Right-click or Escape cancels in-progress trace/header/jumper
+- Grid snap: half-pitch (`Math.round(x / pitch * 2) / 2`) via `svg.getScreenCTM().inverse()` — grid dots render at full and half-pitch
+- Tool system: `activeTool` state drives click/move handlers (default: `'select'`)
+  - `'pad'` — click to toggle pad at intersection (hotkey: 1)
+  - `'header'` — click start → drag direction → click to place multi-pin header (hotkey: 2)
+  - `'trace'` — click waypoints → double-click to finish; L-shaped Manhattan routing per click (hotkey: 3)
+  - `'jumper'` — click start → click end → creates component-side wire (2D only, no 3D geometry) (hotkey: 4)
+  - `'label'` — click to place text annotation (hotkey: 5)
+  - `'select'` — click to select, shift+click to toggle multi-select, drag empty area for rubber band selection, Delete to remove all selected
+  - `'erase'` — click to remove (hotkey: 6)
+- Right-click or Escape cancels in-progress trace/header/jumper; Escape with no drawing in progress switches to select tool
+- Multi-select: `selectedIds` array (not single `selectedId`), shift+click toggles, rubber band drag selects enclosed elements, drag-move and delete operate on full selection as single undo step
 - Hit testing: pads/headers use exact grid match; traces and jumpers use proximity-based `distToSegment` with bezier curve sampling (jumpers render as quadratic bezier arcs)
+- Selection highlight: amber fill (`#fbbf24`) with semi-transparent white border (`rgba(255,255,255,0.45)`)
 
 ### PerfboardApp state management
 
 All state lives in `PerfboardApp.svelte` as `$state` runes (same pattern as `App.svelte`). The `doc` object is mutated by tool callbacks. `perfboardBodies` is `$derived` from `buildPerfboardBodies(doc)` — recomputes automatically on any doc change.
 
 Save/load: localStorage (5 named slots) + JSON file download/upload. No preset system (unlike the PCB tool).
+
+### Undo/redo system
+
+Snapshot-based: `pushUndo()` deep-clones the entire `doc` via `JSON.parse(JSON.stringify(doc))` before each mutation. Max 50 entries. `Cmd/Ctrl+Z` to undo, `Cmd/Ctrl+Shift+Z` or `Cmd/Ctrl+Y` to redo. Deduplication via JSON.stringify comparison prevents no-op entries. Settings inputs capture undo snapshot on `onfocus` (one undo step per focus session). Undo/redo buttons in the header bar.
 
 ## Shared geometry module (`src/lib/geometry.js`)
 
@@ -348,11 +356,14 @@ copperOriginalY[name] = copperMesh.position.y
 // On scale change:
 board.scale.z      = bS
 board.position.y   = boardBottomY + (boardOriginalPosY - boardBottomY) * bS
-copper.position.y  = copperOriginalY[name] + (boardTop - boardBottomY) * (bS - 1)
+copper.scale.z     = zS
+copper.position.y  = copperOriginalY[name] + boardHeight * (bS - 1) + boardHeight * (zS - 1)
 grid.position.y    = boardBottomY - 0.05
 ```
 
-**Pitfall**: `boardHalfHeight * (scale-1)` is wrong for copper offset — it ignores the board's position shift. Use full `boardHeight * (scale-1)`.
+**Pitfall 1**: `boardHalfHeight * (scale-1)` is wrong for copper offset — it ignores the board's position shift. Use full `boardHeight * (scale-1)`.
+
+**Pitfall 2**: Copper meshes have vertices at local Z ≈ boardThickness (not near zero). When `scale.z > 1`, vertices scale around the mesh origin, pushing copper away from the board surface. The `boardHeight * (zS - 1)` term compensates for this drift. Without it, copper at zScale=8 drifts 11.2mm below the board (visible as gap in 3D view).
 
 ## Viewer3D as shared component
 
@@ -719,7 +730,7 @@ Two guard clauses prevent both no-op recomputes (key matches) and overlapping co
 - **`computeVertexNormals()` on extruded shapes** → puffy/balloon look; flat tops become rounded. Always provide explicit normals.
 - **Standard math rotation for KiCad pads** → wrong side. Use the negated formula above.
 - **`toFixed(2)` or integer-bucket keys for drill ↔ trace matching** → FP edge cases miss matches. Use the tolerance-based linear lookup.
-- **Drill bigger than trace width** → annulus would have negative thickness. Skip the hole; the drill cuts through the board only and the trace ends naturally.
+- **Drill bigger than trace width** → annulus would have negative thickness. Clamp effective drill radius to `hw - 0.02` so earcut gets a thin but valid annulus. The hole still appears visually correct. Never skip the hole entirely — traces would cover pad drill holes in 3D.
 - **Coplanar faces at z=0 and z=boardThickness** → Z-fighting between board and copper. Add `polygonOffset` on the board material.
 - **3D CSG over many small meshes** → O(N²) blowup, page freezes. Use 2D polygon clipping when the operation is fundamentally 2D (extrude after).
 - **Single big `polygon-clipping.union(...allPolys)`** → fails on real geometry with FP errors. Snap inputs + tree-merge in small chunks.
@@ -738,4 +749,6 @@ Two guard clauses prevent both no-op recomputes (key matches) and overlapping co
 - **Body names that don't match Viewer3D predicates** → perfboard bodies must be named `'PCB'`, `'Pads_F.Cu'`, `'F.Cu'` (or similar patterns containing `.cu` / ending with `pcb`) to get correct materials. A body named `'pads'` would get the component material (pink), not copper (gold).
 - **Hit testing curved SVG elements with straight-line distance** → jumper wires render as quadratic bezier arcs but `distToSegment` checks the chord. Clicks on the arc's curved portion miss. Sample the bezier into N line segments and check distance to each. SVG render order also matters: jumpers must be the topmost SVG layer so they visually "sit above" the board.
 - **Loading old perfboard JSON without `jumpers` field** → crashes on `doc.jumpers.filter(...)`. Always add `parsed.jumpers = parsed.jumpers ?? []` in every load path (file upload, localStorage, example fetch).
+- **Traces covering pad drill holes in 3D** → `buildTracesGeometry` only punches drill holes at segment endpoints. If a trace passes through a pad that isn't a waypoint, no hole appears. `collectTraceSegments` in `perfboard-geometry.js` splits segments at intermediate pad positions to fix this. Also, when drill radius ≥ half trace width, clamp the effective hole radius to `hw - 0.02` instead of skipping — skipping would leave the trace covering the pad's drill hole.
+- **Copper Z-scale drift** → copper meshes have vertices at local Z ≈ boardThickness. `scale.z > 1` scales around mesh origin, pushing copper away from the board. Must add `boardHeight * (zS - 1)` to `position.y` in `applyCopperScale`. Without this, copper at zScale=8 drifts ~11mm below the board.
 
