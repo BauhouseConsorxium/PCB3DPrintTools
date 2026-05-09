@@ -97,10 +97,12 @@
     doc.dips = [...(doc.dips || []), { id: crypto.randomUUID(), col, row, count, orientation, rowSpacing: 3 }]
   }
 
-  function addTrace(points) {
+  function addTrace(points, type) {
     if (points.length < 2) return
     pushUndo()
-    doc.traces = [...doc.traces, { id: crypto.randomUUID(), points, width: doc.traceWidth }]
+    const trace = { id: crypto.randomUUID(), points, width: doc.traceWidth }
+    if (type) trace.type = type
+    doc.traces = [...doc.traces, trace]
   }
 
   const WIRE_COLORS = [

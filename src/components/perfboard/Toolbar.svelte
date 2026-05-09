@@ -10,6 +10,7 @@
     { id: 'jumper', label: 'Jumper', icon: 'jumper', key: '5' },
     { id: 'label', label: 'Label', icon: 'label', key: '6' },
     { id: 'erase', label: 'Erase', icon: 'erase', key: '7' },
+    { id: 'curve', label: 'Curve', icon: 'curve', key: '8' },
   ]
 </script>
 
@@ -54,6 +55,8 @@
             <text x="10" y="15" font-size="13" font-weight="bold" text-anchor="middle" fill="currentColor" stroke="none">A</text>
           {:else if tool.icon === 'erase'}
             <path d="M3 17h14M6 13l8-8M5 14l3-3M10 14l4-4" stroke-linecap="round" />
+          {:else if tool.icon === 'curve'}
+            <path d="M3 16C3 8 10 12 10 8S17 4 17 8" stroke-linecap="round" fill="none" />
           {/if}
         </svg>
         <span>{tool.label}</span>

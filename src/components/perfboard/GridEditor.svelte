@@ -1,5 +1,6 @@
 <script>
   import { onMount, tick } from 'svelte'
+  import { catmullRomSVGPath, sampleCatmullRom } from '../../lib/catmull-rom.js'
 
   let {
     doc,
@@ -41,6 +42,10 @@
   // Trace drawing state
   let tracePoints = $state([])
   let tracePreview = $state(null)
+
+  // Curve drawing state
+  let curvePoints = $state([])
+  let curvePreview = $state(null)
 
   // Header drawing state
   let headerStart = $state(null)
@@ -162,9 +167,17 @@
         if (hit) return j
       }
       for (const t of doc.traces) {
-        for (let i = 0; i < t.points.length - 1; i++) {
-          const d = distToSegment(rawX, rawY, t.points[i].col * pitch, t.points[i].row * pitch, t.points[i+1].col * pitch, t.points[i+1].row * pitch)
-          if (d < hitR) return t
+        if (t.type === 'curve') {
+          const pts = t.points.map(p => ({ x: p.col * pitch, y: p.row * pitch }))
+          const samples = sampleCatmullRom(pts, 8)
+          for (let i = 0; i < samples.length - 1; i++) {
+            if (distToSegment(rawX, rawY, samples[i].x, samples[i].y, samples[i+1].x, samples[i+1].y) < hitR) return t
+          }
+        } else {
+          for (let i = 0; i < t.points.length - 1; i++) {
+            const d = distToSegment(rawX, rawY, t.points[i].col * pitch, t.points[i].row * pitch, t.points[i+1].col * pitch, t.points[i+1].row * pitch)
+            if (d < hitR) return t
+          }
         }
       }
     }
@@ -261,6 +274,21 @@
           tracePoints = [...tracePoints, { col: col, row: last.row }, { col, row }]
         }
       }
+    } else if (activeTool === 'curve') {
+      if (curvePoints.length === 0) {
+        curvePoints = [{ col, row }]
+      } else {
+        const last = curvePoints[curvePoints.length - 1]
+        if (last.col === col && last.row === row) {
+          if (curvePoints.length >= 2) {
+            onAddTrace([...curvePoints], 'curve')
+          }
+          curvePoints = []
+          curvePreview = null
+        } else {
+          curvePoints = [...curvePoints, { col, row }]
+        }
+      }
     } else if (activeTool === 'jumper') {
       if (!jumperStart) {
         jumperStart = { col, row }
@@ -315,6 +343,10 @@
     if (activeTool === 'trace' && tracePoints.length > 0) {
       const last = tracePoints[tracePoints.length - 1]
       tracePreview = { col1: last.col, row1: last.row, col2: col, row2: row }
+    }
+
+    if (activeTool === 'curve' && curvePoints.length > 0) {
+      curvePreview = { col, row }
     }
 
     if (activeTool === 'jumper' && jumperStart) {
@@ -429,6 +461,12 @@
   }
 
   function handleDblClick(e) {
+    if (activeTool === 'curve' && curvePoints.length >= 2) {
+      onAddTrace([...curvePoints], 'curve')
+      curvePoints = []
+      curvePreview = null
+      return
+    }
     if (activeTool === 'trace' && tracePoints.length >= 2) {
       onAddTrace([...tracePoints])
       tracePoints = []
@@ -554,6 +592,11 @@
       tracePreview = null
       return true
     }
+    if (activeTool === 'curve' && curvePoints.length > 0) {
+      curvePoints = []
+      curvePreview = null
+      return true
+    }
     if (activeTool === 'header' && headerStart) {
       headerStart = null
       headerPreview = null
@@ -581,7 +624,7 @@
     cancelDrawing()
   }
 
-  const toolHotkeys = { '1': 'pad', '2': 'header', '3': 'dip', '4': 'trace', '5': 'jumper', '6': 'label', '7': 'erase' }
+  const toolHotkeys = { '1': 'pad', '2': 'header', '3': 'dip', '4': 'trace', '5': 'jumper', '6': 'label', '7': 'erase', '8': 'curve' }
 
   function handleKeydown(e) {
     const isInput = e.target?.tagName === 'INPUT' || e.target?.tagName === 'TEXTAREA'
@@ -706,27 +749,50 @@
     <!-- Traces -->
     {#each doc.traces as trace}
       {@const isSelected = selectedIds.includes(trace.id)}
-      {#if isSelected}
+      {#if trace.type === 'curve'}
+        {@const pts = trace.points.map(p => ({ x: p.col * pitch, y: p.row * pitch }))}
+        {@const d = catmullRomSVGPath(pts)}
+        {#if isSelected}
+          <path {d}
+            stroke="rgba(255,255,255,0.45)"
+            stroke-width={trace.width + pitch * 0.08}
+            stroke-linecap="round" stroke-linejoin="round" fill="none"
+          />
+        {/if}
+        <path {d}
+          stroke={isSelected ? '#fbbf24' : '#f5c842'}
+          stroke-width={trace.width}
+          stroke-linecap="round" stroke-linejoin="round" fill="none"
+          opacity={isSelected ? 1 : 0.85}
+        />
+        {#if isSelected}
+          {#each trace.points as pt}
+            <circle cx={pt.col * pitch} cy={pt.row * pitch} r={pitch * 0.08} fill="#fbbf24" opacity="0.6" />
+          {/each}
+        {/if}
+      {:else}
+        {#if isSelected}
+          {#each getTraceSegments(trace) as seg}
+            <line
+              x1={seg.x1} y1={seg.y1}
+              x2={seg.x2} y2={seg.y2}
+              stroke="rgba(255,255,255,0.45)"
+              stroke-width={trace.width + pitch * 0.08}
+              stroke-linecap="round"
+            />
+          {/each}
+        {/if}
         {#each getTraceSegments(trace) as seg}
           <line
             x1={seg.x1} y1={seg.y1}
             x2={seg.x2} y2={seg.y2}
-            stroke="rgba(255,255,255,0.45)"
-            stroke-width={trace.width + pitch * 0.08}
+            stroke={isSelected ? '#fbbf24' : '#f5c842'}
+            stroke-width={trace.width}
             stroke-linecap="round"
+            opacity={isSelected ? 1 : 0.85}
           />
         {/each}
       {/if}
-      {#each getTraceSegments(trace) as seg}
-        <line
-          x1={seg.x1} y1={seg.y1}
-          x2={seg.x2} y2={seg.y2}
-          stroke={isSelected ? '#fbbf24' : '#f5c842'}
-          stroke-width={trace.width}
-          stroke-linecap="round"
-          opacity={isSelected ? 1 : 0.85}
-        />
-      {/each}
     {/each}
 
     <!-- In-progress trace -->
@@ -757,6 +823,32 @@
         stroke-linecap="round" opacity="0.3" stroke-dasharray="{pitch * 0.15}"
       />
     {/if}
+
+    <!-- In-progress curve -->
+    {#if curvePoints.length >= 2}
+      {@const pts = curvePoints.map(p => ({ x: p.col * pitch, y: p.row * pitch }))}
+      {@const d = catmullRomSVGPath(pts)}
+      <path {d}
+        stroke="#f5c842" stroke-width={doc.traceWidth}
+        stroke-linecap="round" stroke-linejoin="round" fill="none" opacity="0.6"
+      />
+    {/if}
+
+    <!-- Curve preview (smooth path through waypoints + cursor) -->
+    {#if curvePreview && curvePoints.length >= 1}
+      {@const pts = [...curvePoints, { col: curvePreview.col, row: curvePreview.row }].map(p => ({ x: p.col * pitch, y: p.row * pitch }))}
+      {@const d = catmullRomSVGPath(pts)}
+      <path {d}
+        stroke="#f5c842" stroke-width={doc.traceWidth}
+        stroke-linecap="round" stroke-linejoin="round" fill="none" opacity="0.3"
+        stroke-dasharray="{pitch * 0.15}"
+      />
+    {/if}
+
+    <!-- Curve waypoint dots -->
+    {#each curvePoints as pt}
+      <circle cx={pt.col * pitch} cy={pt.row * pitch} r={pitch * 0.1} fill="#f5c842" opacity="0.5" />
+    {/each}
 
     <!-- Header bodies -->
     {#each doc.headers as header}
@@ -956,6 +1048,13 @@
         fill="#f5c842" opacity="0.3"
       />
     {/if}
+    {#if ghostPos && activeTool === 'curve' && curvePoints.length === 0}
+      <circle
+        cx={ghostPos.col * pitch} cy={ghostPos.row * pitch}
+        r={pitch * 0.15}
+        fill="#f5c842" opacity="0.3"
+      />
+    {/if}
 
     <!-- Jumper wires (topmost layer) -->
     {#each doc.jumpers as jumper}
@@ -1056,14 +1155,23 @@
           {/each}
         {/each}
         {#each doc.traces.filter(t => selectedIds.includes(t.id)) as trace}
-          {#each getTraceSegments(trace) as seg}
-            <line
-              x1={seg.x1 + dc * pitch} y1={seg.y1 + dr * pitch}
-              x2={seg.x2 + dc * pitch} y2={seg.y2 + dr * pitch}
+          {#if trace.type === 'curve'}
+            {@const pts = trace.points.map(p => ({ x: (p.col + dc) * pitch, y: (p.row + dr) * pitch }))}
+            {@const d = catmullRomSVGPath(pts)}
+            <path {d}
               stroke="#fbbf24" stroke-width={trace.width}
-              stroke-linecap="round" opacity="0.4"
+              stroke-linecap="round" stroke-linejoin="round" fill="none" opacity="0.4"
             />
-          {/each}
+          {:else}
+            {#each getTraceSegments(trace) as seg}
+              <line
+                x1={seg.x1 + dc * pitch} y1={seg.y1 + dr * pitch}
+                x2={seg.x2 + dc * pitch} y2={seg.y2 + dr * pitch}
+                stroke="#fbbf24" stroke-width={trace.width}
+                stroke-linecap="round" opacity="0.4"
+              />
+            {/each}
+          {/if}
         {/each}
         {#each doc.jumpers.filter(j => selectedIds.includes(j.id)) as jumper}
           {@const jx1 = (jumper.col1 + dc) * pitch}

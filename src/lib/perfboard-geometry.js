@@ -1,5 +1,6 @@
 import earcut from 'earcut'
 import { buildBoardGeometry, buildTracesGeometry, HOLE_N } from './geometry.js'
+import { sampleCatmullRom } from './catmull-rom.js'
 
 const PAD_CIRCLE_N = 32
 
@@ -146,10 +147,25 @@ function collectTraceSegments(doc, padPositions) {
   const TOL = 0.01
   const segments = []
   for (const trace of doc.traces) {
-    const pts = trace.points
-    for (let i = 0; i < pts.length - 1; i++) {
-      const ax = pts[i].col * pitch, ay = pts[i].row * pitch
-      const bx = pts[i + 1].col * pitch, by = pts[i + 1].row * pitch
+    let rawPairs
+    if (trace.type === 'curve') {
+      const pts = trace.points.map(p => ({ x: p.col * pitch, y: p.row * pitch }))
+      const samples = sampleCatmullRom(pts, 16)
+      rawPairs = []
+      for (let i = 0; i < samples.length - 1; i++) {
+        rawPairs.push({ ax: samples[i].x, ay: samples[i].y, bx: samples[i + 1].x, by: samples[i + 1].y })
+      }
+    } else {
+      rawPairs = []
+      for (let i = 0; i < trace.points.length - 1; i++) {
+        rawPairs.push({
+          ax: trace.points[i].col * pitch, ay: trace.points[i].row * pitch,
+          bx: trace.points[i + 1].col * pitch, by: trace.points[i + 1].row * pitch
+        })
+      }
+    }
+
+    for (const { ax, ay, bx, by } of rawPairs) {
       const dx = bx - ax, dy = by - ay
       const lenSq = dx * dx + dy * dy
       if (lenSq < TOL * TOL) {
