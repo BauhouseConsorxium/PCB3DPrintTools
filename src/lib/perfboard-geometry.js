@@ -128,20 +128,41 @@ function buildPadRingsGeometry(padPositions, drillR, padR, zBot, zTop) {
   }
 }
 
-function collectTraceSegments(doc) {
+function collectTraceSegments(doc, padPositions) {
   const { pitch } = doc.grid
+  const TOL = 0.01
   const segments = []
   for (const trace of doc.traces) {
     const pts = trace.points
     for (let i = 0; i < pts.length - 1; i++) {
-      segments.push({
-        x1: pts[i].col * pitch,
-        y1: pts[i].row * pitch,
-        x2: pts[i + 1].col * pitch,
-        y2: pts[i + 1].row * pitch,
-        width: trace.width,
-        layer: 'F.Cu'
-      })
+      const ax = pts[i].col * pitch, ay = pts[i].row * pitch
+      const bx = pts[i + 1].col * pitch, by = pts[i + 1].row * pitch
+      const dx = bx - ax, dy = by - ay
+      const lenSq = dx * dx + dy * dy
+      if (lenSq < TOL * TOL) {
+        segments.push({ x1: ax, y1: ay, x2: bx, y2: by, width: trace.width, layer: 'F.Cu' })
+        continue
+      }
+      const hits = []
+      for (const p of padPositions) {
+        const t = ((p.x - ax) * dx + (p.y - ay) * dy) / lenSq
+        if (t <= TOL || t >= 1 - TOL) continue
+        const px = ax + t * dx, py = ay + t * dy
+        const distSq = (px - p.x) ** 2 + (py - p.y) ** 2
+        if (distSq < TOL * TOL) hits.push(t)
+      }
+      if (hits.length === 0) {
+        segments.push({ x1: ax, y1: ay, x2: bx, y2: by, width: trace.width, layer: 'F.Cu' })
+      } else {
+        hits.sort((a, b) => a - b)
+        let prevX = ax, prevY = ay
+        for (const t of hits) {
+          const mx = ax + t * dx, my = ay + t * dy
+          segments.push({ x1: prevX, y1: prevY, x2: mx, y2: my, width: trace.width, layer: 'F.Cu' })
+          prevX = mx; prevY = my
+        }
+        segments.push({ x1: prevX, y1: prevY, x2: bx, y2: by, width: trace.width, layer: 'F.Cu' })
+      }
     }
   }
   return segments
@@ -162,7 +183,7 @@ export function buildPerfboardBodies(doc) {
   const zTop = boardThickness + copperThickness
   const padsBody = buildPadRingsGeometry(padPositions, drillR, padR, zBot, zTop)
 
-  const traceSegments = collectTraceSegments(doc)
+  const traceSegments = collectTraceSegments(doc, padPositions)
   const tracesBody = traceSegments.length
     ? buildTracesGeometry(traceSegments, drills, 'F.Cu', zBot, zTop, false)
     : null
