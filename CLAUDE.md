@@ -3,22 +3,48 @@
 ## Project layout
 
 ```
-3dpcbcad/
-├── 3dpcbcad.kicad_pcb          KiCad PCB file (source of truth)
-└── ui/                          Svelte 5 + Vite web app
-    ├── public/
-    │   ├── pcb-worker.js        Classic web worker — KiCad parser + geometry
-    │   └── coi-serviceworker.js COOP/COEP headers (GitHub Pages WASM)
-    └── src/
-        ├── App.svelte
-        └── components/
-            ├── Viewer3D.svelte
-            ├── LayerPanel.svelte
-            ├── InfoPanel.svelte
-            ├── ExportPanel.svelte
-            ├── DrcPanel.svelte
-            └── FileDropzone.svelte
+PCB3DPrintTools/
+├── index.html                     Main PCB tool entry point
+├── perfboard.html                 Perfboard editor entry point
+├── vite.config.js                 Multi-page Vite config (both entry points)
+├── public/
+│   ├── pcb-worker.js              Classic web worker — KiCad parser + geometry
+│   ├── earcut.min.js              Earcut copy for worker (npm auto-copied)
+│   └── coi-serviceworker.js       COOP/COEP headers (GitHub Pages WASM)
+└── src/
+    ├── main.js                    Mount App.svelte (PCB tool)
+    ├── perfboard.js               Mount PerfboardApp.svelte (Perfboard tool)
+    ├── app.css                    Shared TailwindCSS v4 theme
+    ├── App.svelte                 PCB tool — state hub, worker orchestration
+    ├── PerfboardApp.svelte        Perfboard tool — state hub, grid editor + 3D preview
+    ├── lib/
+    │   ├── geometry.js            Shared pure geometry builders (extracted from pcb-worker.js)
+    │   ├── perfboard-geometry.js  Perfboard JSON → bodies[] converter
+    │   └── enclosure.js           Polygon offset + enclosure body generation
+    └── components/
+        ├── Viewer3D.svelte        Shared 3D renderer + STL export (used by both apps)
+        ├── LayerPanel.svelte      PCB tool only
+        ├── InfoPanel.svelte       PCB tool only
+        ├── ExportPanel.svelte     PCB tool only
+        ├── DrcPanel.svelte        PCB tool only
+        ├── FileDropzone.svelte    PCB tool only
+        └── perfboard/
+            ├── GridEditor.svelte        SVG 2D grid editor with tools
+            ├── Toolbar.svelte           Tool selection (select/pad/header/trace/erase)
+            ├── BoardSettings.svelte     Grid size, pad/drill/trace dimensions
+            └── PerfboardExportPanel.svelte  Z-scale sliders + STL export
 ```
+
+## Multi-page architecture
+
+The project is a **Vite multi-page app** with two independent entry points:
+
+- `/index.html` → `App.svelte` — the KiCad PCB 3D print tool
+- `/perfboard.html` → `PerfboardApp.svelte` — the standalone perfboard editor
+
+Both share `Viewer3D.svelte`, `app.css`, and the `src/lib/` modules. The `vite.config.js` configures both entry points via `build.rollupOptions.input`. Do NOT break this — adding a new entry point requires adding it to that config.
+
+Shared code lives in `src/lib/` and `src/components/Viewer3D.svelte`. App-specific code lives in the root `src/` (app shells) and `src/components/` (PCB-tool-only) or `src/components/perfboard/` (perfboard-only).
 
 ## Workflow context — copper tape PCB trick
 
@@ -42,6 +68,91 @@ Design decisions that follow:
 - Preview mode shows uniform grey solid (slicer view)
 - Blade mode generates an alternate body set named `F.Cu_blade` / `B.Cu_blade` (sibling to the solid `F.Cu`/`B.Cu`); the viewer toggles which variant is visible based on `traceMode`. These blade bodies are filtered out of `LayerPanel`/`InfoPanel`/`ExportPanel` lists in `App.svelte` (via `visibleBodies`) so they don't appear as separate layers.
 
+## Perfboard editor — workflow context
+
+The perfboard tool targets the same copper-tape fabrication method but skips KiCad entirely. Users design directly on a 2.54mm grid:
+
+1. Open `/perfboard.html`
+2. Set grid size (cols × rows) and dimensions (pad/drill/trace sizes)
+3. Place pads on grid intersections (toggle on click)
+4. Place header strips (click-drag for multi-pin headers)
+5. Route traces between points (click waypoints, double-click to finish, Manhattan routing)
+6. Switch to 3D Preview tab → see raised copper pads and traces
+7. Adjust copper Z-scale for print depth
+8. Export STL → same raised-channel output as the PCB tool
+9. Save/load via localStorage or JSON file
+
+### Perfboard data model
+
+```js
+{
+  version: 1,
+  name: "my-perfboard",
+  grid: { cols: 10, rows: 8, pitch: 2.54 },
+  boardThickness: 1.6,
+  copperThickness: 0.035,
+  drillDiameter: 1.0,       // mm — converted to radius in geometry
+  padDiameter: 2.0,         // mm — converted to radius in geometry
+  traceWidth: 1.0,          // mm
+  pads: [{ id, col, row }],
+  headers: [{ id, col, row, count, orientation: "h"|"v" }],
+  traces: [{ id, points: [{col, row}], width }]
+}
+```
+
+Grid coords are integer col/row (0-based). World positions = `col * pitch`, `row * pitch`. The geometry converter Y-flips during conversion (`row → -row * pitch`), matching the existing Y-down → Y-up convention.
+
+### Perfboard body naming
+
+- Board: `'PCB'` — green material via `isPcbBoard()`
+- Pad rings: `'Pads_F.Cu'` — contains `.cu`, gold copper material via `isCopper()`
+- Traces: `'F.Cu'` — standard copper name
+
+These names are chosen to trigger the correct Viewer3D material predicates. If you add new body types, ensure the name matches an existing predicate or add a new one to **both** `Viewer3D.svelte` and `LayerPanel.svelte`.
+
+### Perfboard geometry pipeline (`src/lib/perfboard-geometry.js`)
+
+`buildPerfboardBodies(doc)` runs on the **main thread** (no worker needed — perfboards are small):
+
+1. `buildBoardPolygon(doc)` → rectangular CCW polygon with half-pitch margin
+2. `collectPadPositions(doc)` → deduped pad positions from pads + expanded headers
+3. `buildBoardGeometry(polygon, drills, thickness)` → board body with drill holes (from `geometry.js`)
+4. `buildPadRingsGeometry(positions, drillR, padR, zBot, zTop)` → annular copper rings per pad
+5. `buildTracesGeometry(segments, drills, layer, zBot, zTop)` → stadium copper traces (from `geometry.js`)
+
+Pad rings are structurally identical to board geometry: outer circle CCW + inner circle CW hole → earcut → extrude. All pads batched into a single body.
+
+### Perfboard SVG grid editor (`GridEditor.svelte`)
+
+- SVG-based with `viewBox` pan/zoom (wheel = zoom around cursor, shift+drag or middle-drag = pan)
+- Grid snap: `Math.round(svgX / pitch)` via `svg.getScreenCTM().inverse()`
+- Tool system: `activeTool` state drives click/move handlers
+  - `'pad'` — click to toggle pad at intersection
+  - `'header'` — click start → drag direction → click to place multi-pin header
+  - `'trace'` — click waypoints → double-click to finish; L-shaped Manhattan routing per click
+  - `'select'` — click to select, Delete to remove
+  - `'erase'` — click to remove
+- Right-click or Escape cancels in-progress trace/header
+
+### PerfboardApp state management
+
+All state lives in `PerfboardApp.svelte` as `$state` runes (same pattern as `App.svelte`). The `doc` object is mutated by tool callbacks. `perfboardBodies` is `$derived` from `buildPerfboardBodies(doc)` — recomputes automatically on any doc change.
+
+Save/load: localStorage (5 named slots) + JSON file download/upload. No preset system (unlike the PCB tool).
+
+## Shared geometry module (`src/lib/geometry.js`)
+
+Pure geometry builder functions extracted from `pcb-worker.js` as ES module exports:
+
+- `signedArea(pts)`, `ensureCCW(pts)`, `pointInPolygon(px, py, poly)`
+- `makeDrillLookup(drills)` — tolerance-based spatial lookup, returns drill radius
+- `buildBoardGeometry(polygon, drills, thickness)` → `{name:'PCB', positions, normals, indices}`
+- `buildTracesGeometry(segments, drills, layer, zBot, zTop, squareEnds)` → body with stadium traces
+
+Uses `import earcut from 'earcut'` (ES module import, not the worker's `importScripts` copy).
+
+**Parallel copies exist:** `pcb-worker.js` has its own copy of these functions (with `earcutFn` from `importScripts`). The worker can't import ES modules. If you fix a geometry bug, update **both** `src/lib/geometry.js` AND `public/pcb-worker.js`. Long term these should be unified, but the worker's classic-script constraint prevents it today.
+
 ## Stack
 
 - Svelte 5 runes (`$state`, `$derived`, `$effect`, `$props`, `$bindable`, `untrack`)
@@ -49,7 +160,7 @@ Design decisions that follow:
 - Three.js v0.184: WebGLRenderer, OrbitControls, STLExporter
 - `three-bvh-csg` for subtract export (CSG on full meshes — slow on big inputs, only use sparingly)
 - `polygon-clipping` for 2D polygon union/difference (used in blade mode — see below)
-- `earcut` (mapbox/earcut npm package, used by main thread; an inlined copy is also in `pcb-worker.js`)
+- `earcut` (mapbox/earcut npm package, used by main thread and `geometry.js`; an inlined copy is also in `pcb-worker.js`)
 
 ## Web Worker
 
@@ -238,6 +349,16 @@ grid.position.y    = boardBottomY - 0.05
 ```
 
 **Pitfall**: `boardHalfHeight * (scale-1)` is wrong for copper offset — it ignores the board's position shift. Use full `boardHeight * (scale-1)`.
+
+## Viewer3D as shared component
+
+`Viewer3D.svelte` is used by **both** the PCB tool and the perfboard editor. It has no dependencies on KiCad, file parsing, or the web worker. It takes a `bodies` array and renders meshes with auto-assigned materials based on body names.
+
+**When modifying Viewer3D.svelte:**
+- Don't add PCB-tool-specific logic without guarding it (e.g. blade mode should not crash when `rawSegments` is null)
+- All props have defaults — the perfboard tool passes `null` / `false` / `[]` for unused features (DRC, silk polylines, blade mode, etc.)
+- New props should default to inactive/null so existing consumers don't break
+- Test changes in **both** apps: load a KiCad file in the PCB tool AND place some pads in the perfboard tool
 
 ## Svelte 5 reactive patterns in Viewer3D
 
@@ -609,4 +730,6 @@ Two guard clauses prevent both no-op recomputes (key matches) and overlapping co
 - **Using combined copper mesh as CSG cutter in subtract mode** → self-intersecting overlapping stadiums + drill holes produce inverted faces and pillar artifacts. Build individual stadium cutters per segment (no drills) and subtract one by one.
 - **Per-segment stadiums for text strokes** → visible gaps at joints where stroke segments meet at angles. Use thick polyline geometry with miter joins and semicircle end caps instead.
 - **Computing board metrics from `!isCopper(name)` instead of `isPcbBoard(name)`** → silkscreen text bodies (tiny bounding boxes) overwrite `boardBottomY`/`boardTop`, corrupting copper Z positioning for all modes.
+- **Fixing a geometry bug in only one place** → `buildBoardGeometry` and `buildTracesGeometry` exist in both `src/lib/geometry.js` (ES module, used by perfboard) and `public/pcb-worker.js` (classic worker, used by PCB tool). A fix in one must be mirrored in the other.
+- **Body names that don't match Viewer3D predicates** → perfboard bodies must be named `'PCB'`, `'Pads_F.Cu'`, `'F.Cu'` (or similar patterns containing `.cu` / ending with `pcb`) to get correct materials. A body named `'pads'` would get the component material (pink), not copper (gold).
 
