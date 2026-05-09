@@ -5,7 +5,7 @@
   import { STLExporter } from 'three/examples/jsm/exporters/STLExporter.js'
   import earcut from 'earcut'
 
-  let { bodies = [], visibility = {}, zScale = 8, boardZScale = 1, previewFilter = null, traceMode = 'raise', drcViolations = [], isRebuild = false, encSideBySide = false, rawSegments = null, silkPolylines = null, boardThickness = 0 } = $props()
+  let { bodies = [], visibility = {}, zScale = 8, textZScale = 8, textMode = 'raise', boardZScale = 1, previewFilter = null, traceMode = 'raise', drcViolations = [], isRebuild = false, encSideBySide = false, rawSegments = null, silkPolylines = null, copperTextPolylines = null, boardThickness = 0 } = $props()
 
   let canvas
   let renderer, scene, camera, controls, grid
@@ -63,6 +63,10 @@
   function isSilkscreen(name) {
     const n = name.toLowerCase()
     return n.includes('silks')
+  }
+
+  function isCopperText(name) {
+    return name.endsWith('_text') && isCopper(name)
   }
 
   function isEnclosure(name) {
@@ -137,18 +141,19 @@
   }
 
   // Apply copper scale + position
-  function applyCopperScale(zS, bS, mode) {
+  function applyCopperScale(zS, tS, bS, trcMode, txtMode) {
     const boardHeight = boardTop - boardBottomY
     const boardTopCurrent = boardTop + boardHeight * (bS - 1)
     for (const [name, mesh] of Object.entries(meshMap)) {
       if (!isCopper(name)) continue
-      mesh.scale.z = zS
-      if (mode === 'subtract') {
-        // Top of copper flush with board surface, copper grows downward (channel preview)
+      const isText = isCopperText(name)
+      const s = isText ? tS : zS
+      const m = isText ? txtMode : trcMode
+      mesh.scale.z = s
+      if (m === 'subtract') {
         const offset = copperNaturalTopOffset[name] ?? 0
-        mesh.position.y = boardTopCurrent - offset * zS
+        mesh.position.y = boardTopCurrent - offset * s
       } else {
-        // Traces raised above board surface
         mesh.position.y = (copperOriginalY[name] ?? 0) + boardHeight * (bS - 1)
       }
     }
@@ -292,7 +297,7 @@
         }
 
         applyBoardScale(boardZScale)
-        applyCopperScale(zScale, boardZScale, traceMode)
+        applyCopperScale(zScale, textZScale, boardZScale, traceMode, textMode)
         sideBySideOffsets = {}
         bodiesVersion++
       }
@@ -305,20 +310,34 @@
   $effect(() => {
     const filter = previewFilter
     const vis = visibility
-    const mode = traceMode
+    const trcMode = traceMode
+    const txtMode = textMode
 
     for (const [name, mesh] of Object.entries(meshMap)) {
-      if (filter !== null && mode === 'subtract') {
-        // Subtract export preview: grey translucent board + orange channel markers
+      const isText = isCopperText(name)
+      const mode = (isText ? txtMode : trcMode)
+      const isSubtract = mode === 'subtract'
+      const isCu = isCopper(name)
+
+      if (filter !== null && (trcMode === 'subtract' || txtMode === 'subtract')) {
         mesh.visible = vis[name] !== false
-        mesh.material = isCopper(name) ? subtractCutterMat : previewSubtractBoardMat
+        if (isCu && isSubtract) {
+          mesh.material = subtractCutterMat
+        } else if (isCu) {
+          mesh.material = originalMaterials[name] || mesh.material
+        } else {
+          mesh.material = previewSubtractBoardMat
+        }
       } else if (filter !== null) {
         const inExport = filter(name)
         mesh.visible = inExport && (vis[name] !== false)
         mesh.material = inExport ? previewMat : (originalMaterials[name] || mesh.material)
-      } else if (mode === 'subtract') {
+      } else if (isCu && isSubtract) {
         mesh.visible = vis[name] !== false
-        mesh.material = isCopper(name) ? subtractCutterMat : subtractBoardMat
+        mesh.material = subtractCutterMat
+      } else if (!isCu && (trcMode === 'subtract' || txtMode === 'subtract')) {
+        mesh.visible = vis[name] !== false
+        mesh.material = subtractBoardMat
       } else {
         mesh.visible = vis[name] !== false
         mesh.material = originalMaterials[name] || mesh.material
@@ -337,7 +356,7 @@
   // ------- copper z-scale + position -------
 
   $effect(() => {
-    applyCopperScale(zScale, boardZScale, traceMode)
+    applyCopperScale(zScale, textZScale, boardZScale, traceMode, textMode)
     requestRender()
   })
 
@@ -487,7 +506,7 @@
 
   export function exportSTL(filter, filename) {
     if (!scene) return
-    if (traceMode === 'subtract') {
+    if (traceMode === 'subtract' || textMode === 'subtract') {
       doSubtractExport(filename)
     } else {
       doRaiseExport(filter, filename)
@@ -682,18 +701,18 @@
   }
 
   // Parse packed silkscreen polyline data into { front: [...rings], back: [...rings] }
-  function parseSilkPolylines() {
-    if (!silkPolylines || !silkPolylines.length) return null
+  function parsePackedPolylines(buf) {
+    if (!buf || !buf.length) return null
     const result = { front: [], back: [] }
     let off = 0
-    const count = silkPolylines[off++]
+    const count = buf[off++]
     for (let i = 0; i < count; i++) {
-      const numPts = silkPolylines[off++]
-      const hw = silkPolylines[off++]
-      const layerFlag = silkPolylines[off++]
+      const numPts = buf[off++]
+      const hw = buf[off++]
+      const layerFlag = buf[off++]
       const pts = []
       for (let j = 0; j < numPts; j++) {
-        pts.push([silkPolylines[off++], silkPolylines[off++]])
+        pts.push([buf[off++], buf[off++]])
       }
       const ring = polylineOutline2D(pts, hw)
       if (ring) {
@@ -706,7 +725,7 @@
 
   // Build silkscreen engraving cutter geometry per layer using 2D union + extrude
   async function buildSilkCutters(pcUnion) {
-    const silk = parseSilkPolylines()
+    const silk = parsePackedPolylines(silkPolylines)
     if (!silk) return []
     const thickness = boardThickness
     const cutters = []
@@ -759,6 +778,26 @@
     return base
   }
 
+  function chunkMergeUnion(polys, pcUnion) {
+    let level = polys.slice()
+    while (level.length > 1) {
+      const next = []
+      for (let i = 0; i < level.length; i += 8) {
+        const chunk = level.slice(i, i + 8)
+        try { next.push(pcUnion(...chunk)) }
+        catch {
+          let acc = chunk[0]
+          for (let j = 1; j < chunk.length; j++) {
+            try { acc = pcUnion(acc, chunk[j]) } catch { /* skip */ }
+          }
+          next.push(acc)
+        }
+      }
+      level = next
+    }
+    return level[0] || null
+  }
+
   async function doSubtractExport(filename) {
     const [{ Brush, Evaluator, SUBTRACTION }, polygonClipping] = await Promise.all([
       import('three-bvh-csg'),
@@ -768,17 +807,13 @@
     scene.updateMatrixWorld(true)
 
     const boardMesh = Object.entries(meshMap).find(([n, m]) => isPcbBoard(n) && m.visible)?.[1]
-    if (!boardMesh || !rawSegments || !rawSegments.length) {
-      alert('Need board and trace data for subtract export.')
+    if (!boardMesh) {
+      alert('No board mesh found for export.')
       return
     }
 
     const fCuMesh = meshMap['F.Cu']
     const bCuMesh = meshMap['B.Cu']
-    if (!fCuMesh && !bCuMesh) {
-      alert('No copper bodies found for subtract export.')
-      return
-    }
 
     const evaluator = new Evaluator()
     evaluator.attributes = ['position', 'normal']
@@ -793,79 +828,101 @@
     const thickness = boardThickness
     const copperH = 0.035
     const PIERCE = 0.01
+    let subtractCount = 0
 
-    // Group segments by layer, build 2D stadium polygons
-    const layerPolys = { front: [], back: [] }
-    const segCount = rawSegments.length / 6
-    for (let i = 0; i < segCount; i++) {
-      const p1x = rawSegments[i * 6], p1y = rawSegments[i * 6 + 1]
-      const p2x = rawSegments[i * 6 + 2], p2y = rawSegments[i * 6 + 3]
-      const width = rawSegments[i * 6 + 4], layerFlag = rawSegments[i * 6 + 5]
-      const ring = stadiumPoly2D(p1x, p1y, p2x, p2y, width / 2)
-      const bucket = layerFlag < 0.5 ? 'front' : 'back'
-      layerPolys[bucket].push([ring])
+    // Subtract traces if traceMode is subtract
+    if (traceMode === 'subtract' && rawSegments && rawSegments.length) {
+      const layerPolys = { front: [], back: [] }
+      const segCount = rawSegments.length / 6
+      for (let i = 0; i < segCount; i++) {
+        const p1x = rawSegments[i * 6], p1y = rawSegments[i * 6 + 1]
+        const p2x = rawSegments[i * 6 + 2], p2y = rawSegments[i * 6 + 3]
+        const width = rawSegments[i * 6 + 4], layerFlag = rawSegments[i * 6 + 5]
+        const ring = stadiumPoly2D(p1x, p1y, p2x, p2y, width / 2)
+        layerPolys[layerFlag < 0.5 ? 'front' : 'back'].push([ring])
+      }
+      for (const [key, polys] of Object.entries(layerPolys)) {
+        if (!polys.length) continue
+        const refMesh = key === 'front' ? fCuMesh : bCuMesh
+        if (!refMesh) continue
+        const isFront = key === 'front'
+        const merged = chunkMergeUnion(polys, pcUnion)
+        if (!merged || !merged.length) continue
+        const geo = extrudeMultiPoly(merged, isFront ? thickness : -copperH, isFront ? thickness + copperH : 0)
+        if (!geo) continue
+        const cutter = new Brush(geo)
+        cutter.rotation.copy(refMesh.rotation)
+        cutter.scale.copy(refMesh.scale)
+        cutter.position.copy(refMesh.position)
+        cutter.position.y += PIERCE
+        cutter.updateMatrixWorld()
+        try {
+          base = evaluator.evaluate(base, cutter, SUBTRACTION)
+          subtractCount++
+        } catch (e) { console.error('CSG trace subtract failed for', key, e) }
+      }
     }
 
-    // 2D union per layer (chunk-merge for FP stability), then extrude + single CSG subtract
-    let subtractCount = 0
-    for (const [key, polys] of Object.entries(layerPolys)) {
-      if (!polys.length) continue
-      const refMesh = key === 'front' ? fCuMesh : bCuMesh
-      if (!refMesh) continue
-      const isFront = key === 'front'
-      const zBot = isFront ? thickness : -copperH
-      const zTop = isFront ? thickness + copperH : 0
-
-      // Chunk-merge union in groups of 8 for FP stability
-      let level = polys.slice()
-      while (level.length > 1) {
-        const next = []
-        for (let i = 0; i < level.length; i += 8) {
-          const chunk = level.slice(i, i + 8)
-          try { next.push(pcUnion(...chunk)) }
-          catch {
-            // fall back to pairwise within the chunk
-            let acc = chunk[0]
-            for (let j = 1; j < chunk.length; j++) {
-              try { acc = pcUnion(acc, chunk[j]) } catch { /* skip */ }
-            }
-            next.push(acc)
-          }
+    // Subtract copper text if textMode is subtract
+    if (textMode === 'subtract') {
+      const textMeshes = { front: meshMap['F.Cu_text'], back: meshMap['B.Cu_text'] }
+      console.log('Text subtract: F.Cu_text mesh:', !!textMeshes.front, 'B.Cu_text mesh:', !!textMeshes.back, 'copperTextPolylines:', copperTextPolylines?.length ?? 'null')
+      const copperText = parsePackedPolylines(copperTextPolylines)
+      if (copperText) {
+        for (const [key, polys] of Object.entries(copperText)) {
+          if (!polys.length) continue
+          const isFront = key === 'front'
+          const refMesh = textMeshes[key]
+          if (!refMesh) continue
+          const merged = chunkMergeUnion(polys, pcUnion)
+          if (!merged || !merged.length) continue
+          const geo = extrudeMultiPoly(merged, isFront ? thickness : -copperH, isFront ? thickness + copperH : 0)
+          if (!geo) continue
+          const cutter = new Brush(geo)
+          cutter.rotation.copy(refMesh.rotation)
+          cutter.scale.copy(refMesh.scale)
+          cutter.position.copy(refMesh.position)
+          cutter.position.y += PIERCE
+          cutter.updateMatrixWorld()
+          try {
+            base = evaluator.evaluate(base, cutter, SUBTRACTION)
+            subtractCount++
+          } catch (e) { console.error('CSG text subtract failed for', key, e) }
         }
-        level = next
-      }
-      const merged = level[0]
-      if (!merged || !merged.length) continue
-
-      const geo = extrudeMultiPoly(merged, zBot, zTop)
-      if (!geo) continue
-
-      const cutter = new Brush(geo)
-      cutter.rotation.copy(refMesh.rotation)
-      cutter.scale.copy(refMesh.scale)
-      cutter.position.copy(refMesh.position)
-      cutter.position.y += PIERCE
-      cutter.updateMatrixWorld()
-      try {
-        base = evaluator.evaluate(base, cutter, SUBTRACTION)
-        subtractCount++
-      } catch (e) {
-        console.error('CSG subtract failed for', key, e)
       }
     }
 
     if (subtractCount === 0) {
-      alert('CSG subtraction failed for all layers.')
+      alert('No CSG subtraction was performed. Check that traces or text are set to subtract mode.')
       return
     }
 
     // Engrave silkscreen text into the board surface
     base = await engraveSilkscreen(base, evaluator, Brush, SUBTRACTION, pcUnion, boardMesh)
 
+    // Build result: CSG'd board + any raised copper bodies
     const resultGeo = base.geometry.clone()
     resultGeo.applyMatrix4(base.matrixWorld)
-    const resultMesh = new THREE.Mesh(resultGeo)
-    triggerDownload(new STLExporter().parse(resultMesh, { binary: true }), filename || 'pcb-channel.stl')
+
+    const group = new THREE.Group()
+    group.add(new THREE.Mesh(resultGeo))
+
+    // Add raised copper bodies (traces in raise mode, text in raise mode)
+    for (const [name, mesh] of Object.entries(meshMap)) {
+      if (!mesh.visible) continue
+      if (isCopper(name) && !isCopperText(name) && traceMode === 'raise') {
+        const clone = mesh.geometry.clone()
+        clone.applyMatrix4(mesh.matrixWorld)
+        group.add(new THREE.Mesh(clone))
+      }
+      if (isCopperText(name) && textMode === 'raise') {
+        const clone = mesh.geometry.clone()
+        clone.applyMatrix4(mesh.matrixWorld)
+        group.add(new THREE.Mesh(clone))
+      }
+    }
+
+    triggerDownload(new STLExporter().parse(group, { binary: true }), filename || 'pcb-3dprint.stl')
   }
 
   function triggerDownload(data, filename) {

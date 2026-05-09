@@ -1,6 +1,6 @@
 <script>
   let {
-    viewer = null, zScale = $bindable(8), boardZScale = $bindable(1),
+    viewer = null, zScale = $bindable(8), textZScale = $bindable(8), textMode = $bindable('raise'), boardZScale = $bindable(1),
     traceMode = $bindable('raise'), traceWidthOffset = $bindable(0),
     drillDiameterOffset = $bindable(0), squareEnds = $bindable(false),
     enclosureEnabled = $bindable(false), encWallThickness = $bindable(2),
@@ -156,6 +156,53 @@
       <div class="flex justify-between text-[10px] text-slate-600 mt-0.5">
         <span>0.035 mm</span>
         <span>5.005 mm</span>
+      </div>
+    </div>
+
+    <!-- Text Z-scale -->
+    <div class="mb-3">
+      <div class="flex justify-between items-center mb-1">
+        <label for="text-z-scale" class="text-xs text-slate-400">Text Z-scale</label>
+        <div class="flex items-baseline gap-1.5">
+          <span class="text-xs text-[#f0f0f0] font-mono font-semibold">{textZScale}×</span>
+          <span class="text-xs text-slate-400 font-mono">= {(0.035 * textZScale).toFixed(3)} mm</span>
+        </div>
+      </div>
+      <input
+        id="text-z-scale"
+        type="range"
+        min="1"
+        max="143"
+        step="1"
+        bind:value={textZScale}
+        class="w-full h-1.5 rounded-full appearance-none cursor-pointer
+          bg-[#2a2a48] accent-[#e8e8e8]"
+      />
+      <div class="flex justify-between text-[10px] text-slate-600 mt-0.5">
+        <span>0.035 mm</span>
+        <span>5.005 mm</span>
+      </div>
+
+      <!-- Text mode toggle -->
+      <div class="flex rounded overflow-hidden border border-[#2a2a48] mt-2">
+        {#each [
+          { val: 'raise',    icon: '▲', label: 'Raise' },
+          { val: 'subtract', icon: '▼', label: 'Subtract' },
+        ] as opt}
+          <button
+            onclick={() => textMode = opt.val}
+            class="flex-1 flex items-center justify-center gap-1 py-1 text-[10px] font-medium
+              transition-colors duration-100
+              {textMode === opt.val
+                ? opt.val === 'raise'
+                  ? 'bg-[#e8e8e8]/20 text-[#e8e8e8] border-[#e8e8e8]/30'
+                  : 'bg-[#ff6b35]/20 text-[#ff6b35] border-[#ff6b35]/30'
+                : 'bg-transparent text-slate-500 hover:text-slate-300'}"
+          >
+            <span class="text-[8px]">{opt.icon}</span>
+            {opt.label}
+          </button>
+        {/each}
       </div>
     </div>
 

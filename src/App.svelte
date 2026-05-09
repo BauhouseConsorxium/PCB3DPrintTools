@@ -15,6 +15,8 @@
     let bodies = $state([]);
     let visibility = $state({});
     let zScale = $state(8);
+    let textZScale = $state(8);
+    let textMode = $state("raise");
     let boardZScale = $state(1);
     let previewFilter = $state(null);
     let previewLabel = $state("");
@@ -33,6 +35,7 @@
     let boardPolygon = $state(null);
     let rawSegments = $state(null);
     let silkPolylines = $state(null);
+    let copperTextPolylines = $state(null);
     let boardThickness = $state(0);
     let enclosureBody = $state(null);
     let filename = $state("");
@@ -43,6 +46,8 @@
 
     const currentSettings = $derived({
         zScale,
+        textZScale,
+        textMode,
         boardZScale,
         traceMode,
         traceWidthOffset,
@@ -60,6 +65,8 @@
 
     function applyPreset(s) {
         if (s.zScale !== undefined) zScale = s.zScale;
+        if (s.textZScale !== undefined) textZScale = s.textZScale;
+        if (s.textMode !== undefined) textMode = s.textMode;
         if (s.boardZScale !== undefined) boardZScale = s.boardZScale;
         if (s.traceMode !== undefined) traceMode = s.traceMode;
         if (s.traceWidthOffset !== undefined) traceWidthOffset = s.traceWidthOffset;
@@ -87,6 +94,7 @@
                 boardPolygon = data.polygon ? parseBoardPoly(data.polygon) : null;
                 rawSegments = data.segments || null;
                 silkPolylines = data.silkPolylines || null;
+                copperTextPolylines = data.copperTextPolylines || null;
                 boardThickness = data.thickness || 0;
                 bodies = data.bodies;
                 visibility = Object.fromEntries(
@@ -282,6 +290,8 @@
             <ExportPanel
                 {viewer}
                 bind:zScale
+                bind:textZScale
+                bind:textMode
                 bind:boardZScale
                 bind:traceMode
                 bind:traceWidthOffset
@@ -326,6 +336,8 @@
                 bodies={allBodies}
                 {visibility}
                 {zScale}
+                {textZScale}
+                {textMode}
                 {boardZScale}
                 {previewFilter}
                 {traceMode}
@@ -334,6 +346,7 @@
                 {encSideBySide}
                 {rawSegments}
                 {silkPolylines}
+                {copperTextPolylines}
                 {boardThickness}
             />
 

@@ -1069,32 +1069,34 @@ function buildBodies(widthOffset, drillOffset, squareEnds) {
     segmentBuf = buf
   }
 
-  // Pack silkscreen text polylines for CSG engraving
+  // Pack text polylines for CSG engraving/subtraction
   // Format: [numPolylines, then per polyline: numPoints, hw, layerFlag(0=front,1=back), x1,y1, x2,y2, ...]
-  let silkPolyBuf = null
-  if (cachedTextPolylines && cachedTextPolylines.length) {
-    const silkPls = cachedTextPolylines.filter(pl => pl.layer.includes('SilkS'))
-    if (silkPls.length) {
-      let totalFloats = 1
-      for (const pl of silkPls) totalFloats += 3 + pl.pts.length * 2
-      const buf = new Float32Array(totalFloats)
-      let off = 0
-      buf[off++] = silkPls.length
-      for (const pl of silkPls) {
-        buf[off++] = pl.pts.length
-        buf[off++] = pl.hw
-        buf[off++] = pl.layer.startsWith('F.') ? 0 : 1
-        for (const [x, y] of pl.pts) { buf[off++] = x; buf[off++] = y }
-      }
-      silkPolyBuf = buf
+  function packTextPolylines(filter) {
+    if (!cachedTextPolylines || !cachedTextPolylines.length) return null
+    const pls = cachedTextPolylines.filter(filter)
+    if (!pls.length) return null
+    let totalFloats = 1
+    for (const pl of pls) totalFloats += 3 + pl.pts.length * 2
+    const buf = new Float32Array(totalFloats)
+    let off = 0
+    buf[off++] = pls.length
+    for (const pl of pls) {
+      buf[off++] = pl.pts.length
+      buf[off++] = pl.hw
+      buf[off++] = pl.layer.startsWith('F.') ? 0 : 1
+      for (const [x, y] of pl.pts) { buf[off++] = x; buf[off++] = y }
     }
+    return buf
   }
+  const silkPolyBuf = packTextPolylines(pl => pl.layer.includes('SilkS'))
+  const copperTextPolyBuf = packTextPolylines(pl => pl.layer.includes('.Cu'))
 
   const transferables = bodies.flatMap(b => [b.positions.buffer, b.normals.buffer, b.indices.buffer])
   if (polygonBuf) transferables.push(polygonBuf.buffer)
   if (segmentBuf) transferables.push(segmentBuf.buffer)
   if (silkPolyBuf) transferables.push(silkPolyBuf.buffer)
-  self.postMessage({ type: 'RESULT', bodies, polygon: polygonBuf, segments: segmentBuf, silkPolylines: silkPolyBuf, thickness }, transferables)
+  if (copperTextPolyBuf) transferables.push(copperTextPolyBuf.buffer)
+  self.postMessage({ type: 'RESULT', bodies, polygon: polygonBuf, segments: segmentBuf, silkPolylines: silkPolyBuf, copperTextPolylines: copperTextPolyBuf, thickness }, transferables)
 }
 
 self.onmessage = ({ data }) => {
