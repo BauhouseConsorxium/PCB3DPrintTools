@@ -9,7 +9,7 @@
 
   let viewer
   let activeTab = $state('editor')
-  let activeTool = $state('pad')
+  let activeTool = $state('select')
   let selectedIds = $state([])
   let zScale = $state(8)
   let boardZScale = $state(1)
