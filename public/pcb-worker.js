@@ -885,7 +885,7 @@ function buildTracesGeometry(segments, drills, layer, zBot, zTop, squareEnds) {
     // Drill holes
     const holes = []
     const d1r = lookupDrill(p1x, p1y)
-    if (d1r > 0 && d1r < hw - 0.01) {
+    if (d1r > 0 && d1r < hw + 0.01) {
       const h = []
       for (let i = 0; i < HOLE_N; i++) {
         const a = -i * 2 * Math.PI / HOLE_N
@@ -894,7 +894,7 @@ function buildTracesGeometry(segments, drills, layer, zBot, zTop, squareEnds) {
       holes.push(h)
     }
     const d2r = lookupDrill(p2x, p2y)
-    if (d2r > 0 && d2r < hw - 0.01) {
+    if (d2r > 0 && d2r < hw + 0.01) {
       const h = []
       for (let i = 0; i < HOLE_N; i++) {
         const a = -i * 2 * Math.PI / HOLE_N
