@@ -438,7 +438,11 @@
     cancelDrawing()
   }
 
+  const toolHotkeys = { '1': 'pad', '2': 'header', '3': 'trace', '4': 'jumper', '5': 'label', '6': 'erase' }
+
   function handleKeydown(e) {
+    const isInput = e.target?.tagName === 'INPUT' || e.target?.tagName === 'TEXTAREA'
+    if (isInput) return
     if (e.key === 'Escape') {
       if (editingAnnotation) { editingAnnotation = null; return }
       if (editingJumper) { editingJumper = null; return }
@@ -446,7 +450,10 @@
       if (!cancelled && activeTool !== 'select') {
         onToolChange('select')
       }
+      return
     }
+    const tool = toolHotkeys[e.key]
+    if (tool) onToolChange(tool)
   }
 
   // Expand header pads for rendering
