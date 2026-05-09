@@ -4,7 +4,7 @@
   let {
     doc,
     activeTool = 'select',
-    selectedId = null,
+    selectedIds = [],
     onAddPad = () => {},
     onAddHeader = () => {},
     onAddTrace = () => {},
@@ -12,9 +12,10 @@
     onAddAnnotation = () => {},
     onUpdateAnnotation = () => {},
     onUpdateJumperColor = () => {},
-    onMoveElement = () => {},
+    onMoveSelected = () => {},
     onRemoveElement = () => {},
     onSelect = () => {},
+    onBulkSelect = () => {},
   } = $props()
 
   let svgEl
@@ -45,6 +46,9 @@
 
   // Drag-to-move state
   let dragInfo = $state(null)
+
+  // Rubber band selection
+  let selectionBox = $state(null)
 
   // Inline editing
   let editingAnnotation = $state(null)
@@ -158,7 +162,7 @@
 
   function handlePointerDown(e) {
     if (editingJumper) { editingJumper = null }
-    if (e.button === 1 || (e.button === 0 && e.shiftKey)) {
+    if (e.button === 1 || (e.button === 0 && e.shiftKey && activeTool !== 'select')) {
       isPanning = true
       panStart = { x: e.clientX, y: e.clientY, vx: vb.x, vy: vb.y }
       e.preventDefault()
@@ -222,10 +226,18 @@
       onAddAnnotation(col, row)
     } else if (activeTool === 'select') {
       const el = findElementAt(col, row, sp.x, sp.y)
-      if (el && el.id === selectedId) {
-        dragInfo = { id: el.id, startCol: col, startRow: row }
+      if (el) {
+        if (e.shiftKey) {
+          onSelect(el.id, true)
+        } else if (selectedIds.includes(el.id)) {
+          dragInfo = { startCol: col, startRow: row }
+        } else {
+          onSelect(el.id, false)
+          dragInfo = { startCol: col, startRow: row }
+        }
       } else {
-        onSelect(el?.id ?? null)
+        if (!e.shiftKey) onSelect(null, false)
+        selectionBox = { x1: sp.x, y1: sp.y, x2: sp.x, y2: sp.y, add: e.shiftKey }
       }
     } else if (activeTool === 'erase') {
       const el = findElementAt(col, row, sp.x, sp.y)
@@ -245,6 +257,11 @@
     if (!sp) return
     const { col, row } = snapToGrid(sp.x, sp.y)
     ghostPos = { col, row }
+
+    if (selectionBox) {
+      selectionBox = { ...selectionBox, x2: sp.x, y2: sp.y }
+      return
+    }
 
     if (activeTool === 'trace' && tracePoints.length > 0) {
       const last = tracePoints[tracePoints.length - 1]
@@ -266,9 +283,46 @@
     }
   }
 
+  function findElementsInRect(x1, y1, x2, y2) {
+    const minX = Math.min(x1, x2), maxX = Math.max(x1, x2)
+    const minY = Math.min(y1, y2), maxY = Math.max(y1, y2)
+    const ids = []
+    const inRect = (px, py) => px >= minX && px <= maxX && py >= minY && py <= maxY
+    for (const p of doc.pads) {
+      if (inRect(p.col * pitch, p.row * pitch)) ids.push(p.id)
+    }
+    for (const h of doc.headers) {
+      for (let i = 0; i < h.count; i++) {
+        const hc = h.orientation === 'h' ? h.col + i : h.col
+        const hr = h.orientation === 'v' ? h.row + i : h.row
+        if (inRect(hc * pitch, hr * pitch)) { ids.push(h.id); break }
+      }
+    }
+    for (const t of doc.traces) {
+      for (const pt of t.points) {
+        if (inRect(pt.col * pitch, pt.row * pitch)) { ids.push(t.id); break }
+      }
+    }
+    for (const j of doc.jumpers) {
+      if (inRect(j.col1 * pitch, j.row1 * pitch) || inRect(j.col2 * pitch, j.row2 * pitch)) ids.push(j.id)
+    }
+    for (const a of doc.annotations) {
+      if (inRect(a.col * pitch, a.row * pitch)) ids.push(a.id)
+    }
+    return ids
+  }
+
   function handlePointerUp(e) {
     if (isPanning) {
       isPanning = false
+      return
+    }
+    if (selectionBox) {
+      const ids = findElementsInRect(selectionBox.x1, selectionBox.y1, selectionBox.x2, selectionBox.y2)
+      if (ids.length > 0) {
+        onBulkSelect(ids, selectionBox.add)
+      }
+      selectionBox = null
       return
     }
     if (dragInfo) {
@@ -278,7 +332,7 @@
         const dc = col - dragInfo.startCol
         const dr = row - dragInfo.startRow
         if (dc !== 0 || dr !== 0) {
-          onMoveElement(dragInfo.id, dc, dr)
+          onMoveSelected(dc, dr)
         }
       }
       dragInfo = null
@@ -352,6 +406,10 @@
   }
 
   function cancelDrawing() {
+    if (selectionBox) {
+      selectionBox = null
+      return true
+    }
     if (activeTool === 'trace' && tracePoints.length > 0) {
       tracePoints = []
       tracePreview = null
@@ -471,7 +529,7 @@
 
     <!-- Traces -->
     {#each doc.traces as trace}
-      {@const isSelected = trace.id === selectedId}
+      {@const isSelected = selectedIds.includes(trace.id)}
       {#each getTraceSegments(trace) as seg}
         <line
           x1={seg.x1} y1={seg.y1}
@@ -515,7 +573,7 @@
 
     <!-- Header bodies -->
     {#each doc.headers as header}
-      {@const isSelected = header.id === selectedId}
+      {@const isSelected = selectedIds.includes(header.id)}
       {@const hpads = getHeaderPads(header)}
       {#if hpads.length > 1}
         {@const minC = Math.min(...hpads.map(p => p.col))}
@@ -552,7 +610,7 @@
 
     <!-- Pads -->
     {#each doc.pads as pad}
-      {@const isSelected = pad.id === selectedId}
+      {@const isSelected = selectedIds.includes(pad.id)}
       <circle
         cx={pad.col * pitch} cy={pad.row * pitch}
         r={padR}
@@ -567,7 +625,7 @@
 
     <!-- Annotations -->
     {#each doc.annotations as ann}
-      {@const isSelected = ann.id === selectedId}
+      {@const isSelected = selectedIds.includes(ann.id)}
       {@const ax = ann.col * pitch}
       {@const ay = ann.row * pitch}
       <rect
@@ -615,7 +673,7 @@
 
     <!-- Jumper wires (topmost layer) -->
     {#each doc.jumpers as jumper}
-      {@const isSelected = jumper.id === selectedId}
+      {@const isSelected = selectedIds.includes(jumper.id)}
       {@const x1 = jumper.col1 * pitch}
       {@const y1 = jumper.row1 * pitch}
       {@const x2 = jumper.col2 * pitch}
@@ -669,22 +727,34 @@
       <circle cx={x2} cy={y2} r={pitch * 0.12} fill="#67e8f9" opacity="0.4" />
     {/if}
 
-    <!-- Drag ghost -->
+    <!-- Selection box -->
+    {#if selectionBox}
+      {@const sx = Math.min(selectionBox.x1, selectionBox.x2)}
+      {@const sy = Math.min(selectionBox.y1, selectionBox.y2)}
+      {@const sw = Math.abs(selectionBox.x2 - selectionBox.x1)}
+      {@const sh = Math.abs(selectionBox.y2 - selectionBox.y1)}
+      <rect x={sx} y={sy} width={sw} height={sh}
+        fill="rgba(251, 191, 36, 0.08)" stroke="#fbbf24" stroke-width={pitch * 0.03}
+        stroke-dasharray="{pitch * 0.1}"
+      />
+    {/if}
+
+    <!-- Drag ghost (all selected elements) -->
     {#if dragInfo && ghostPos}
       {@const dc = ghostPos.col - dragInfo.startCol}
       {@const dr = ghostPos.row - dragInfo.startRow}
       {#if dc !== 0 || dr !== 0}
-        {#each doc.pads.filter(p => p.id === dragInfo.id) as pad}
+        {#each doc.pads.filter(p => selectedIds.includes(p.id)) as pad}
           <circle cx={(pad.col + dc) * pitch} cy={(pad.row + dr) * pitch} r={padR} fill="#fbbf24" opacity="0.4" />
           <circle cx={(pad.col + dc) * pitch} cy={(pad.row + dr) * pitch} r={drillR} fill="#1a1a2e" opacity="0.4" />
         {/each}
-        {#each doc.headers.filter(h => h.id === dragInfo.id) as header}
+        {#each doc.headers.filter(h => selectedIds.includes(h.id)) as header}
           {#each getHeaderPads(header) as hp}
             <circle cx={(hp.col + dc) * pitch} cy={(hp.row + dr) * pitch} r={padR} fill="#fbbf24" opacity="0.4" />
             <circle cx={(hp.col + dc) * pitch} cy={(hp.row + dr) * pitch} r={drillR} fill="#1a1a2e" opacity="0.4" />
           {/each}
         {/each}
-        {#each doc.traces.filter(t => t.id === dragInfo.id) as trace}
+        {#each doc.traces.filter(t => selectedIds.includes(t.id)) as trace}
           {#each getTraceSegments(trace) as seg}
             <line
               x1={seg.x1 + dc * pitch} y1={seg.y1 + dr * pitch}
@@ -694,7 +764,7 @@
             />
           {/each}
         {/each}
-        {#each doc.jumpers.filter(j => j.id === dragInfo.id) as jumper}
+        {#each doc.jumpers.filter(j => selectedIds.includes(j.id)) as jumper}
           {@const jx1 = (jumper.col1 + dc) * pitch}
           {@const jy1 = (jumper.row1 + dr) * pitch}
           {@const jx2 = (jumper.col2 + dc) * pitch}
@@ -711,7 +781,7 @@
             stroke-dasharray="{pitch * 0.15} {pitch * 0.1}" fill="none" opacity="0.4"
           />
         {/each}
-        {#each doc.annotations.filter(a => a.id === dragInfo.id) as ann}
+        {#each doc.annotations.filter(a => selectedIds.includes(a.id)) as ann}
           {@const aax = (ann.col + dc) * pitch}
           {@const aay = (ann.row + dr) * pitch}
           <text

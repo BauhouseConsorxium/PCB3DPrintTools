@@ -10,7 +10,7 @@
   let viewer
   let activeTab = $state('editor')
   let activeTool = $state('pad')
-  let selectedId = $state(null)
+  let selectedIds = $state([])
   let zScale = $state(8)
   let boardZScale = $state(1)
   let annotationText = $state('VCC')
@@ -45,7 +45,7 @@
       if (JSON.stringify(prev) !== currentStr) {
         redoStack = [...redoStack, current]
         doc = prev
-        selectedId = null
+        selectedIds = []
         return
       }
     }
@@ -60,7 +60,7 @@
       if (JSON.stringify(next) !== currentStr) {
         undoStack = [...undoStack, current]
         doc = next
-        selectedId = null
+        selectedIds = []
         return
       }
     }
@@ -124,7 +124,7 @@
     pushUndo()
     if (!text.trim()) {
       doc.annotations = doc.annotations.filter(a => a.id !== id)
-      if (selectedId === id) selectedId = null
+      selectedIds = selectedIds.filter(sid => sid !== id)
       return
     }
     const ann = doc.annotations.find(a => a.id === id)
@@ -135,18 +135,26 @@
     }
   }
 
-  function moveElement(id, dc, dr) {
+  function moveSelected(dc, dr) {
+    if (selectedIds.length === 0) return
     pushUndo()
-    const pad = doc.pads.find(p => p.id === id)
-    if (pad) { pad.col += dc; pad.row += dr; doc.pads = [...doc.pads]; return }
-    const header = doc.headers.find(h => h.id === id)
-    if (header) { header.col += dc; header.row += dr; doc.headers = [...doc.headers]; return }
-    const trace = doc.traces.find(t => t.id === id)
-    if (trace) { for (const pt of trace.points) { pt.col += dc; pt.row += dr }; doc.traces = [...doc.traces]; return }
-    const jumper = doc.jumpers.find(j => j.id === id)
-    if (jumper) { jumper.col1 += dc; jumper.row1 += dr; jumper.col2 += dc; jumper.row2 += dr; doc.jumpers = [...doc.jumpers]; return }
-    const ann = doc.annotations.find(a => a.id === id)
-    if (ann) { ann.col += dc; ann.row += dr; doc.annotations = [...doc.annotations]; return }
+    for (const id of selectedIds) {
+      const pad = doc.pads.find(p => p.id === id)
+      if (pad) { pad.col += dc; pad.row += dr; continue }
+      const header = doc.headers.find(h => h.id === id)
+      if (header) { header.col += dc; header.row += dr; continue }
+      const trace = doc.traces.find(t => t.id === id)
+      if (trace) { for (const pt of trace.points) { pt.col += dc; pt.row += dr }; continue }
+      const jumper = doc.jumpers.find(j => j.id === id)
+      if (jumper) { jumper.col1 += dc; jumper.row1 += dr; jumper.col2 += dc; jumper.row2 += dr; continue }
+      const ann = doc.annotations.find(a => a.id === id)
+      if (ann) { ann.col += dc; ann.row += dr; continue }
+    }
+    doc.pads = [...doc.pads]
+    doc.headers = [...doc.headers]
+    doc.traces = [...doc.traces]
+    doc.jumpers = [...doc.jumpers]
+    doc.annotations = [...doc.annotations]
   }
 
   function removeElement(id) {
@@ -156,11 +164,33 @@
     doc.traces = doc.traces.filter(t => t.id !== id)
     doc.jumpers = doc.jumpers.filter(j => j.id !== id)
     doc.annotations = doc.annotations.filter(a => a.id !== id)
-    if (selectedId === id) selectedId = null
+    selectedIds = selectedIds.filter(sid => sid !== id)
   }
 
-  function selectElement(id) {
-    selectedId = id
+  function selectElement(id, addToSelection = false) {
+    if (id == null) {
+      if (!addToSelection) selectedIds = []
+      return
+    }
+    if (addToSelection) {
+      if (selectedIds.includes(id)) {
+        selectedIds = selectedIds.filter(sid => sid !== id)
+      } else {
+        selectedIds = [...selectedIds, id]
+      }
+    } else {
+      selectedIds = [id]
+    }
+  }
+
+  function bulkSelect(ids, addToSelection = false) {
+    if (addToSelection) {
+      const current = new Set(selectedIds)
+      for (const id of ids) current.add(id)
+      selectedIds = [...current]
+    } else {
+      selectedIds = [...ids]
+    }
   }
 
   function handleExport() {
@@ -263,8 +293,15 @@
       return
     }
     if (e.key === 'Delete' || e.key === 'Backspace') {
-      if (!isInput && selectedId && activeTool === 'select') {
-        removeElement(selectedId)
+      if (!isInput && selectedIds.length > 0 && activeTool === 'select') {
+        pushUndo()
+        const idSet = new Set(selectedIds)
+        doc.pads = doc.pads.filter(p => !idSet.has(p.id))
+        doc.headers = doc.headers.filter(h => !idSet.has(h.id))
+        doc.traces = doc.traces.filter(t => !idSet.has(t.id))
+        doc.jumpers = doc.jumpers.filter(j => !idSet.has(j.id))
+        doc.annotations = doc.annotations.filter(a => !idSet.has(a.id))
+        selectedIds = []
       }
     }
   }
@@ -343,7 +380,7 @@
         onBeforeChange={pushUndo}
       />
 
-      <Toolbar {activeTool} onToolChange={(t) => { activeTool = t; selectedId = null }} />
+      <Toolbar {activeTool} onToolChange={(t) => { activeTool = t; selectedIds = [] }} />
 
       {#if activeTool === 'label'}
         <div class="mb-4">
@@ -457,7 +494,7 @@
           <GridEditor
             {doc}
             {activeTool}
-            {selectedId}
+            {selectedIds}
             onAddPad={addPad}
             onAddHeader={addHeader}
             onAddTrace={addTrace}
@@ -465,9 +502,10 @@
             onAddAnnotation={addAnnotation}
             onUpdateAnnotation={updateAnnotation}
             onUpdateJumperColor={updateJumperColor}
-            onMoveElement={moveElement}
+            onMoveSelected={moveSelected}
             onRemoveElement={removeElement}
             onSelect={selectElement}
+            onBulkSelect={bulkSelect}
           />
         </div>
         <div class="absolute inset-0" class:hidden={activeTab !== 'preview'}>
