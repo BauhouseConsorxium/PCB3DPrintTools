@@ -167,6 +167,31 @@
     }
   }
 
+  function deleteControlPoint(traceId, pointIndex) {
+    const trace = doc.traces.find(t => t.id === traceId)
+    if (!trace || trace.points.length <= 2) return
+    pushUndo()
+    trace.points = trace.points.filter((_, i) => i !== pointIndex)
+    doc.traces = [...doc.traces]
+  }
+
+  function subdivideCurve(traceId) {
+    const trace = doc.traces.find(t => t.id === traceId)
+    if (!trace || trace.points.length < 2) return
+    pushUndo()
+    const newPoints = [trace.points[0]]
+    for (let i = 0; i < trace.points.length - 1; i++) {
+      const a = trace.points[i], b = trace.points[i + 1]
+      newPoints.push({
+        col: (a.col + b.col) / 2,
+        row: (a.row + b.row) / 2
+      })
+      newPoints.push(b)
+    }
+    trace.points = newPoints
+    doc.traces = [...doc.traces]
+  }
+
   function meltTraces(ids) {
     const targets = doc.traces.filter(t => ids.includes(t.id) && t.type !== 'curve')
     if (targets.length === 0) return
@@ -626,6 +651,8 @@
             onUpdatePadLabel={updatePadLabel}
             onMoveSelected={moveSelected}
             onMoveControlPoint={moveControlPoint}
+            onDeleteControlPoint={deleteControlPoint}
+            onSubdivideCurve={subdivideCurve}
             onRotateSelected={rotateSelected}
             onRemoveElement={removeElement}
             onSelect={selectElement}

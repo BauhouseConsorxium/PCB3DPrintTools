@@ -126,23 +126,27 @@ export function variableWidthOutlinePath(points, traceWidth, endWidth, segmentsP
     right.push({ x: samples[i].x - nx * hw, y: samples[i].y - ny * hw })
   }
 
-  // Closed outline: left side forward, semicircle end cap, right side backward, semicircle start cap
   const last = samples[samples.length - 1]
   const first = samples[0]
 
+  // Main outline: left side forward, semicircle end cap, right side backward, semicircle start cap
   let d = `M${left[0].x},${left[0].y}`
   for (let i = 1; i < left.length; i++) d += ` L${left[i].x},${left[i].y}`
 
-  // End cap (semicircle)
   const ehw = last.w / 2
   d += ` A${ehw},${ehw} 0 0 1 ${right[right.length - 1].x},${right[right.length - 1].y}`
 
   for (let i = right.length - 2; i >= 0; i--) d += ` L${right[i].x},${right[i].y}`
 
-  // Start cap (semicircle)
   const shw = first.w / 2
   d += ` A${shw},${shw} 0 0 1 ${left[0].x},${left[0].y}`
-
   d += ' Z'
+
+  // Full circles at endpoints to cover horn artifacts from perpendicular offset cusps
+  const sr = first.w / 2
+  d += ` M${first.x + sr},${first.y} A${sr},${sr} 0 1 1 ${first.x - sr},${first.y} A${sr},${sr} 0 1 1 ${first.x + sr},${first.y} Z`
+  const er = last.w / 2
+  d += ` M${last.x + er},${last.y} A${er},${er} 0 1 1 ${last.x - er},${last.y} A${er},${er} 0 1 1 ${last.x + er},${last.y} Z`
+
   return d
 }

@@ -21,6 +21,8 @@
     onUpdateHeaderLabels = () => {},
     onMoveSelected = () => {},
     onMoveControlPoint = () => {},
+    onDeleteControlPoint = () => {},
+    onSubdivideCurve = () => {},
     onRotateSelected = () => {},
     onRemoveElement = () => {},
     onSelect = () => {},
@@ -67,6 +69,7 @@
 
   // Control point drag state
   let cpDrag = $state(null)
+  let activeCP = $state(null)
 
   // Rubber band selection
   let selectionBox = $state(null)
@@ -330,6 +333,7 @@
         cpDrag = { traceId: cpHit.traceId, pointIndex: cpHit.pointIndex, startCol: col, startRow: row }
         return
       }
+      activeCP = null
       const el = findElementAt(col, row, sp.x, sp.y)
       if (el) {
         if (e.shiftKey) {
@@ -464,6 +468,9 @@
         const dr = row - cpDrag.startRow
         if (dc !== 0 || dr !== 0) {
           onMoveControlPoint(cpDrag.traceId, cpDrag.pointIndex, dc, dr)
+          activeCP = null
+        } else {
+          activeCP = { traceId: cpDrag.traceId, pointIndex: cpDrag.pointIndex }
         }
       }
       cpDrag = null
@@ -703,6 +710,7 @@
     const isInput = e.target?.tagName === 'INPUT' || e.target?.tagName === 'TEXTAREA'
     if (isInput) return
     if (e.key === 'Escape') {
+      if (activeCP) { activeCP = null; return }
       if (editingAnnotation) { editingAnnotation = null; return }
       if (editingPad) { editingPad = null; return }
       if (editingHeader) { commitHeaderEdit(); return }
@@ -874,10 +882,33 @@
               />
             {/if}
           {/each}
-          {#each trace.points as pt}
-            <circle cx={pt.col * pitch} cy={pt.row * pitch} r={pitch * 0.1}
-              fill="#22c55e" stroke="white" stroke-width={pitch * 0.02} opacity="0.8"
+          {#each trace.points as pt, i}
+            {@const isActiveCP = activeCP && activeCP.traceId === trace.id && activeCP.pointIndex === i}
+            <circle cx={pt.col * pitch} cy={pt.row * pitch} r={isActiveCP ? pitch * 0.14 : pitch * 0.1}
+              fill={isActiveCP ? '#fbbf24' : '#22c55e'} stroke="white" stroke-width={pitch * 0.02} opacity="0.9"
             />
+            {#if isActiveCP && trace.points.length > 2}
+              <!-- svelte-ignore a11y_click_events_have_key_events -->
+              <!-- svelte-ignore a11y_no_static_element_interactions -->
+              <g
+                style="cursor: pointer"
+                onpointerdown={(e) => { e.stopPropagation(); onDeleteControlPoint(activeCP.traceId, activeCP.pointIndex); activeCP = null }}
+              >
+                <circle cx={pt.col * pitch + pitch * 0.25} cy={pt.row * pitch - pitch * 0.25} r={pitch * 0.1}
+                  fill="#ef4444" stroke="white" stroke-width={pitch * 0.02}
+                />
+                <line
+                  x1={pt.col * pitch + pitch * 0.25 - pitch * 0.05} y1={pt.row * pitch - pitch * 0.25 - pitch * 0.05}
+                  x2={pt.col * pitch + pitch * 0.25 + pitch * 0.05} y2={pt.row * pitch - pitch * 0.25 + pitch * 0.05}
+                  stroke="white" stroke-width={pitch * 0.025} stroke-linecap="round"
+                />
+                <line
+                  x1={pt.col * pitch + pitch * 0.25 + pitch * 0.05} y1={pt.row * pitch - pitch * 0.25 - pitch * 0.05}
+                  x2={pt.col * pitch + pitch * 0.25 - pitch * 0.05} y2={pt.row * pitch - pitch * 0.25 + pitch * 0.05}
+                  stroke="white" stroke-width={pitch * 0.025} stroke-linecap="round"
+                />
+              </g>
+            {/if}
           {/each}
         {/if}
       {:else}
@@ -1507,6 +1538,11 @@
         />
         <div class="text-[9px] text-slate-500">{editingCurve.tension.toFixed(2)} — {editingCurve.tension < 0.3 ? 'loose' : editingCurve.tension < 0.7 ? 'smooth' : 'tight'}</div>
       </div>
+      <button
+        class="w-full text-[10px] px-2 py-1 rounded bg-slate-600 text-slate-200 hover:bg-slate-500"
+        onmousedown={(e) => e.preventDefault()}
+        onclick={() => { onSubdivideCurve(editingCurve.id); closeCurveEdit() }}
+      >+ Add Points (Subdivide)</button>
     </div>
   {/if}
 
