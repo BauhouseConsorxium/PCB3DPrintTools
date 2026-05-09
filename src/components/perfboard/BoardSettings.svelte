@@ -6,6 +6,7 @@
     drillDiameter = $bindable(1.0),
     traceWidth = $bindable(1.0),
     boardThickness = $bindable(1.6),
+    onBeforeChange = () => {},
   } = $props()
 </script>
 
@@ -15,12 +16,12 @@
   <div class="grid grid-cols-2 gap-2 mb-2">
     <div>
       <label class="text-[10px] text-slate-400 block mb-0.5">Columns</label>
-      <input type="number" bind:value={cols} min="2" max="40"
+      <input type="number" bind:value={cols} min="2" max="40" onfocus={onBeforeChange}
         class="w-full bg-slate-700 text-slate-200 text-xs rounded px-2 py-1 border border-slate-600 focus:border-slate-400 outline-none" />
     </div>
     <div>
       <label class="text-[10px] text-slate-400 block mb-0.5">Rows</label>
-      <input type="number" bind:value={rows} min="2" max="40"
+      <input type="number" bind:value={rows} min="2" max="40" onfocus={onBeforeChange}
         class="w-full bg-slate-700 text-slate-200 text-xs rounded px-2 py-1 border border-slate-600 focus:border-slate-400 outline-none" />
     </div>
   </div>
@@ -30,22 +31,22 @@
   <div class="grid grid-cols-2 gap-2">
     <div>
       <label class="text-[10px] text-slate-400 block mb-0.5">Pad diameter</label>
-      <input type="number" bind:value={padDiameter} min="0.5" max="4" step="0.1"
+      <input type="number" bind:value={padDiameter} min="0.5" max="4" step="0.1" onfocus={onBeforeChange}
         class="w-full bg-slate-700 text-slate-200 text-xs rounded px-2 py-1 border border-slate-600 focus:border-slate-400 outline-none" />
     </div>
     <div>
       <label class="text-[10px] text-slate-400 block mb-0.5">Drill diameter</label>
-      <input type="number" bind:value={drillDiameter} min="0.3" max="3" step="0.1"
+      <input type="number" bind:value={drillDiameter} min="0.3" max="3" step="0.1" onfocus={onBeforeChange}
         class="w-full bg-slate-700 text-slate-200 text-xs rounded px-2 py-1 border border-slate-600 focus:border-slate-400 outline-none" />
     </div>
     <div>
       <label class="text-[10px] text-slate-400 block mb-0.5">Trace width</label>
-      <input type="number" bind:value={traceWidth} min="0.3" max="5" step="0.1"
+      <input type="number" bind:value={traceWidth} min="0.3" max="5" step="0.1" onfocus={onBeforeChange}
         class="w-full bg-slate-700 text-slate-200 text-xs rounded px-2 py-1 border border-slate-600 focus:border-slate-400 outline-none" />
     </div>
     <div>
       <label class="text-[10px] text-slate-400 block mb-0.5">Board thickness</label>
-      <input type="number" bind:value={boardThickness} min="0.5" max="5" step="0.1"
+      <input type="number" bind:value={boardThickness} min="0.5" max="5" step="0.1" onfocus={onBeforeChange}
         class="w-full bg-slate-700 text-slate-200 text-xs rounded px-2 py-1 border border-slate-600 focus:border-slate-400 outline-none" />
     </div>
   </div>

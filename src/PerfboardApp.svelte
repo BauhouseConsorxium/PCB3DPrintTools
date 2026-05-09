@@ -18,6 +18,54 @@
 
   let doc = $state(createDefaultDocument())
 
+  // Undo/redo
+  const MAX_UNDO = 50
+  let undoStack = $state([])
+  let redoStack = $state([])
+
+  function cloneDoc() {
+    return JSON.parse(JSON.stringify(doc))
+  }
+
+  function pushUndo() {
+    const snapshot = cloneDoc()
+    if (undoStack.length > 0 && JSON.stringify(undoStack[undoStack.length - 1]) === JSON.stringify(snapshot)) {
+      return
+    }
+    undoStack = [...undoStack.slice(-(MAX_UNDO - 1)), snapshot]
+    redoStack = []
+  }
+
+  function undo() {
+    const current = cloneDoc()
+    const currentStr = JSON.stringify(current)
+    while (undoStack.length > 0) {
+      const prev = undoStack[undoStack.length - 1]
+      undoStack = undoStack.slice(0, -1)
+      if (JSON.stringify(prev) !== currentStr) {
+        redoStack = [...redoStack, current]
+        doc = prev
+        selectedId = null
+        return
+      }
+    }
+  }
+
+  function redo() {
+    const current = cloneDoc()
+    const currentStr = JSON.stringify(current)
+    while (redoStack.length > 0) {
+      const next = redoStack[redoStack.length - 1]
+      redoStack = redoStack.slice(0, -1)
+      if (JSON.stringify(next) !== currentStr) {
+        undoStack = [...undoStack, current]
+        doc = next
+        selectedId = null
+        return
+      }
+    }
+  }
+
   let cols = $derived(doc.grid.cols)
   let rows = $derived(doc.grid.rows)
 
@@ -30,6 +78,7 @@
   function setGridRows(v) { doc.grid.rows = Math.max(2, Math.min(40, Number(v) || 2)) }
 
   function addPad(col, row) {
+    pushUndo()
     const exists = doc.pads.find(p => p.col === col && p.row === row)
     if (exists) {
       doc.pads = doc.pads.filter(p => p.id !== exists.id)
@@ -39,11 +88,13 @@
   }
 
   function addHeader(col, row, count, orientation) {
+    pushUndo()
     doc.headers = [...doc.headers, { id: crypto.randomUUID(), col, row, count, orientation }]
   }
 
   function addTrace(points) {
     if (points.length < 2) return
+    pushUndo()
     doc.traces = [...doc.traces, { id: crypto.randomUUID(), points, width: doc.traceWidth }]
   }
 
@@ -53,20 +104,24 @@
   ]
 
   function addJumper(col1, row1, col2, row2) {
+    pushUndo()
     const color = WIRE_COLORS[Math.floor(Math.random() * WIRE_COLORS.length)]
     doc.jumpers = [...doc.jumpers, { id: crypto.randomUUID(), col1, row1, col2, row2, color }]
   }
 
   function updateJumperColor(id, color) {
+    pushUndo()
     const j = doc.jumpers.find(j => j.id === id)
     if (j) { j.color = color; doc.jumpers = [...doc.jumpers] }
   }
 
   function addAnnotation(col, row) {
+    pushUndo()
     doc.annotations = [...doc.annotations, { id: crypto.randomUUID(), col, row, text: annotationText, color: annotationColor }]
   }
 
   function updateAnnotation(id, text, color) {
+    pushUndo()
     if (!text.trim()) {
       doc.annotations = doc.annotations.filter(a => a.id !== id)
       if (selectedId === id) selectedId = null
@@ -81,6 +136,7 @@
   }
 
   function moveElement(id, dc, dr) {
+    pushUndo()
     const pad = doc.pads.find(p => p.id === id)
     if (pad) { pad.col += dc; pad.row += dr; doc.pads = [...doc.pads]; return }
     const header = doc.headers.find(h => h.id === id)
@@ -94,6 +150,7 @@
   }
 
   function removeElement(id) {
+    pushUndo()
     doc.pads = doc.pads.filter(p => p.id !== id)
     doc.headers = doc.headers.filter(h => h.id !== id)
     doc.traces = doc.traces.filter(t => t.id !== id)
@@ -134,6 +191,7 @@
   }
 
   function loadFromSlot(entry) {
+    pushUndo()
     entry.doc.jumpers = entry.doc.jumpers ?? []
     entry.doc.annotations = entry.doc.annotations ?? []
     doc = entry.doc
@@ -163,6 +221,7 @@
       try {
         const parsed = JSON.parse(reader.result)
         if (parsed.version !== 1 || !parsed.grid) { alert('Invalid perfboard file'); return }
+        pushUndo()
         parsed.jumpers = parsed.jumpers ?? []
         parsed.annotations = parsed.annotations ?? []
         doc = parsed
@@ -182,6 +241,7 @@
       const res = await fetch(`${import.meta.env.BASE_URL}examples/${name}`)
       const parsed = await res.json()
       if (parsed.version !== 1 || !parsed.grid) { alert('Invalid example file'); return }
+      pushUndo()
       parsed.jumpers = parsed.jumpers ?? []
       parsed.annotations = parsed.annotations ?? []
       doc = parsed
@@ -190,8 +250,20 @@
   }
 
   function handleKeydown(e) {
+    const isInput = e.target?.tagName === 'INPUT' || e.target?.tagName === 'TEXTAREA'
+    const mod = e.metaKey || e.ctrlKey
+    if (!isInput && mod && e.key === 'z' && !e.shiftKey) {
+      e.preventDefault()
+      undo()
+      return
+    }
+    if (!isInput && mod && ((e.key === 'z' && e.shiftKey) || e.key === 'y')) {
+      e.preventDefault()
+      redo()
+      return
+    }
     if (e.key === 'Delete' || e.key === 'Backspace') {
-      if (selectedId && activeTool === 'select') {
+      if (!isInput && selectedId && activeTool === 'select') {
         removeElement(selectedId)
       }
     }
@@ -221,9 +293,34 @@
       <input
         type="text"
         bind:value={doc.name}
+        onfocus={pushUndo}
         class="bg-slate-700 text-xs text-slate-300 rounded px-2 py-0.5 border border-slate-600 focus:border-slate-400 outline-none w-32"
         placeholder="Project name"
       />
+      <div class="flex items-center gap-0.5 ml-2">
+        <button
+          onclick={undo}
+          disabled={undoStack.length === 0}
+          class="p-1 rounded text-slate-400 hover:text-slate-200 hover:bg-slate-700 transition-colors disabled:opacity-30 disabled:cursor-default disabled:hover:bg-transparent disabled:hover:text-slate-400"
+          title="Undo (Ctrl+Z)"
+        >
+          <svg viewBox="0 0 16 16" class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 7h7a3 3 0 0 1 0 6H8" />
+            <path d="M6 4L3 7l3 3" />
+          </svg>
+        </button>
+        <button
+          onclick={redo}
+          disabled={redoStack.length === 0}
+          class="p-1 rounded text-slate-400 hover:text-slate-200 hover:bg-slate-700 transition-colors disabled:opacity-30 disabled:cursor-default disabled:hover:bg-transparent disabled:hover:text-slate-400"
+          title="Redo (Ctrl+Shift+Z)"
+        >
+          <svg viewBox="0 0 16 16" class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M13 7H6a3 3 0 0 0 0 6h2" />
+            <path d="M10 4l3 3-3 3" />
+          </svg>
+        </button>
+      </div>
     </div>
     <div class="ml-auto">
       <a href="index.html" class="text-[10px] text-slate-500 hover:text-slate-300 transition-colors">
@@ -243,6 +340,7 @@
         bind:drillDiameter={doc.drillDiameter}
         bind:traceWidth={doc.traceWidth}
         bind:boardThickness={doc.boardThickness}
+        onBeforeChange={pushUndo}
       />
 
       <Toolbar {activeTool} onToolChange={(t) => { activeTool = t; selectedId = null }} />
