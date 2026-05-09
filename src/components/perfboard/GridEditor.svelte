@@ -708,6 +708,13 @@
         <circle cx={c * pitch} cy={r * pitch} r={padR} fill="#d4a534" opacity="0.4" />
         <circle cx={c * pitch} cy={r * pitch} r={drillR} fill="#1a1a2e" opacity="0.4" />
       {/each}
+      {@const midC = headerPreview.orientation === 'h' ? (headerPreview.col + (headerPreview.count - 1) / 2) : headerPreview.col}
+      {@const midR = headerPreview.orientation === 'v' ? (headerPreview.row + (headerPreview.count - 1) / 2) : headerPreview.row}
+      <text
+        x={midC * pitch} y={midR * pitch - padR - pitch * 0.15}
+        text-anchor="middle" dominant-baseline="auto"
+        fill="rgba(255,255,255,0.7)" font-size={pitch * 0.55} font-weight="bold"
+      >{headerPreview.count}</text>
     {/if}
 
     <!-- DIP bodies -->
@@ -769,6 +776,11 @@
           <circle cx={(dipPreview.col + i) * pitch} cy={(dipPreview.row + spacing) * pitch} r={drillR} fill="#1a1a2e" opacity="0.4" />
         {/if}
       {/each}
+      <text
+        x={bodyX + bodyW / 2} y={bodyY + bodyH / 2}
+        text-anchor="middle" dominant-baseline="central"
+        fill="rgba(255,255,255,0.7)" font-size={pitch * 0.7} font-weight="bold"
+      >{dipPreview.count * 2}</text>
     {/if}
 
     <!-- Pads -->
