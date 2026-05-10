@@ -179,14 +179,12 @@ export function buildTracesGeometry(segments, drills, layer, zBot, zTop, squareE
       const origP1x = p1x, origP1y = p1y
       let tStart = 0, tEnd = segLen
       for (const d of drills) {
-        if (d.r < hw) continue
         const dlx = d.x, dly = -d.y
         const vx = dlx - origP1x, vy = dly - origP1y
         const projT = vx * ux + vy * uy
         const perpSq = vx * vx + vy * vy - projT * projT
-        const perpDist = Math.sqrt(Math.max(0, perpSq))
-        const inner = hw + perpDist
-        const Rsq = d.r * d.r - inner * inner
+        const perpDistSq = Math.max(0, perpSq)
+        const Rsq = d.r * d.r - perpDistSq
         if (Rsq <= 0) continue
         const R = Math.sqrt(Rsq) + 0.02
         const cutStart = projT - R
