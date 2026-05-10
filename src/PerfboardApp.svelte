@@ -113,6 +113,9 @@
       trace.radius = doc.roundTraceRadius ?? 1.0
       trace.mode = doc.roundTraceMode ?? 'arc'
       trace.passes = doc.roundTracePasses ?? 2
+      trace.teardrop = doc.roundTraceTeardrop ?? false
+      trace.tdHPercent = doc.roundTraceTdHPercent ?? 50
+      trace.tdVPercent = doc.roundTraceTdVPercent ?? 90
     }
     doc.traces = [...doc.traces, trace]
   }
@@ -242,11 +245,14 @@
       trace.radius = trace.radius ?? doc.roundTraceRadius ?? 1.0
       trace.mode = trace.mode ?? doc.roundTraceMode ?? 'arc'
       trace.passes = trace.passes ?? doc.roundTracePasses ?? 2
+      trace.teardrop = trace.teardrop ?? doc.roundTraceTeardrop ?? false
+      trace.tdHPercent = trace.tdHPercent ?? doc.roundTraceTdHPercent ?? 50
+      trace.tdVPercent = trace.tdVPercent ?? doc.roundTraceTdVPercent ?? 90
     }
     doc.traces = [...doc.traces]
   }
 
-  function updateRoundTrace(id, width, radius, mode, passes) {
+  function updateRoundTrace(id, width, radius, mode, passes, teardrop, tdHPercent, tdVPercent) {
     pushUndo()
     const trace = doc.traces.find(t => t.id === id)
     if (trace) {
@@ -254,6 +260,9 @@
       trace.radius = radius
       trace.mode = mode
       trace.passes = passes
+      trace.teardrop = teardrop
+      trace.tdHPercent = tdHPercent
+      trace.tdVPercent = tdVPercent
       doc.traces = [...doc.traces]
     }
   }
@@ -414,6 +423,9 @@
     entry.doc.roundTraceRadius = entry.doc.roundTraceRadius ?? 1.0
     entry.doc.roundTraceMode = entry.doc.roundTraceMode ?? 'arc'
     entry.doc.roundTracePasses = entry.doc.roundTracePasses ?? 2
+    entry.doc.roundTraceTeardrop = entry.doc.roundTraceTeardrop ?? false
+    entry.doc.roundTraceTdHPercent = entry.doc.roundTraceTdHPercent ?? 50
+    entry.doc.roundTraceTdVPercent = entry.doc.roundTraceTdVPercent ?? 90
     doc = entry.doc
     selectedIds = []
   }
@@ -451,6 +463,9 @@
         parsed.roundTraceRadius = parsed.roundTraceRadius ?? 1.0
         parsed.roundTraceMode = parsed.roundTraceMode ?? 'arc'
         parsed.roundTracePasses = parsed.roundTracePasses ?? 2
+        parsed.roundTraceTeardrop = parsed.roundTraceTeardrop ?? false
+        parsed.roundTraceTdHPercent = parsed.roundTraceTdHPercent ?? 50
+        parsed.roundTraceTdVPercent = parsed.roundTraceTdVPercent ?? 90
         doc = parsed
         selectedIds = []
       } catch { alert('Failed to parse file') }
@@ -477,6 +492,9 @@
       parsed.roundTraceRadius = parsed.roundTraceRadius ?? 1.0
       parsed.roundTraceMode = parsed.roundTraceMode ?? 'arc'
       parsed.roundTracePasses = parsed.roundTracePasses ?? 2
+      parsed.roundTraceTeardrop = parsed.roundTraceTeardrop ?? false
+      parsed.roundTraceTdHPercent = parsed.roundTraceTdHPercent ?? 50
+      parsed.roundTraceTdVPercent = parsed.roundTraceTdVPercent ?? 90
       doc = parsed
       selectedIds = []
     } catch { alert('Failed to load example') }
@@ -589,6 +607,9 @@
         bind:roundTraceRadius={doc.roundTraceRadius}
         bind:roundTraceMode={doc.roundTraceMode}
         bind:roundTracePasses={doc.roundTracePasses}
+        bind:roundTraceTeardrop={doc.roundTraceTeardrop}
+        bind:roundTraceTdHPercent={doc.roundTraceTdHPercent}
+        bind:roundTraceTdVPercent={doc.roundTraceTdVPercent}
         bind:boardThickness={doc.boardThickness}
         onBeforeChange={pushUndo}
       />

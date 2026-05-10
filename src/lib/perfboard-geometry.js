@@ -1,7 +1,7 @@
 import earcut from 'earcut'
 import { buildBoardGeometry, buildTracesGeometry, HOLE_N } from './geometry.js'
 import { sampleCatmullRom, sampleCatmullRomWithWidth } from './catmull-rom.js'
-import { computeRoundedCorners, computeSubdivisionRounding, sampleRoundedPath } from './round-trace.js'
+import { computeRoundedCorners, computeSubdivisionRounding, sampleRoundedPath, computeTeardrops } from './round-trace.js'
 
 const PAD_CIRCLE_N = 32
 
@@ -632,6 +632,53 @@ function buildComponentBodies(doc) {
   return bodies
 }
 
+function buildTeardropGeometry(doc, padPositions, zBot, zTop) {
+  const { pitch } = doc.grid
+  const padR = doc.padDiameter / 2
+  const allPos = []
+  const allNrm = []
+  const allIdx = []
+  let offset = 0
+
+  for (const trace of doc.traces) {
+    if (trace.type !== 'roundtrace' || !trace.teardrop) continue
+    const teardrops = computeTeardrops(
+      trace.points, trace.width, pitch, padPositions, padR,
+      trace.tdHPercent ?? 50, trace.tdVPercent ?? 90
+    )
+    for (const td of teardrops) {
+      if (td.outline.length < 3) continue
+      const flat = []
+      for (const p of td.outline) { flat.push(p.x, -p.y) }
+      const indices = earcut(flat)
+      if (indices.length === 0) continue
+
+      const n = td.outline.length
+      for (let i = 0; i < n; i++) {
+        allPos.push(flat[i * 2], flat[i * 2 + 1], zTop)
+        allNrm.push(0, 0, 1)
+      }
+      for (let i = 0; i < n; i++) {
+        allPos.push(flat[i * 2], flat[i * 2 + 1], zBot)
+        allNrm.push(0, 0, -1)
+      }
+      for (let i = 0; i < indices.length; i += 3) {
+        allIdx.push(offset + indices[i], offset + indices[i + 1], offset + indices[i + 2])
+        allIdx.push(offset + n + indices[i + 2], offset + n + indices[i + 1], offset + n + indices[i])
+      }
+      offset += n * 2
+    }
+  }
+
+  if (allPos.length === 0) return null
+  return {
+    name: 'Teardrops_F.Cu',
+    positions: new Float32Array(allPos),
+    normals: new Float32Array(allNrm),
+    indices: new Uint32Array(allIdx)
+  }
+}
+
 export function buildPerfboardBodies(doc) {
   const boardPoly = buildBoardPolygon(doc)
   const padPositions = collectPadPositions(doc)
@@ -653,9 +700,10 @@ export function buildPerfboardBodies(doc) {
     : null
 
   const curveTracesBody = buildCurveTraceGeometry(doc, drills, zBot, zTop)
+  const teardropBody = buildTeardropGeometry(doc, padPositions, zBot, zTop)
 
   const componentBodies = buildComponentBodies(doc)
-  return [boardBody, padsBody, tracesBody, curveTracesBody, ...componentBodies].filter(Boolean)
+  return [boardBody, padsBody, tracesBody, curveTracesBody, teardropBody, ...componentBodies].filter(Boolean)
 }
 
 export function createDefaultDocument() {
@@ -674,6 +722,9 @@ export function createDefaultDocument() {
     roundTraceRadius: 1.0,
     roundTraceMode: 'arc',
     roundTracePasses: 2,
+    roundTraceTeardrop: false,
+    roundTraceTdHPercent: 50,
+    roundTraceTdVPercent: 90,
     pads: [],
     headers: [],
     dips: [],

@@ -1,4 +1,4 @@
-const { PI, sin, cos, acos, atan2, sqrt, min, max, hypot, abs } = Math
+const { PI, sin, cos, acos, asin, atan2, sqrt, min, max, hypot, abs } = Math
 
 function normalize(x, y) {
   const len = hypot(x, y)
@@ -273,4 +273,153 @@ function circumCenter(x1, y1, x2, y2, x3, y3) {
   const ux = ((ax * ax + ay * ay) * (by - cy) + (bx * bx + by * by) * (cy - ay) + (cx * cx + cy * cy) * (ay - by)) / D
   const uy = ((ax * ax + ay * ay) * (cx - bx) + (bx * bx + by * by) * (ax - cx) + (cx * cx + cy * cy) * (bx - ax)) / D
   return { cx: ux, cy: uy }
+}
+
+function cubicBezier(p1, p2, p3, p4, n) {
+  const pts = []
+  for (let i = 0; i <= n; i++) {
+    const t = i / n
+    const a = (1 - t) ** 3
+    const b = 3 * t * (1 - t) ** 2
+    const c = 3 * t * t * (1 - t)
+    const d = t ** 3
+    pts.push({
+      x: a * p1.x + b * p2.x + c * p3.x + d * p4.x,
+      y: a * p1.y + b * p2.y + c * p3.y + d * p4.y
+    })
+  }
+  return pts
+}
+
+/**
+ * Compute teardrop shapes where trace endpoints meet pads.
+ * Adapts the KiCad teardrop plugin by Niluje/svofski/mitxela.
+ *
+ * @param {Array<{col, row}>} points - Trace waypoints
+ * @param {number} width - Trace width in mm
+ * @param {number} pitch - Grid pitch in mm
+ * @param {Array<{x, y}>} padPositions - Pad center positions in world coords
+ * @param {number} padR - Pad radius in mm
+ * @param {number} hPercent - Teardrop length as % of pad diameter (default 50)
+ * @param {number} vPercent - Teardrop width as % of pad radius (default 90)
+ * @param {number} segs - Bezier curve segments (default 10)
+ * @returns {Array<{outline: Array<{x,y}>, svgPath: string}>} Teardrop shapes
+ */
+export function computeTeardrops(points, width, pitch, padPositions, padR, hPercent = 50, vPercent = 90, segs = 10) {
+  if (points.length < 2 || padPositions.length === 0) return []
+
+  const pts = points.map(p => ({ x: p.col * pitch, y: p.row * pitch }))
+  const hw = width / 2
+  const teardrops = []
+  const TOL = 0.05
+
+  function findPadAt(x, y) {
+    for (const p of padPositions) {
+      if (hypot(p.x - x, p.y - y) < TOL) return p
+    }
+    return null
+  }
+
+  function buildTeardrop(endPt, nextPt, padCenter) {
+    const vecX = nextPt.x - endPt.x
+    const vecY = nextPt.y - endPt.y
+    const vecLen = hypot(vecX, vecY)
+    if (vecLen < 1e-6) return null
+
+    const vx = vecX / vecLen, vy = vecY / vecLen
+
+    // walk from pad center along track direction to find pad edge intersection
+    let backoff = 0
+    const step = 0.01
+    while (backoff < padR) {
+      const px = endPt.x + vx * backoff
+      const py = endPt.y + vy * backoff
+      if (hypot(px - padCenter.x, py - padCenter.y) >= padR) break
+      backoff += step
+    }
+    const startX = endPt.x + vx * backoff
+    const startY = endPt.y + vy * backoff
+
+    // vec from pad center to pad-edge start
+    const auxX = startX - padCenter.x
+    const auxY = startY - padCenter.y
+    const auxLen = hypot(auxX, auxY) || 1
+    const ax = auxX / auxLen, ay = auxY / auxLen
+
+    // teardrop length
+    const targetLen = padR * 2 * (hPercent / 100)
+    const n = min(targetLen, vecLen - backoff)
+    if (n < 0.05) return null
+
+    // sharp end points (A and B) on either side of the track
+    const sharpX = startX + vx * n
+    const sharpY = startY + vy * n
+    const pointA = { x: sharpX - vy * hw, y: sharpY + vx * hw }
+    const pointB = { x: sharpX + vy * hw, y: sharpY - vx * hw }
+
+    // pad-edge points (C and E)
+    const dC = asin(min(1, vPercent / 100))
+    const dE = -dC
+    const vecCx = ax * cos(dC) + ay * sin(dC)
+    const vecCy = -ax * sin(dC) + ay * cos(dC)
+    const vecEx = ax * cos(dE) + ay * sin(dE)
+    const vecEy = -ax * sin(dE) + ay * cos(dE)
+    const pointC = { x: padCenter.x + vecCx * padR, y: padCenter.y + vecCy * padR }
+    const pointE = { x: padCenter.x + vecEx * padR, y: padCenter.y + vecEy * padR }
+
+    // point behind pad center
+    const pointD = { x: padCenter.x + ax * -0.5 * padR, y: padCenter.y + ay * -0.5 * padR }
+
+    if (segs <= 2) {
+      const outline = [pointA, pointB, pointC, pointD, pointE]
+      return { outline, svgPath: outlineToSVG(outline) }
+    }
+
+    // curved teardrops with cubic Bezier
+    const minVp = (hw * 2) / (padR * 2)
+    const weaken = (vPercent / 100 - minVp) / (1 - minVp) / padR
+
+    const biasBC = 0.5 * hypot(pointB.x - pointC.x, pointB.y - pointC.y)
+    const biasAE = 0.5 * hypot(pointE.x - pointA.x, pointE.y - pointA.y)
+
+    const rCx = pointC.x - padCenter.x, rCy = pointC.y - padCenter.y
+    const tangentC = { x: pointC.x - rCy * biasBC * weaken, y: pointC.y + rCx * biasBC * weaken }
+    const rEx = pointE.x - padCenter.x, rEy = pointE.y - padCenter.y
+    const tangentE = { x: pointE.x + rEy * biasAE * weaken, y: pointE.y - rEx * biasAE * weaken }
+
+    const tangentB = { x: pointB.x - vx * biasBC, y: pointB.y - vy * biasBC }
+    const tangentA = { x: pointA.x - vx * biasAE, y: pointA.y - vy * biasAE }
+
+    const curve1 = cubicBezier(pointB, tangentB, tangentC, pointC, segs)
+    const curve2 = cubicBezier(pointE, tangentE, tangentA, pointA, segs)
+
+    const outline = [...curve1, pointD, ...curve2]
+    return { outline, svgPath: outlineToSVG(outline) }
+  }
+
+  // check first endpoint
+  const firstPad = findPadAt(pts[0].x, pts[0].y)
+  if (firstPad) {
+    const td = buildTeardrop(pts[0], pts[1], firstPad)
+    if (td) teardrops.push(td)
+  }
+
+  // check last endpoint
+  const lastPad = findPadAt(pts[pts.length - 1].x, pts[pts.length - 1].y)
+  if (lastPad) {
+    const td = buildTeardrop(pts[pts.length - 1], pts[pts.length - 2], lastPad)
+    if (td) teardrops.push(td)
+  }
+
+  return teardrops
+}
+
+function outlineToSVG(outline) {
+  if (outline.length === 0) return ''
+  let d = `M${outline[0].x} ${outline[0].y}`
+  for (let i = 1; i < outline.length; i++) {
+    d += `L${outline[i].x} ${outline[i].y}`
+  }
+  d += 'Z'
+  return d
 }

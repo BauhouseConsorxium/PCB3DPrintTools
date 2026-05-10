@@ -11,6 +11,9 @@
     roundTraceRadius = $bindable(1.0),
     roundTraceMode = $bindable('arc'),
     roundTracePasses = $bindable(2),
+    roundTraceTeardrop = $bindable(false),
+    roundTraceTdHPercent = $bindable(50),
+    roundTraceTdVPercent = $bindable(90),
     boardThickness = $bindable(1.6),
     onBeforeChange = () => {},
   } = $props()
@@ -99,5 +102,24 @@
         >Subdivision</button>
       </div>
     </div>
+    <div class="col-span-2">
+      <label class="text-[10px] text-purple-light flex items-center gap-1.5 cursor-pointer">
+        <input type="checkbox" bind:checked={roundTraceTeardrop} onclick={onBeforeChange}
+          class="accent-accent" />
+        Teardrop pads
+      </label>
+    </div>
+    {#if roundTraceTeardrop}
+      <div>
+        <label class="text-[10px] text-purple-light block mb-0.5">TD length %</label>
+        <input type="number" bind:value={roundTraceTdHPercent} min="10" max="100" step="5" onfocus={onBeforeChange}
+          class="w-full bg-surface-2 text-cyan-light text-xs rounded-lg px-2 py-1 border-2 border-black focus:border-accent outline-none shadow-[2px_2px_0_black]" />
+      </div>
+      <div>
+        <label class="text-[10px] text-purple-light block mb-0.5">TD width %</label>
+        <input type="number" bind:value={roundTraceTdVPercent} min="10" max="100" step="5" onfocus={onBeforeChange}
+          class="w-full bg-surface-2 text-cyan-light text-xs rounded-lg px-2 py-1 border-2 border-black focus:border-accent outline-none shadow-[2px_2px_0_black]" />
+      </div>
+    {/if}
   </div>
 </div>

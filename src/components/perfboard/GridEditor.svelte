@@ -1,7 +1,7 @@
 <script>
   import { onMount, tick } from 'svelte'
   import { catmullRomSVGPath, sampleCatmullRom, variableWidthOutlinePath } from '../../lib/catmull-rom.js'
-  import { computeRoundedCorners, computeSubdivisionRounding, roundedPathToSVG } from '../../lib/round-trace.js'
+  import { computeRoundedCorners, computeSubdivisionRounding, roundedPathToSVG, computeTeardrops } from '../../lib/round-trace.js'
 
   let {
     doc,
@@ -697,6 +697,9 @@
           radius: trace.radius ?? 1.0,
           mode: trace.mode ?? 'arc',
           passes: trace.passes ?? 2,
+          teardrop: trace.teardrop ?? false,
+          tdHPercent: trace.tdHPercent ?? 50,
+          tdVPercent: trace.tdVPercent ?? 90,
           left: e.clientX - rect.left,
           top: e.clientY - rect.top - 20
         }
@@ -790,7 +793,7 @@
 
   function applyRoundTraceEdit() {
     if (!editingRoundTrace) return
-    onUpdateRoundTrace(editingRoundTrace.id, editingRoundTrace.width, editingRoundTrace.radius, editingRoundTrace.mode, editingRoundTrace.passes)
+    onUpdateRoundTrace(editingRoundTrace.id, editingRoundTrace.width, editingRoundTrace.radius, editingRoundTrace.mode, editingRoundTrace.passes, editingRoundTrace.teardrop, editingRoundTrace.tdHPercent, editingRoundTrace.tdVPercent)
   }
 
   function closeRoundTraceEdit() {
@@ -933,6 +936,24 @@
 
   const padR = $derived(doc.padDiameter / 2)
   const drillR = $derived(doc.drillDiameter / 2)
+
+  const allPadPositions = $derived.by(() => {
+    const positions = []
+    for (const p of doc.pads) {
+      positions.push({ x: p.col * pitch, y: p.row * pitch })
+    }
+    for (const h of doc.headers) {
+      for (const hp of getHeaderPads(h)) {
+        positions.push({ x: hp.col * pitch, y: hp.row * pitch })
+      }
+    }
+    for (const d of (doc.dips || [])) {
+      for (const dp of getDipPads(d)) {
+        positions.push({ x: dp.col * pitch, y: dp.row * pitch })
+      }
+    }
+    return positions
+  })
 </script>
 
 <svelte:window onkeydown={handleKeydown} />
@@ -1073,6 +1094,7 @@
           ? computeSubdivisionRounding(trace.points, trace.radius ?? 1.0, trace.passes ?? 2, pitch)
           : computeRoundedCorners(trace.points, trace.radius ?? 1.0, pitch)}
         {@const d = roundedPathToSVG(pathSegs)}
+        {@const teardrops = trace.teardrop ? computeTeardrops(trace.points, trace.width, pitch, allPadPositions, padR, trace.tdHPercent ?? 50, trace.tdVPercent ?? 90) : []}
         {#if d}
           {#if isSelected}
             <path {d}
@@ -1087,6 +1109,13 @@
             stroke-linecap="round" stroke-linejoin="round" fill="none"
             opacity={isSelected ? 1 : 0.85}
           />
+          {#each teardrops as td}
+            <path d={td.svgPath}
+              fill={isSelected ? '#fbbf24' : '#f5c842'}
+              opacity={isSelected ? 0.9 : 0.75}
+              stroke="none"
+            />
+          {/each}
         {/if}
         {#if isSelected}
           <!-- Control polygon -->
@@ -1925,6 +1954,36 @@
             min="1" max="5" step="1"
             class="w-28"
             oninput={(e) => { editingRoundTrace = { ...editingRoundTrace, passes: parseInt(e.target.value) || 2 }; applyRoundTraceEdit() }}
+          />
+        </div>
+      {/if}
+      <div class="border-t border-black/30 pt-1.5 mt-1">
+        <label class="text-[10px] text-purple-light flex items-center gap-1.5 cursor-pointer">
+          <input type="checkbox" checked={editingRoundTrace.teardrop}
+            onchange={(e) => { editingRoundTrace = { ...editingRoundTrace, teardrop: e.target.checked }; applyRoundTraceEdit() }}
+            class="accent-accent" />
+          Teardrop
+        </label>
+      </div>
+      {#if editingRoundTrace.teardrop}
+        <div>
+          <label class="text-[10px] text-purple-light block mb-0.5">Length % ({editingRoundTrace.tdHPercent})</label>
+          <input
+            type="range"
+            value={editingRoundTrace.tdHPercent}
+            min="10" max="100" step="5"
+            class="w-28"
+            oninput={(e) => { editingRoundTrace = { ...editingRoundTrace, tdHPercent: parseInt(e.target.value) || 50 }; applyRoundTraceEdit() }}
+          />
+        </div>
+        <div>
+          <label class="text-[10px] text-purple-light block mb-0.5">Width % ({editingRoundTrace.tdVPercent})</label>
+          <input
+            type="range"
+            value={editingRoundTrace.tdVPercent}
+            min="10" max="100" step="5"
+            class="w-28"
+            oninput={(e) => { editingRoundTrace = { ...editingRoundTrace, tdVPercent: parseInt(e.target.value) || 90 }; applyRoundTraceEdit() }}
           />
         </div>
       {/if}
