@@ -1,26 +1,8 @@
 <script>
   import { untrack } from 'svelte'
+  import { isCopper, isPcbBoard, isSilkscreen, isComponent } from '../lib/viewer-predicates.js'
 
   let { bodies = [], visibility = {}, ontoggle, ontogglegroup } = $props()
-
-  function isCopper(name) {
-    const n = name.toLowerCase()
-    return n.includes('copper') || n.includes('.cu') || n.includes('_cu')
-  }
-
-  function isPcbBoard(name) {
-    const n = name.toLowerCase()
-    return !isCopper(name) && (n.includes('_pcb') || n.endsWith('pcb'))
-  }
-
-  function isSilkscreen(name) {
-    const n = name.toLowerCase()
-    return n.includes('silks')
-  }
-
-  function isComponent(name) {
-    return !isCopper(name) && !isPcbBoard(name) && !isSilkscreen(name)
-  }
 
   const groups = $derived((() => {
     const copperBodies    = bodies.filter(b => isCopper(b.name))
