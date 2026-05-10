@@ -1029,7 +1029,7 @@
             silkPolylines={null}
             copperTextPolylines={null}
             boardThickness={doc.boardThickness}
-            showDimensions={false}
+            showDimensions={true}
           />
         </div>
       </div>
