@@ -1,529 +1,664 @@
 <script>
-  import { untrack } from 'svelte'
-  import Viewer3D from './components/Viewer3D.svelte'
-  import Toolbar from './components/perfboard/Toolbar.svelte'
-  import BoardSettings from './components/perfboard/BoardSettings.svelte'
-  import PerfboardExportPanel from './components/perfboard/PerfboardExportPanel.svelte'
-  import GridEditor from './components/perfboard/GridEditor.svelte'
-  import { buildPerfboardBodies, createDefaultDocument } from './lib/perfboard-geometry.js'
+  import { untrack } from "svelte";
+  import Viewer3D from "./components/Viewer3D.svelte";
+  import Toolbar from "./components/perfboard/Toolbar.svelte";
+  import BoardSettings from "./components/perfboard/BoardSettings.svelte";
+  import PerfboardExportPanel from "./components/perfboard/PerfboardExportPanel.svelte";
+  import GridEditor from "./components/perfboard/GridEditor.svelte";
+  import {
+    buildPerfboardBodies,
+    createDefaultDocument,
+  } from "./lib/perfboard-geometry.js";
 
-  let viewer
-  let showIntro = $state(!localStorage.getItem('perfboard-intro-seen'))
-  let activeTab = $state('editor')
-  let activeTool = $state('select')
-  let selectedIds = $state([])
-  let zScale = $state(8)
-  let boardZScale = $state(1)
-  let annotationText = $state('VCC')
-  let annotationColor = $state('#ff2d95')
+  let viewer;
+  let showIntro = $state(!localStorage.getItem("perfboard-intro-seen"));
+  let activeTab = $state("editor");
+  let activeTool = $state("select");
+  let selectedIds = $state([]);
+  let zScale = $state(8);
+  let boardZScale = $state(1);
+  let annotationText = $state("VCC");
+  let annotationColor = $state("#ff2d95");
 
-  let doc = $state(createDefaultDocument())
+  let doc = $state(createDefaultDocument());
 
   // Undo/redo
-  const MAX_UNDO = 50
-  let undoStack = $state([])
-  let redoStack = $state([])
+  const MAX_UNDO = 50;
+  let undoStack = $state([]);
+  let redoStack = $state([]);
 
   function cloneDoc() {
-    return JSON.parse(JSON.stringify(doc))
+    return JSON.parse(JSON.stringify(doc));
   }
 
   function pushUndo() {
-    const snapshot = cloneDoc()
-    if (undoStack.length > 0 && JSON.stringify(undoStack[undoStack.length - 1]) === JSON.stringify(snapshot)) {
-      return
+    const snapshot = cloneDoc();
+    if (
+      undoStack.length > 0 &&
+      JSON.stringify(undoStack[undoStack.length - 1]) ===
+        JSON.stringify(snapshot)
+    ) {
+      return;
     }
-    undoStack = [...undoStack.slice(-(MAX_UNDO - 1)), snapshot]
-    redoStack = []
+    undoStack = [...undoStack.slice(-(MAX_UNDO - 1)), snapshot];
+    redoStack = [];
   }
 
   function undo() {
-    const current = cloneDoc()
-    const currentStr = JSON.stringify(current)
+    const current = cloneDoc();
+    const currentStr = JSON.stringify(current);
     while (undoStack.length > 0) {
-      const prev = undoStack[undoStack.length - 1]
-      undoStack = undoStack.slice(0, -1)
+      const prev = undoStack[undoStack.length - 1];
+      undoStack = undoStack.slice(0, -1);
       if (JSON.stringify(prev) !== currentStr) {
-        redoStack = [...redoStack, current]
-        doc = prev
-        selectedIds = []
-        return
+        redoStack = [...redoStack, current];
+        doc = prev;
+        selectedIds = [];
+        return;
       }
     }
   }
 
   function redo() {
-    const current = cloneDoc()
-    const currentStr = JSON.stringify(current)
+    const current = cloneDoc();
+    const currentStr = JSON.stringify(current);
     while (redoStack.length > 0) {
-      const next = redoStack[redoStack.length - 1]
-      redoStack = redoStack.slice(0, -1)
+      const next = redoStack[redoStack.length - 1];
+      redoStack = redoStack.slice(0, -1);
       if (JSON.stringify(next) !== currentStr) {
-        undoStack = [...undoStack, current]
-        doc = next
-        selectedIds = []
-        return
+        undoStack = [...undoStack, current];
+        doc = next;
+        selectedIds = [];
+        return;
       }
     }
   }
 
-  let cols = $derived(doc.grid.cols)
-  let rows = $derived(doc.grid.rows)
+  let cols = $derived(doc.grid.cols);
+  let rows = $derived(doc.grid.rows);
 
-  const perfboardBodies = $derived(buildPerfboardBodies(doc))
+  const perfboardBodies = $derived(buildPerfboardBodies(doc));
   const bodyVisibility = $derived(
-    Object.fromEntries(perfboardBodies.map(b => [b.name, true]))
-  )
+    Object.fromEntries(perfboardBodies.map((b) => [b.name, true])),
+  );
 
-  function setGridCols(v) { doc.grid.cols = Math.max(2, Math.min(40, Number(v) || 2)) }
-  function setGridRows(v) { doc.grid.rows = Math.max(2, Math.min(40, Number(v) || 2)) }
+  function setGridCols(v) {
+    doc.grid.cols = Math.max(2, Math.min(40, Number(v) || 2));
+  }
+  function setGridRows(v) {
+    doc.grid.rows = Math.max(2, Math.min(40, Number(v) || 2));
+  }
 
   function addPad(col, row) {
-    pushUndo()
-    const exists = doc.pads.find(p => p.col === col && p.row === row)
+    pushUndo();
+    const exists = doc.pads.find((p) => p.col === col && p.row === row);
     if (exists) {
-      doc.pads = doc.pads.filter(p => p.id !== exists.id)
-      return
+      doc.pads = doc.pads.filter((p) => p.id !== exists.id);
+      return;
     }
-    doc.pads = [...doc.pads, { id: crypto.randomUUID(), col, row }]
+    doc.pads = [...doc.pads, { id: crypto.randomUUID(), col, row }];
   }
 
   function addHeader(col, row, count, orientation) {
-    pushUndo()
-    doc.headers = [...doc.headers, { id: crypto.randomUUID(), col, row, count, orientation }]
+    pushUndo();
+    doc.headers = [
+      ...doc.headers,
+      { id: crypto.randomUUID(), col, row, count, orientation },
+    ];
   }
 
   function addDip(col, row, count, orientation) {
-    pushUndo()
-    doc.dips = [...(doc.dips || []), { id: crypto.randomUUID(), col, row, count, orientation, rowSpacing: 3 }]
+    pushUndo();
+    doc.dips = [
+      ...(doc.dips || []),
+      { id: crypto.randomUUID(), col, row, count, orientation, rowSpacing: 3 },
+    ];
   }
 
   function addTrace(points, type) {
-    if (points.length < 2) return
-    pushUndo()
-    const trace = { id: crypto.randomUUID(), points, width: doc.traceWidth }
-    if (type) trace.type = type
-    if (type === 'curve') {
-      trace.endWidth = doc.curveEndWidth ?? doc.traceWidth
-      trace.endWidth2 = doc.curveEndWidth2 ?? trace.endWidth
-      trace.taperDistance = doc.curveTaperDistance ?? 0
-      trace.tension = 0.5
+    if (points.length < 2) return;
+    pushUndo();
+    const trace = { id: crypto.randomUUID(), points, width: doc.traceWidth };
+    if (type) trace.type = type;
+    if (type === "curve") {
+      trace.endWidth = doc.curveEndWidth ?? doc.traceWidth;
+      trace.endWidth2 = doc.curveEndWidth2 ?? trace.endWidth;
+      trace.taperDistance = doc.curveTaperDistance ?? 0;
+      trace.tension = 0.5;
     }
-    if (type === 'roundtrace') {
-      trace.radius = doc.roundTraceRadius ?? 1.0
-      trace.mode = doc.roundTraceMode ?? 'arc'
-      trace.passes = doc.roundTracePasses ?? 2
-      trace.teardrop = doc.roundTraceTeardrop ?? false
-      trace.tdHPercent = doc.roundTraceTdHPercent ?? 50
-      trace.tdVPercent = doc.roundTraceTdVPercent ?? 90
+    if (type === "roundtrace") {
+      trace.radius = doc.roundTraceRadius ?? 1.0;
+      trace.mode = doc.roundTraceMode ?? "arc";
+      trace.passes = doc.roundTracePasses ?? 2;
+      trace.teardrop = doc.roundTraceTeardrop ?? false;
+      trace.tdHPercent = doc.roundTraceTdHPercent ?? 50;
+      trace.tdVPercent = doc.roundTraceTdVPercent ?? 90;
     }
-    doc.traces = [...doc.traces, trace]
+    doc.traces = [...doc.traces, trace];
   }
 
   const WIRE_COLORS = [
-    '#ff2d95', '#ff6bcb', '#00f0ff', '#7df9ff', '#a855f7',
-    '#c084fc', '#a3e635', '#fbbf24', '#f0f0f0', '#84cc16',
-  ]
+    "#ff2d95",
+    "#ff6bcb",
+    "#00f0ff",
+    "#7df9ff",
+    "#a855f7",
+    "#c084fc",
+    "#a3e635",
+    "#fbbf24",
+    "#f0f0f0",
+    "#84cc16",
+  ];
 
   function addJumper(col1, row1, col2, row2) {
-    pushUndo()
-    const color = WIRE_COLORS[Math.floor(Math.random() * WIRE_COLORS.length)]
-    doc.jumpers = [...doc.jumpers, { id: crypto.randomUUID(), col1, row1, col2, row2, color }]
+    pushUndo();
+    const color = WIRE_COLORS[Math.floor(Math.random() * WIRE_COLORS.length)];
+    doc.jumpers = [
+      ...doc.jumpers,
+      { id: crypto.randomUUID(), col1, row1, col2, row2, color },
+    ];
   }
 
   function updateJumperColor(id, color) {
-    pushUndo()
-    const j = doc.jumpers.find(j => j.id === id)
-    if (j) { j.color = color; doc.jumpers = [...doc.jumpers] }
-  }
-
-  function updateHeaderLabels(id, labels) {
-    pushUndo()
-    const header = doc.headers.find(h => h.id === id)
-    if (header) { header.labels = labels; doc.headers = [...doc.headers] }
-  }
-
-  function updatePadLabel(id, label) {
-    pushUndo()
-    const pad = doc.pads.find(p => p.id === id)
-    if (pad) { pad.label = label; doc.pads = [...doc.pads] }
-  }
-
-  function updateDip(id, label, socket) {
-    pushUndo()
-    const dip = (doc.dips || []).find(d => d.id === id)
-    if (dip) { dip.label = label; dip.socket = socket; doc.dips = [...(doc.dips || [])] }
-  }
-
-  function updateTraceWidth(id, width) {
-    pushUndo()
-    const trace = doc.traces.find(t => t.id === id)
-    if (trace) {
-      trace.width = width
-      doc.traces = [...doc.traces]
+    pushUndo();
+    const j = doc.jumpers.find((j) => j.id === id);
+    if (j) {
+      j.color = color;
+      doc.jumpers = [...doc.jumpers];
     }
   }
 
-  function updateCurve(id, width, endWidth, taperDistance, tension, endWidth2, freeform) {
-    pushUndo()
-    const trace = doc.traces.find(t => t.id === id)
+  function updateHeaderLabels(id, labels) {
+    pushUndo();
+    const header = doc.headers.find((h) => h.id === id);
+    if (header) {
+      header.labels = labels;
+      doc.headers = [...doc.headers];
+    }
+  }
+
+  function updatePadLabel(id, label) {
+    pushUndo();
+    const pad = doc.pads.find((p) => p.id === id);
+    if (pad) {
+      pad.label = label;
+      doc.pads = [...doc.pads];
+    }
+  }
+
+  function updateDip(id, label, socket) {
+    pushUndo();
+    const dip = (doc.dips || []).find((d) => d.id === id);
+    if (dip) {
+      dip.label = label;
+      dip.socket = socket;
+      doc.dips = [...(doc.dips || [])];
+    }
+  }
+
+  function updateTraceWidth(id, width) {
+    pushUndo();
+    const trace = doc.traces.find((t) => t.id === id);
     if (trace) {
-      trace.width = width
-      trace.endWidth = endWidth
-      trace.endWidth2 = endWidth2 ?? endWidth
-      trace.taperDistance = taperDistance
-      trace.tension = tension
-      trace.freeform = !!freeform
-      doc.traces = [...doc.traces]
+      trace.width = width;
+      doc.traces = [...doc.traces];
+    }
+  }
+
+  function updateCurve(
+    id,
+    width,
+    endWidth,
+    taperDistance,
+    tension,
+    endWidth2,
+    freeform,
+  ) {
+    pushUndo();
+    const trace = doc.traces.find((t) => t.id === id);
+    if (trace) {
+      trace.width = width;
+      trace.endWidth = endWidth;
+      trace.endWidth2 = endWidth2 ?? endWidth;
+      trace.taperDistance = taperDistance;
+      trace.tension = tension;
+      trace.freeform = !!freeform;
+      doc.traces = [...doc.traces];
     }
   }
 
   function moveControlPoint(traceId, pointIndex, dc, dr) {
-    pushUndo()
-    const trace = doc.traces.find(t => t.id === traceId)
+    pushUndo();
+    const trace = doc.traces.find((t) => t.id === traceId);
     if (trace && trace.points[pointIndex]) {
-      trace.points[pointIndex].col += dc
-      trace.points[pointIndex].row += dr
-      doc.traces = [...doc.traces]
+      trace.points[pointIndex].col += dc;
+      trace.points[pointIndex].row += dr;
+      doc.traces = [...doc.traces];
     }
   }
 
   function moveJumperEndpoint(jumperId, endpoint, dc, dr) {
-    pushUndo()
-    const j = doc.jumpers.find(j => j.id === jumperId)
-    if (!j) return
-    if (endpoint === 1) { j.col1 += dc; j.row1 += dr }
-    else { j.col2 += dc; j.row2 += dr }
-    doc.jumpers = [...doc.jumpers]
+    pushUndo();
+    const j = doc.jumpers.find((j) => j.id === jumperId);
+    if (!j) return;
+    if (endpoint === 1) {
+      j.col1 += dc;
+      j.row1 += dr;
+    } else {
+      j.col2 += dc;
+      j.row2 += dr;
+    }
+    doc.jumpers = [...doc.jumpers];
   }
 
   function deleteControlPoint(traceId, pointIndex) {
-    const trace = doc.traces.find(t => t.id === traceId)
-    if (!trace || trace.points.length <= 2) return
-    pushUndo()
-    trace.points = trace.points.filter((_, i) => i !== pointIndex)
-    doc.traces = [...doc.traces]
+    const trace = doc.traces.find((t) => t.id === traceId);
+    if (!trace || trace.points.length <= 2) return;
+    pushUndo();
+    trace.points = trace.points.filter((_, i) => i !== pointIndex);
+    doc.traces = [...doc.traces];
   }
 
   function subdivideCurve(traceId) {
-    const trace = doc.traces.find(t => t.id === traceId)
-    if (!trace || trace.points.length < 2) return
-    pushUndo()
-    const newPoints = [trace.points[0]]
+    const trace = doc.traces.find((t) => t.id === traceId);
+    if (!trace || trace.points.length < 2) return;
+    pushUndo();
+    const newPoints = [trace.points[0]];
     for (let i = 0; i < trace.points.length - 1; i++) {
-      const a = trace.points[i], b = trace.points[i + 1]
+      const a = trace.points[i],
+        b = trace.points[i + 1];
       newPoints.push({
         col: (a.col + b.col) / 2,
-        row: (a.row + b.row) / 2
-      })
-      newPoints.push(b)
+        row: (a.row + b.row) / 2,
+      });
+      newPoints.push(b);
     }
-    trace.points = newPoints
-    doc.traces = [...doc.traces]
+    trace.points = newPoints;
+    doc.traces = [...doc.traces];
   }
 
   function meltTraces(ids) {
-    const targets = doc.traces.filter(t => ids.includes(t.id) && t.type !== 'curve')
-    if (targets.length === 0) return
-    pushUndo()
+    const targets = doc.traces.filter(
+      (t) => ids.includes(t.id) && t.type !== "curve",
+    );
+    if (targets.length === 0) return;
+    pushUndo();
     for (const trace of targets) {
-      trace.type = 'curve'
-      trace.endWidth = trace.endWidth ?? doc.curveEndWidth ?? doc.traceWidth
-      trace.endWidth2 = trace.endWidth2 ?? trace.endWidth
-      trace.taperDistance = trace.taperDistance ?? doc.curveTaperDistance ?? 0
-      trace.tension = trace.tension ?? 0.5
+      trace.type = "curve";
+      trace.endWidth = trace.endWidth ?? doc.curveEndWidth ?? doc.traceWidth;
+      trace.endWidth2 = trace.endWidth2 ?? trace.endWidth;
+      trace.taperDistance = trace.taperDistance ?? doc.curveTaperDistance ?? 0;
+      trace.tension = trace.tension ?? 0.5;
     }
-    doc.traces = [...doc.traces]
+    doc.traces = [...doc.traces];
   }
 
   function roundTraces(ids) {
-    const targets = doc.traces.filter(t => ids.includes(t.id) && t.type !== 'roundtrace')
-    if (targets.length === 0) return
-    pushUndo()
+    const targets = doc.traces.filter(
+      (t) => ids.includes(t.id) && t.type !== "roundtrace",
+    );
+    if (targets.length === 0) return;
+    pushUndo();
     for (const trace of targets) {
-      trace.type = 'roundtrace'
-      trace.radius = trace.radius ?? doc.roundTraceRadius ?? 1.0
-      trace.mode = trace.mode ?? doc.roundTraceMode ?? 'arc'
-      trace.passes = trace.passes ?? doc.roundTracePasses ?? 2
-      trace.teardrop = trace.teardrop ?? doc.roundTraceTeardrop ?? false
-      trace.tdHPercent = trace.tdHPercent ?? doc.roundTraceTdHPercent ?? 50
-      trace.tdVPercent = trace.tdVPercent ?? doc.roundTraceTdVPercent ?? 90
+      trace.type = "roundtrace";
+      trace.radius = trace.radius ?? doc.roundTraceRadius ?? 1.0;
+      trace.mode = trace.mode ?? doc.roundTraceMode ?? "arc";
+      trace.passes = trace.passes ?? doc.roundTracePasses ?? 2;
+      trace.teardrop = trace.teardrop ?? doc.roundTraceTeardrop ?? false;
+      trace.tdHPercent = trace.tdHPercent ?? doc.roundTraceTdHPercent ?? 50;
+      trace.tdVPercent = trace.tdVPercent ?? doc.roundTraceTdVPercent ?? 90;
     }
-    doc.traces = [...doc.traces]
+    doc.traces = [...doc.traces];
   }
 
-  function updateRoundTrace(id, width, radius, mode, passes, teardrop, tdHPercent, tdVPercent) {
-    pushUndo()
-    const trace = doc.traces.find(t => t.id === id)
+  function updateRoundTrace(
+    id,
+    width,
+    radius,
+    mode,
+    passes,
+    teardrop,
+    tdHPercent,
+    tdVPercent,
+  ) {
+    pushUndo();
+    const trace = doc.traces.find((t) => t.id === id);
     if (trace) {
-      trace.width = width
-      trace.radius = radius
-      trace.mode = mode
-      trace.passes = passes
-      trace.teardrop = teardrop
-      trace.tdHPercent = tdHPercent
-      trace.tdVPercent = tdVPercent
-      doc.traces = [...doc.traces]
+      trace.width = width;
+      trace.radius = radius;
+      trace.mode = mode;
+      trace.passes = passes;
+      trace.teardrop = teardrop;
+      trace.tdHPercent = tdHPercent;
+      trace.tdVPercent = tdVPercent;
+      doc.traces = [...doc.traces];
     }
   }
 
   function addAnnotation(col, row) {
-    pushUndo()
-    doc.annotations = [...doc.annotations, { id: crypto.randomUUID(), col, row, text: annotationText, color: annotationColor }]
+    pushUndo();
+    doc.annotations = [
+      ...doc.annotations,
+      {
+        id: crypto.randomUUID(),
+        col,
+        row,
+        text: annotationText,
+        color: annotationColor,
+      },
+    ];
   }
 
   function updateAnnotation(id, text, color) {
-    pushUndo()
+    pushUndo();
     if (!text.trim()) {
-      doc.annotations = doc.annotations.filter(a => a.id !== id)
-      selectedIds = selectedIds.filter(sid => sid !== id)
-      return
+      doc.annotations = doc.annotations.filter((a) => a.id !== id);
+      selectedIds = selectedIds.filter((sid) => sid !== id);
+      return;
     }
-    const ann = doc.annotations.find(a => a.id === id)
+    const ann = doc.annotations.find((a) => a.id === id);
     if (ann) {
-      ann.text = text
-      if (color) ann.color = color
-      doc.annotations = [...doc.annotations]
+      ann.text = text;
+      if (color) ann.color = color;
+      doc.annotations = [...doc.annotations];
     }
   }
 
   function moveSelected(dc, dr) {
-    if (selectedIds.length === 0) return
-    pushUndo()
+    if (selectedIds.length === 0) return;
+    pushUndo();
     for (const id of selectedIds) {
-      const pad = doc.pads.find(p => p.id === id)
-      if (pad) { pad.col += dc; pad.row += dr; continue }
-      const header = doc.headers.find(h => h.id === id)
-      if (header) { header.col += dc; header.row += dr; continue }
-      const trace = doc.traces.find(t => t.id === id)
-      if (trace) { for (const pt of trace.points) { pt.col += dc; pt.row += dr }; continue }
-      const dip = (doc.dips || []).find(d => d.id === id)
-      if (dip) { dip.col += dc; dip.row += dr; continue }
-      const jumper = doc.jumpers.find(j => j.id === id)
-      if (jumper) { jumper.col1 += dc; jumper.row1 += dr; jumper.col2 += dc; jumper.row2 += dr; continue }
-      const ann = doc.annotations.find(a => a.id === id)
-      if (ann) { ann.col += dc; ann.row += dr; continue }
+      const pad = doc.pads.find((p) => p.id === id);
+      if (pad) {
+        pad.col += dc;
+        pad.row += dr;
+        continue;
+      }
+      const header = doc.headers.find((h) => h.id === id);
+      if (header) {
+        header.col += dc;
+        header.row += dr;
+        continue;
+      }
+      const trace = doc.traces.find((t) => t.id === id);
+      if (trace) {
+        for (const pt of trace.points) {
+          pt.col += dc;
+          pt.row += dr;
+        }
+        continue;
+      }
+      const dip = (doc.dips || []).find((d) => d.id === id);
+      if (dip) {
+        dip.col += dc;
+        dip.row += dr;
+        continue;
+      }
+      const jumper = doc.jumpers.find((j) => j.id === id);
+      if (jumper) {
+        jumper.col1 += dc;
+        jumper.row1 += dr;
+        jumper.col2 += dc;
+        jumper.row2 += dr;
+        continue;
+      }
+      const ann = doc.annotations.find((a) => a.id === id);
+      if (ann) {
+        ann.col += dc;
+        ann.row += dr;
+        continue;
+      }
     }
-    doc.pads = [...doc.pads]
-    doc.headers = [...doc.headers]
-    doc.dips = [...(doc.dips || [])]
-    doc.traces = [...doc.traces]
-    doc.jumpers = [...doc.jumpers]
-    doc.annotations = [...doc.annotations]
+    doc.pads = [...doc.pads];
+    doc.headers = [...doc.headers];
+    doc.dips = [...(doc.dips || [])];
+    doc.traces = [...doc.traces];
+    doc.jumpers = [...doc.jumpers];
+    doc.annotations = [...doc.annotations];
   }
 
   function rotateSelected() {
-    if (selectedIds.length === 0) return
-    pushUndo()
+    if (selectedIds.length === 0) return;
+    pushUndo();
     for (const id of selectedIds) {
-      const header = doc.headers.find(h => h.id === id)
-      if (header) { header.orientation = header.orientation === 'h' ? 'v' : 'h'; continue }
-      const dip = (doc.dips || []).find(d => d.id === id)
-      if (dip) { dip.orientation = dip.orientation === 'h' ? 'v' : 'h'; continue }
-      const trace = doc.traces.find(t => t.id === id)
-      if (trace && trace.points.length >= 2) {
-        const pivot = trace.points[0]
-        for (let i = 1; i < trace.points.length; i++) {
-          const dc = trace.points[i].col - pivot.col
-          const dr = trace.points[i].row - pivot.row
-          trace.points[i].col = pivot.col + dr
-          trace.points[i].row = pivot.row - dc
-        }
-        continue
+      const header = doc.headers.find((h) => h.id === id);
+      if (header) {
+        header.orientation = header.orientation === "h" ? "v" : "h";
+        continue;
       }
-      const jumper = doc.jumpers.find(j => j.id === id)
+      const dip = (doc.dips || []).find((d) => d.id === id);
+      if (dip) {
+        dip.orientation = dip.orientation === "h" ? "v" : "h";
+        continue;
+      }
+      const trace = doc.traces.find((t) => t.id === id);
+      if (trace && trace.points.length >= 2) {
+        const pivot = trace.points[0];
+        for (let i = 1; i < trace.points.length; i++) {
+          const dc = trace.points[i].col - pivot.col;
+          const dr = trace.points[i].row - pivot.row;
+          trace.points[i].col = pivot.col + dr;
+          trace.points[i].row = pivot.row - dc;
+        }
+        continue;
+      }
+      const jumper = doc.jumpers.find((j) => j.id === id);
       if (jumper) {
-        const mc = (jumper.col1 + jumper.col2) / 2
-        const mr = (jumper.row1 + jumper.row2) / 2
-        const dc1 = jumper.col1 - mc, dr1 = jumper.row1 - mr
-        const dc2 = jumper.col2 - mc, dr2 = jumper.row2 - mr
-        jumper.col1 = mc + dr1; jumper.row1 = mr - dc1
-        jumper.col2 = mc + dr2; jumper.row2 = mr - dc2
-        continue
+        const mc = (jumper.col1 + jumper.col2) / 2;
+        const mr = (jumper.row1 + jumper.row2) / 2;
+        const dc1 = jumper.col1 - mc,
+          dr1 = jumper.row1 - mr;
+        const dc2 = jumper.col2 - mc,
+          dr2 = jumper.row2 - mr;
+        jumper.col1 = mc + dr1;
+        jumper.row1 = mr - dc1;
+        jumper.col2 = mc + dr2;
+        jumper.row2 = mr - dc2;
+        continue;
       }
     }
-    doc.headers = [...doc.headers]
-    doc.dips = [...(doc.dips || [])]
-    doc.traces = [...doc.traces]
-    doc.jumpers = [...doc.jumpers]
+    doc.headers = [...doc.headers];
+    doc.dips = [...(doc.dips || [])];
+    doc.traces = [...doc.traces];
+    doc.jumpers = [...doc.jumpers];
   }
 
   function removeElement(id) {
-    pushUndo()
-    doc.pads = doc.pads.filter(p => p.id !== id)
-    doc.headers = doc.headers.filter(h => h.id !== id)
-    doc.dips = (doc.dips || []).filter(d => d.id !== id)
-    doc.traces = doc.traces.filter(t => t.id !== id)
-    doc.jumpers = doc.jumpers.filter(j => j.id !== id)
-    doc.annotations = doc.annotations.filter(a => a.id !== id)
-    selectedIds = selectedIds.filter(sid => sid !== id)
+    pushUndo();
+    doc.pads = doc.pads.filter((p) => p.id !== id);
+    doc.headers = doc.headers.filter((h) => h.id !== id);
+    doc.dips = (doc.dips || []).filter((d) => d.id !== id);
+    doc.traces = doc.traces.filter((t) => t.id !== id);
+    doc.jumpers = doc.jumpers.filter((j) => j.id !== id);
+    doc.annotations = doc.annotations.filter((a) => a.id !== id);
+    selectedIds = selectedIds.filter((sid) => sid !== id);
   }
 
   function selectElement(id, addToSelection = false) {
     if (id == null) {
-      if (!addToSelection) selectedIds = []
-      return
+      if (!addToSelection) selectedIds = [];
+      return;
     }
     if (addToSelection) {
       if (selectedIds.includes(id)) {
-        selectedIds = selectedIds.filter(sid => sid !== id)
+        selectedIds = selectedIds.filter((sid) => sid !== id);
       } else {
-        selectedIds = [...selectedIds, id]
+        selectedIds = [...selectedIds, id];
       }
     } else {
-      selectedIds = [id]
+      selectedIds = [id];
     }
   }
 
   function bulkSelect(ids, addToSelection = false) {
     if (addToSelection) {
-      const current = new Set(selectedIds)
-      for (const id of ids) current.add(id)
-      selectedIds = [...current]
+      const current = new Set(selectedIds);
+      for (const id of ids) current.add(id);
+      selectedIds = [...current];
     } else {
-      selectedIds = [...ids]
+      selectedIds = [...ids];
     }
   }
 
   function handleExport() {
-    if (!viewer) return
-    const ts = new Date().toISOString().replace(/[:-]/g, '').slice(0, 15)
-    viewer.exportSTL(null, `${doc.name}_perfboard_${ts}.stl`)
+    if (!viewer) return;
+    const ts = new Date().toISOString().replace(/[:-]/g, "").slice(0, 15);
+    viewer.exportSTL(null, `${doc.name}_perfboard_${ts}.stl`);
   }
 
   // Save/load
-  const STORAGE_KEY = 'perfboard-saves'
+  const STORAGE_KEY = "perfboard-saves";
 
   function getSaves() {
     try {
-      return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]')
-    } catch { return [] }
+      return JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
+    } catch {
+      return [];
+    }
   }
 
   function saveToSlot() {
-    const saves = getSaves()
-    const entry = { name: doc.name, doc: JSON.parse(JSON.stringify(doc)), savedAt: new Date().toISOString() }
-    const idx = saves.findIndex(s => s.name === doc.name)
-    if (idx >= 0) saves[idx] = entry
-    else saves.unshift(entry)
-    if (saves.length > 5) saves.length = 5
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(saves))
-    saveMessage = 'Saved!'
-    setTimeout(() => saveMessage = '', 2000)
+    const saves = getSaves();
+    const entry = {
+      name: doc.name,
+      doc: JSON.parse(JSON.stringify(doc)),
+      savedAt: new Date().toISOString(),
+    };
+    const idx = saves.findIndex((s) => s.name === doc.name);
+    if (idx >= 0) saves[idx] = entry;
+    else saves.unshift(entry);
+    if (saves.length > 5) saves.length = 5;
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(saves));
+    saveMessage = "Saved!";
+    setTimeout(() => (saveMessage = ""), 2000);
   }
 
   function loadFromSlot(entry) {
-    pushUndo()
-    entry.doc.dips = entry.doc.dips ?? []
-    entry.doc.jumpers = entry.doc.jumpers ?? []
-    entry.doc.annotations = entry.doc.annotations ?? []
-    entry.doc.curveEndWidth = entry.doc.curveEndWidth ?? 3.0
-    entry.doc.curveEndWidth2 = entry.doc.curveEndWidth2 ?? entry.doc.curveEndWidth
-    entry.doc.curveTaperDistance = entry.doc.curveTaperDistance ?? 0
-    entry.doc.roundTraceRadius = entry.doc.roundTraceRadius ?? 1.0
-    entry.doc.roundTraceMode = entry.doc.roundTraceMode ?? 'arc'
-    entry.doc.roundTracePasses = entry.doc.roundTracePasses ?? 2
-    entry.doc.roundTraceTeardrop = entry.doc.roundTraceTeardrop ?? false
-    entry.doc.roundTraceTdHPercent = entry.doc.roundTraceTdHPercent ?? 50
-    entry.doc.roundTraceTdVPercent = entry.doc.roundTraceTdVPercent ?? 90
-    doc = entry.doc
-    selectedIds = []
+    pushUndo();
+    entry.doc.dips = entry.doc.dips ?? [];
+    entry.doc.jumpers = entry.doc.jumpers ?? [];
+    entry.doc.annotations = entry.doc.annotations ?? [];
+    entry.doc.curveEndWidth = entry.doc.curveEndWidth ?? 3.0;
+    entry.doc.curveEndWidth2 =
+      entry.doc.curveEndWidth2 ?? entry.doc.curveEndWidth;
+    entry.doc.curveTaperDistance = entry.doc.curveTaperDistance ?? 0;
+    entry.doc.roundTraceRadius = entry.doc.roundTraceRadius ?? 1.0;
+    entry.doc.roundTraceMode = entry.doc.roundTraceMode ?? "arc";
+    entry.doc.roundTracePasses = entry.doc.roundTracePasses ?? 2;
+    entry.doc.roundTraceTeardrop = entry.doc.roundTraceTeardrop ?? false;
+    entry.doc.roundTraceTdHPercent = entry.doc.roundTraceTdHPercent ?? 50;
+    entry.doc.roundTraceTdVPercent = entry.doc.roundTraceTdVPercent ?? 90;
+    doc = entry.doc;
+    selectedIds = [];
   }
 
   function deleteSlot(name) {
-    const saves = getSaves().filter(s => s.name !== name)
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(saves))
+    const saves = getSaves().filter((s) => s.name !== name);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(saves));
   }
 
   function downloadJSON() {
-    const blob = new Blob([JSON.stringify(doc, null, 2)], { type: 'application/json' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `${doc.name}.perfboard.json`
-    a.click()
-    URL.revokeObjectURL(url)
+    const blob = new Blob([JSON.stringify(doc, null, 2)], {
+      type: "application/json",
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${doc.name}.perfboard.json`;
+    a.click();
+    URL.revokeObjectURL(url);
   }
 
   function uploadJSON(e) {
-    const file = e.target.files?.[0]
-    if (!file) return
-    const reader = new FileReader()
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
     reader.onload = () => {
       try {
-        const parsed = JSON.parse(reader.result)
-        if (parsed.version !== 1 || !parsed.grid) { alert('Invalid perfboard file'); return }
-        pushUndo()
-        parsed.dips = parsed.dips ?? []
-        parsed.jumpers = parsed.jumpers ?? []
-        parsed.annotations = parsed.annotations ?? []
-        parsed.curveEndWidth = parsed.curveEndWidth ?? 3.0
-        parsed.curveEndWidth2 = parsed.curveEndWidth2 ?? parsed.curveEndWidth
-        parsed.curveTaperDistance = parsed.curveTaperDistance ?? 0
-        parsed.roundTraceRadius = parsed.roundTraceRadius ?? 1.0
-        parsed.roundTraceMode = parsed.roundTraceMode ?? 'arc'
-        parsed.roundTracePasses = parsed.roundTracePasses ?? 2
-        parsed.roundTraceTeardrop = parsed.roundTraceTeardrop ?? false
-        parsed.roundTraceTdHPercent = parsed.roundTraceTdHPercent ?? 50
-        parsed.roundTraceTdVPercent = parsed.roundTraceTdVPercent ?? 90
-        doc = parsed
-        selectedIds = []
-      } catch { alert('Failed to parse file') }
-    }
-    reader.readAsText(file)
-    e.target.value = ''
+        const parsed = JSON.parse(reader.result);
+        if (parsed.version !== 1 || !parsed.grid) {
+          alert("Invalid perfboard file");
+          return;
+        }
+        pushUndo();
+        parsed.dips = parsed.dips ?? [];
+        parsed.jumpers = parsed.jumpers ?? [];
+        parsed.annotations = parsed.annotations ?? [];
+        parsed.curveEndWidth = parsed.curveEndWidth ?? 3.0;
+        parsed.curveEndWidth2 = parsed.curveEndWidth2 ?? parsed.curveEndWidth;
+        parsed.curveTaperDistance = parsed.curveTaperDistance ?? 0;
+        parsed.roundTraceRadius = parsed.roundTraceRadius ?? 1.0;
+        parsed.roundTraceMode = parsed.roundTraceMode ?? "arc";
+        parsed.roundTracePasses = parsed.roundTracePasses ?? 2;
+        parsed.roundTraceTeardrop = parsed.roundTraceTeardrop ?? false;
+        parsed.roundTraceTdHPercent = parsed.roundTraceTdHPercent ?? 50;
+        parsed.roundTraceTdVPercent = parsed.roundTraceTdVPercent ?? 90;
+        doc = parsed;
+        selectedIds = [];
+      } catch {
+        alert("Failed to parse file");
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = "";
   }
 
-  let saveMessage = $state('')
-  let showSavePanel = $state(false)
-  let savedSlots = $derived(getSaves())
+  let saveMessage = $state("");
+  let showSavePanel = $state(false);
+  let savedSlots = $derived(getSaves());
 
   async function loadExample(name) {
     try {
-      const res = await fetch(`${import.meta.env.BASE_URL}examples/${name}`)
-      const parsed = await res.json()
-      if (parsed.version !== 1 || !parsed.grid) { alert('Invalid example file'); return }
-      pushUndo()
-      parsed.dips = parsed.dips ?? []
-      parsed.jumpers = parsed.jumpers ?? []
-      parsed.annotations = parsed.annotations ?? []
-      parsed.curveEndWidth = parsed.curveEndWidth ?? 3.0
-      parsed.curveEndWidth2 = parsed.curveEndWidth2 ?? parsed.curveEndWidth
-      parsed.roundTraceRadius = parsed.roundTraceRadius ?? 1.0
-      parsed.roundTraceMode = parsed.roundTraceMode ?? 'arc'
-      parsed.roundTracePasses = parsed.roundTracePasses ?? 2
-      parsed.roundTraceTeardrop = parsed.roundTraceTeardrop ?? false
-      parsed.roundTraceTdHPercent = parsed.roundTraceTdHPercent ?? 50
-      parsed.roundTraceTdVPercent = parsed.roundTraceTdVPercent ?? 90
-      doc = parsed
-      selectedIds = []
-    } catch { alert('Failed to load example') }
+      const res = await fetch(`${import.meta.env.BASE_URL}examples/${name}`);
+      const parsed = await res.json();
+      if (parsed.version !== 1 || !parsed.grid) {
+        alert("Invalid example file");
+        return;
+      }
+      pushUndo();
+      parsed.dips = parsed.dips ?? [];
+      parsed.jumpers = parsed.jumpers ?? [];
+      parsed.annotations = parsed.annotations ?? [];
+      parsed.curveEndWidth = parsed.curveEndWidth ?? 3.0;
+      parsed.curveEndWidth2 = parsed.curveEndWidth2 ?? parsed.curveEndWidth;
+      parsed.roundTraceRadius = parsed.roundTraceRadius ?? 1.0;
+      parsed.roundTraceMode = parsed.roundTraceMode ?? "arc";
+      parsed.roundTracePasses = parsed.roundTracePasses ?? 2;
+      parsed.roundTraceTeardrop = parsed.roundTraceTeardrop ?? false;
+      parsed.roundTraceTdHPercent = parsed.roundTraceTdHPercent ?? 50;
+      parsed.roundTraceTdVPercent = parsed.roundTraceTdVPercent ?? 90;
+      doc = parsed;
+      selectedIds = [];
+    } catch {
+      alert("Failed to load example");
+    }
   }
 
   function handleKeydown(e) {
-    const isInput = e.target?.tagName === 'INPUT' || e.target?.tagName === 'TEXTAREA'
-    const mod = e.metaKey || e.ctrlKey
-    if (!isInput && mod && e.key === 'z' && !e.shiftKey) {
-      e.preventDefault()
-      undo()
-      return
+    const isInput =
+      e.target?.tagName === "INPUT" || e.target?.tagName === "TEXTAREA";
+    const mod = e.metaKey || e.ctrlKey;
+    if (!isInput && mod && e.key === "z" && !e.shiftKey) {
+      e.preventDefault();
+      undo();
+      return;
     }
-    if (!isInput && mod && ((e.key === 'z' && e.shiftKey) || e.key === 'y')) {
-      e.preventDefault()
-      redo()
-      return
+    if (!isInput && mod && ((e.key === "z" && e.shiftKey) || e.key === "y")) {
+      e.preventDefault();
+      redo();
+      return;
     }
-    if (e.key === 'Delete' || e.key === 'Backspace') {
-      if (!isInput && selectedIds.length > 0 && activeTool === 'select') {
-        pushUndo()
-        const idSet = new Set(selectedIds)
-        doc.pads = doc.pads.filter(p => !idSet.has(p.id))
-        doc.headers = doc.headers.filter(h => !idSet.has(h.id))
-        doc.dips = (doc.dips || []).filter(d => !idSet.has(d.id))
-        doc.traces = doc.traces.filter(t => !idSet.has(t.id))
-        doc.jumpers = doc.jumpers.filter(j => !idSet.has(j.id))
-        doc.annotations = doc.annotations.filter(a => !idSet.has(a.id))
-        selectedIds = []
+    if (e.key === "Delete" || e.key === "Backspace") {
+      if (!isInput && selectedIds.length > 0 && activeTool === "select") {
+        pushUndo();
+        const idSet = new Set(selectedIds);
+        doc.pads = doc.pads.filter((p) => !idSet.has(p.id));
+        doc.headers = doc.headers.filter((h) => !idSet.has(h.id));
+        doc.dips = (doc.dips || []).filter((d) => !idSet.has(d.id));
+        doc.traces = doc.traces.filter((t) => !idSet.has(t.id));
+        doc.jumpers = doc.jumpers.filter((j) => !idSet.has(j.id));
+        doc.annotations = doc.annotations.filter((a) => !idSet.has(a.id));
+        selectedIds = [];
       }
     }
   }
@@ -531,11 +666,21 @@
 
 <svelte:window onkeydown={handleKeydown} />
 
-<div class="h-screen flex flex-col bg-surface-0 text-cyan-light overflow-hidden">
+<div
+  class="h-screen flex flex-col bg-surface-0 text-cyan-light overflow-hidden"
+>
   <!-- Header -->
-  <div class="h-11 flex items-center px-4 bg-surface-1 border-b-3 border-black shrink-0">
+  <div
+    class="h-11 flex items-center px-4 bg-surface-1 border-b-3 border-black shrink-0"
+  >
     <div class="flex items-center gap-2">
-      <svg viewBox="0 0 20 20" class="w-5 h-5 text-accent" fill="none" stroke="currentColor" stroke-width="1.5">
+      <svg
+        viewBox="0 0 20 20"
+        class="w-5 h-5 text-accent"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.5"
+      >
         <rect x="2" y="2" width="16" height="16" rx="1" />
         <circle cx="6" cy="6" r="1.5" />
         <circle cx="10" cy="6" r="1.5" />
@@ -546,7 +691,9 @@
         <circle cx="10" cy="14" r="1.5" />
         <circle cx="14" cy="14" r="1.5" />
       </svg>
-      <span class="text-sm font-semibold text-cyan-light">Perfboard 3D Print Tools</span>
+      <span class="text-sm font-semibold text-cyan-light"
+        >Perfboard 3D Print Tools</span
+      >
     </div>
     <div class="ml-4 flex items-center gap-2">
       <input
@@ -563,7 +710,15 @@
           class="p-1 rounded-lg text-purple-light hover:text-cyan hover:bg-surface-2 transition-colors disabled:opacity-30 disabled:cursor-default disabled:hover:bg-transparent disabled:hover:text-purple-light"
           title="Undo (Ctrl+Z)"
         >
-          <svg viewBox="0 0 16 16" class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <svg
+            viewBox="0 0 16 16"
+            class="w-3.5 h-3.5"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
             <path d="M3 7h7a3 3 0 0 1 0 6H8" />
             <path d="M6 4L3 7l3 3" />
           </svg>
@@ -574,7 +729,15 @@
           class="p-1 rounded-lg text-purple-light hover:text-cyan hover:bg-surface-2 transition-colors disabled:opacity-30 disabled:cursor-default disabled:hover:bg-transparent disabled:hover:text-purple-light"
           title="Redo (Ctrl+Shift+Z)"
         >
-          <svg viewBox="0 0 16 16" class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <svg
+            viewBox="0 0 16 16"
+            class="w-3.5 h-3.5"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
             <path d="M13 7H6a3 3 0 0 0 0 6h2" />
             <path d="M10 4l3 3-3 3" />
           </svg>
@@ -582,10 +745,16 @@
       </div>
     </div>
     <div class="ml-auto flex items-center gap-3">
-      <button onclick={() => showIntro = true} class="text-[10px] text-purple-light/60 hover:text-accent transition-colors">
+      <button
+        onclick={() => (showIntro = true)}
+        class="text-[10px] text-purple-light/60 hover:text-accent transition-colors"
+      >
         About
       </button>
-      <a href="index.html" class="text-[10px] text-purple-light/60 hover:text-accent transition-colors">
+      <a
+        href="index.html"
+        class="text-[10px] text-purple-light/60 hover:text-accent transition-colors"
+      >
         PCB 3D Print Tools &rarr;
       </a>
     </div>
@@ -594,7 +763,9 @@
   <!-- Main -->
   <div class="flex flex-1 min-h-0">
     <!-- Sidebar -->
-    <div class="w-56 bg-surface-1 border-r-3 border-black overflow-y-auto p-3 shrink-0">
+    <div
+      class="w-56 bg-surface-1 border-r-3 border-black overflow-y-auto p-3 shrink-0"
+    >
       <BoardSettings
         bind:cols={doc.grid.cols}
         bind:rows={doc.grid.rows}
@@ -614,11 +785,21 @@
         onBeforeChange={pushUndo}
       />
 
-      <Toolbar {activeTool} onToolChange={(t) => { activeTool = t; selectedIds = [] }} />
+      <Toolbar
+        {activeTool}
+        onToolChange={(t) => {
+          activeTool = t;
+          selectedIds = [];
+        }}
+      />
 
-      {#if activeTool === 'label'}
+      {#if activeTool === "label"}
         <div class="mb-4">
-          <div class="text-[10px] uppercase tracking-wider text-accent font-bold mb-2">Label</div>
+          <div
+            class="text-[10px] uppercase tracking-wider text-accent font-bold mb-2"
+          >
+            Label
+          </div>
           <div class="space-y-1.5">
             <input
               type="text"
@@ -627,10 +808,13 @@
               placeholder="Label text"
             />
             <div class="flex items-center gap-1.5">
-              {#each ['#ff2d95', '#00f0ff', '#a855f7', '#a3e635', '#fbbf24', '#ff6bcb', '#f0f0f0'] as c}
+              {#each ["#ff2d95", "#00f0ff", "#a855f7", "#a3e635", "#fbbf24", "#ff6bcb", "#f0f0f0"] as c}
                 <button
-                  onclick={() => annotationColor = c}
-                  class="w-4 h-4 rounded-full border-2 transition-colors {annotationColor === c ? 'border-white' : 'border-transparent'}"
+                  onclick={() => (annotationColor = c)}
+                  class="w-4 h-4 rounded-full border-2 transition-colors {annotationColor ===
+                  c
+                    ? 'border-white'
+                    : 'border-transparent'}"
                   style="background-color: {c}"
                 ></button>
               {/each}
@@ -647,42 +831,66 @@
 
       <!-- Save/Load -->
       <div class="mb-4">
-        <div class="text-[10px] uppercase tracking-wider text-accent font-bold mb-2">Project</div>
+        <div
+          class="text-[10px] uppercase tracking-wider text-accent font-bold mb-2"
+        >
+          Project
+        </div>
         <div class="flex gap-1 mb-2">
-          <button onclick={saveToSlot}
-            class="flex-1 px-2 py-1.5 text-[10px] rounded-lg bg-surface-2 hover:bg-surface-3 text-cyan-light font-bold border-2 border-black shadow-[2px_2px_0_black] transition-colors">
+          <button
+            onclick={saveToSlot}
+            class="flex-1 px-2 py-1.5 text-[10px] rounded-lg bg-surface-2 hover:bg-surface-3 text-cyan-light font-bold border-2 border-black shadow-[2px_2px_0_black] transition-colors"
+          >
             Save
           </button>
-          <button onclick={downloadJSON}
-            class="flex-1 px-2 py-1.5 text-[10px] rounded-lg bg-surface-2 hover:bg-surface-3 text-cyan-light font-bold border-2 border-black shadow-[2px_2px_0_black] transition-colors">
+          <button
+            onclick={downloadJSON}
+            class="flex-1 px-2 py-1.5 text-[10px] rounded-lg bg-surface-2 hover:bg-surface-3 text-cyan-light font-bold border-2 border-black shadow-[2px_2px_0_black] transition-colors"
+          >
             Download
           </button>
-          <label class="flex-1 px-2 py-1.5 text-[10px] rounded-lg bg-surface-2 hover:bg-surface-3 text-cyan-light font-bold border-2 border-black shadow-[2px_2px_0_black] transition-colors text-center cursor-pointer">
+          <label
+            class="flex-1 px-2 py-1.5 text-[10px] rounded-lg bg-surface-2 hover:bg-surface-3 text-cyan-light font-bold border-2 border-black shadow-[2px_2px_0_black] transition-colors text-center cursor-pointer"
+          >
             Load
-            <input type="file" accept=".json" onchange={uploadJSON} class="hidden" />
+            <input
+              type="file"
+              accept=".json"
+              onchange={uploadJSON}
+              class="hidden"
+            />
           </label>
         </div>
         {#if saveMessage}
           <div class="text-[10px] text-lime mb-1">{saveMessage}</div>
         {/if}
-        <button onclick={() => showSavePanel = !showSavePanel}
-          class="text-[10px] text-purple-light/60 hover:text-accent transition-colors">
-          {showSavePanel ? 'Hide saves' : 'Show saves'} ({getSaves().length})
+        <button
+          onclick={() => (showSavePanel = !showSavePanel)}
+          class="text-[10px] text-purple-light/60 hover:text-accent transition-colors"
+        >
+          {showSavePanel ? "Hide saves" : "Show saves"} ({getSaves().length})
         </button>
         {#if showSavePanel}
           <div class="mt-1 space-y-1">
             {#each getSaves() as save}
               <div class="flex items-center gap-1 text-[10px]">
-                <button onclick={() => loadFromSlot(save)}
-                  class="flex-1 text-left px-1.5 py-1 rounded-lg bg-surface-2 hover:bg-surface-3 text-cyan-light truncate">
+                <button
+                  onclick={() => loadFromSlot(save)}
+                  class="flex-1 text-left px-1.5 py-1 rounded-lg bg-surface-2 hover:bg-surface-3 text-cyan-light truncate"
+                >
                   {save.name}
                 </button>
-                <button onclick={() => deleteSlot(save.name)}
-                  class="text-purple-light/60 hover:text-red-400 px-1">&times;</button>
+                <button
+                  onclick={() => deleteSlot(save.name)}
+                  class="text-purple-light/60 hover:text-red-400 px-1"
+                  >&times;</button
+                >
               </div>
             {/each}
             {#if getSaves().length === 0}
-              <div class="text-[10px] text-purple-light/40 italic">No saves yet</div>
+              <div class="text-[10px] text-purple-light/40 italic">
+                No saves yet
+              </div>
             {/if}
           </div>
         {/if}
@@ -690,17 +898,56 @@
 
       <!-- Examples -->
       <div class="mb-4">
-        <div class="text-[10px] uppercase tracking-wider text-accent font-bold mb-2">Examples</div>
-        <button onclick={() => loadExample('cd4093-noise-gen.perfboard.json')}
-          class="w-full text-left px-2 py-1.5 text-[10px] rounded-lg bg-surface-2 hover:bg-surface-3 text-cyan-light font-bold border-2 border-black shadow-[2px_2px_0_black] transition-colors">
-          CD4093 Noise Generator
-        </button>
+        <div
+          class="text-[10px] uppercase tracking-wider text-accent font-bold mb-2"
+        >
+          Examples
+        </div>
+        <div class="space-y-1">
+          <button
+            onclick={() => loadExample("cd4093-noise-gen.perfboard.json")}
+            class="w-full text-left px-2 py-1.5 text-[10px] rounded-lg bg-surface-2 hover:bg-surface-3 text-cyan-light font-bold border-2 border-black shadow-[2px_2px_0_black] transition-colors"
+          >
+            CD4093 Noise Generator
+          </button>
+          <button
+            onclick={() => loadExample("attiny85-synth.perfboard.json")}
+            class="w-full text-left px-2 py-1.5 text-[10px] rounded-lg bg-surface-2 hover:bg-surface-3 text-cyan-light font-bold border-2 border-black shadow-[2px_2px_0_black] transition-colors"
+          >
+            ATtiny85 Synthesizer
+          </button>
+          <button
+            onclick={() => loadExample("pt2399-chaos-looper.perfboard.json")}
+            class="w-full text-left px-2 py-1.5 text-[10px] rounded-lg bg-surface-2 hover:bg-surface-3 text-cyan-light font-bold border-2 border-black shadow-[2px_2px_0_black] transition-colors"
+          >
+            PT2399 Chaos Looper
+          </button>
+          <button
+            onclick={() => loadExample("jellyfish-bytebeat.perfboard.json")}
+            class="w-full text-left px-2 py-1.5 text-[10px] rounded-lg bg-surface-2 hover:bg-surface-3 text-cyan-light font-bold border-2 border-black shadow-[2px_2px_0_black] transition-colors"
+          >
+            PCB Art: Jellyfish Bytebeat
+          </button>
+        </div>
       </div>
 
       <!-- Board info -->
       <div class="text-[10px] text-purple-light/50 space-y-0.5">
-        <div>Board: {((doc.grid.cols - 1) * doc.grid.pitch + doc.grid.pitch).toFixed(1)} &times; {((doc.grid.rows - 1) * doc.grid.pitch + doc.grid.pitch).toFixed(1)} mm</div>
-        <div>Pads: {doc.pads.length} | Headers: {doc.headers.length} | DIPs: {(doc.dips || []).length} | Traces: {doc.traces.length} | Jumpers: {doc.jumpers.length} | Labels: {doc.annotations.length}</div>
+        <div>
+          Board: {(
+            (doc.grid.cols - 1) * doc.grid.pitch +
+            doc.grid.pitch
+          ).toFixed(1)} &times; {(
+            (doc.grid.rows - 1) * doc.grid.pitch +
+            doc.grid.pitch
+          ).toFixed(1)} mm
+        </div>
+        <div>
+          Pads: {doc.pads.length} | Headers: {doc.headers.length} | DIPs: {(
+            doc.dips || []
+          ).length} | Traces: {doc.traces.length} | Jumpers: {doc.jumpers
+            .length} | Labels: {doc.annotations.length}
+        </div>
       </div>
     </div>
 
@@ -709,14 +956,18 @@
       <!-- Tabs -->
       <div class="flex bg-surface-1 border-b-3 border-black shrink-0">
         <button
-          class="px-4 py-2 text-xs transition-colors {activeTab === 'editor' ? 'text-cyan font-bold border-b-3 border-accent' : 'text-purple-light hover:text-cyan'}"
-          onclick={() => activeTab = 'editor'}
+          class="px-4 py-2 text-xs transition-colors {activeTab === 'editor'
+            ? 'text-cyan font-bold border-b-3 border-accent'
+            : 'text-purple-light hover:text-cyan'}"
+          onclick={() => (activeTab = "editor")}
         >
           2D Editor
         </button>
         <button
-          class="px-4 py-2 text-xs transition-colors {activeTab === 'preview' ? 'text-cyan font-bold border-b-3 border-accent' : 'text-purple-light hover:text-cyan'}"
-          onclick={() => activeTab = 'preview'}
+          class="px-4 py-2 text-xs transition-colors {activeTab === 'preview'
+            ? 'text-cyan font-bold border-b-3 border-accent'
+            : 'text-purple-light hover:text-cyan'}"
+          onclick={() => (activeTab = "preview")}
         >
           3D Preview
         </button>
@@ -724,7 +975,7 @@
 
       <!-- Tab content -->
       <div class="flex-1 min-h-0 relative">
-        <div class="absolute inset-0" class:hidden={activeTab !== 'editor'}>
+        <div class="absolute inset-0" class:hidden={activeTab !== "editor"}>
           <GridEditor
             {doc}
             {activeTool}
@@ -754,10 +1005,13 @@
             onRemoveElement={removeElement}
             onSelect={selectElement}
             onBulkSelect={bulkSelect}
-            onToolChange={(t) => { activeTool = t; selectedIds = [] }}
+            onToolChange={(t) => {
+              activeTool = t;
+              selectedIds = [];
+            }}
           />
         </div>
-        <div class="absolute inset-0" class:hidden={activeTab !== 'preview'}>
+        <div class="absolute inset-0" class:hidden={activeTab !== "preview"}>
           <Viewer3D
             bind:this={viewer}
             bodies={perfboardBodies}
@@ -786,7 +1040,10 @@
     <!-- svelte-ignore a11y_no_static_element_interactions -->
     <div
       class="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
-      onclick={() => { showIntro = false; localStorage.setItem('perfboard-intro-seen', '1') }}
+      onclick={() => {
+        showIntro = false;
+        localStorage.setItem("perfboard-intro-seen", "1");
+      }}
     >
       <!-- svelte-ignore a11y_no_static_element_interactions -->
       <div
@@ -794,25 +1051,47 @@
         onclick={(e) => e.stopPropagation()}
       >
         <div class="text-5xl mb-4">&#x1f4cb;&#x26a1;&#x1f331;</div>
-        <h2 class="text-2xl font-black text-accent mb-2">Perfboard 3D Print Tools</h2>
+        <h2 class="text-2xl font-black text-accent mb-2">
+          Perfboard 3D Print Tools
+        </h2>
         <p class="text-cyan-light text-sm leading-relaxed mb-4">
-          Design your own perfboard PCB layouts and export them as 3D-printable STL files.
-          Artistic, hands-on, and eco-friendly — no chemical etching required!
+          Design your own perfboard PCB layouts and export them as 3D-printable
+          STL files. Artistic, hands-on, and eco-friendly — no chemical etching
+          required!
         </p>
         <div class="flex flex-wrap justify-center gap-2 mb-6">
-          <span class="px-3 py-1 text-[11px] font-bold rounded-lg border-2 border-black bg-accent text-white shadow-[2px_2px_0_black]">DIY PCB Design</span>
-          <span class="px-3 py-1 text-[11px] font-bold rounded-lg border-2 border-black bg-cyan text-black shadow-[2px_2px_0_black]">3D Printable</span>
-          <span class="px-3 py-1 text-[11px] font-bold rounded-lg border-2 border-black bg-lime text-black shadow-[2px_2px_0_black]">Eco-Friendly</span>
-          <span class="px-3 py-1 text-[11px] font-bold rounded-lg border-2 border-black bg-purple text-white shadow-[2px_2px_0_black]">Artistic</span>
+          <span
+            class="px-3 py-1 text-[11px] font-bold rounded-lg border-2 border-black bg-accent text-white shadow-[2px_2px_0_black]"
+            >DIY PCB Design</span
+          >
+          <span
+            class="px-3 py-1 text-[11px] font-bold rounded-lg border-2 border-black bg-cyan text-black shadow-[2px_2px_0_black]"
+            >3D Printable</span
+          >
+          <span
+            class="px-3 py-1 text-[11px] font-bold rounded-lg border-2 border-black bg-lime text-black shadow-[2px_2px_0_black]"
+            >Eco-Friendly</span
+          >
+          <span
+            class="px-3 py-1 text-[11px] font-bold rounded-lg border-2 border-black bg-purple text-white shadow-[2px_2px_0_black]"
+            >Artistic</span
+          >
         </div>
         <button
           class="px-6 py-3 text-sm font-black rounded-xl bg-accent hover:bg-accent-light text-white border-3 border-black shadow-[6px_6px_0_black] transition-all hover:shadow-[7px_7px_0_black] hover:-translate-x-px hover:-translate-y-px active:translate-x-1 active:translate-y-1 active:shadow-[2px_2px_0_black]"
-          onclick={() => { showIntro = false; localStorage.setItem('perfboard-intro-seen', '1') }}
+          onclick={() => {
+            showIntro = false;
+            localStorage.setItem("perfboard-intro-seen", "1");
+          }}
         >
           Let's Build!
         </button>
-        <p class="text-purple-light/60 text-xs font-bold mt-4">By Bauhouse Consorxium</p>
-        <p class="text-purple-light/40 text-[10px] mt-1">Skip etching. Start printing.</p>
+        <p class="text-purple-light/60 text-xs font-bold mt-4">
+          By Bauhouse Consorxium
+        </p>
+        <p class="text-purple-light/40 text-[10px] mt-1">
+          Skip etching. Start printing.
+        </p>
       </div>
     </div>
   {/if}

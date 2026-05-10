@@ -1,0 +1,159 @@
+{
+  "version": 1,
+  "name": "ATtiny85 Synth",
+  "grid": { "cols": 16, "rows": 12, "pitch": 2.54 },
+  "boardThickness": 1.6,
+  "copperThickness": 0.035,
+  "drillDiameter": 1.0,
+  "padDiameter": 2.0,
+  "traceWidth": 0.8,
+  "pads": [],
+  "headers": [
+    { "id": "pwr", "col": 1, "row": 2, "count": 2, "orientation": "v" },
+    { "id": "pot1", "col": 2, "row": 9, "count": 3, "orientation": "h" },
+    { "id": "pot2", "col": 7, "row": 9, "count": 3, "orientation": "h" },
+    { "id": "audio", "col": 13, "row": 5, "count": 2, "orientation": "v" }
+  ],
+  "dips": [
+    { "id": "attiny", "col": 6, "row": 3, "count": 4, "orientation": "v", "rowSpacing": 3 }
+  ],
+  "traces": [
+    {
+      "id": "vcc-bus",
+      "type": "roundtrace",
+      "radius": 1.0,
+      "mode": "subdivision",
+      "passes": 3,
+      "teardrop": true,
+      "width": 1.0,
+      "points": [
+        { "col": 1, "row": 2 },
+        { "col": 1, "row": 1 },
+        { "col": 9, "row": 1 },
+        { "col": 9, "row": 3 }
+      ]
+    },
+    {
+      "id": "vcc-pot1",
+      "type": "roundtrace",
+      "radius": 1.0,
+      "mode": "subdivision",
+      "passes": 3,
+      "teardrop": true,
+      "width": 1.0,
+      "points": [
+        { "col": 1, "row": 2 },
+        { "col": 2, "row": 2 },
+        { "col": 2, "row": 9 }
+      ]
+    },
+    {
+      "id": "gnd-bus",
+      "type": "roundtrace",
+      "radius": 1.0,
+      "mode": "subdivision",
+      "passes": 3,
+      "teardrop": true,
+      "width": 1.0,
+      "points": [
+        { "col": 1, "row": 3 },
+        { "col": 1, "row": 11 },
+        { "col": 14, "row": 11 },
+        { "col": 14, "row": 6 },
+        { "col": 13, "row": 6 }
+      ]
+    },
+    {
+      "id": "gnd-attiny",
+      "type": "roundtrace",
+      "radius": 1.0,
+      "mode": "subdivision",
+      "passes": 3,
+      "teardrop": true,
+      "width": 1.0,
+      "points": [
+        { "col": 6, "row": 6 },
+        { "col": 6, "row": 11 }
+      ]
+    },
+    {
+      "id": "gnd-pot1",
+      "type": "roundtrace",
+      "radius": 1.0,
+      "mode": "subdivision",
+      "passes": 3,
+      "teardrop": true,
+      "width": 1.0,
+      "points": [
+        { "col": 4, "row": 9 },
+        { "col": 4, "row": 11 }
+      ]
+    },
+    {
+      "id": "gnd-pot2",
+      "type": "roundtrace",
+      "radius": 1.0,
+      "mode": "subdivision",
+      "passes": 3,
+      "teardrop": true,
+      "width": 1.0,
+      "points": [
+        { "col": 9, "row": 9 },
+        { "col": 9, "row": 11 }
+      ]
+    },
+    {
+      "id": "sig-pot1",
+      "type": "roundtrace",
+      "radius": 1.0,
+      "mode": "subdivision",
+      "passes": 3,
+      "teardrop": true,
+      "width": 1.0,
+      "points": [
+        { "col": 3, "row": 9 },
+        { "col": 3, "row": 4 },
+        { "col": 6, "row": 4 }
+      ]
+    },
+    {
+      "id": "sig-pot2",
+      "type": "roundtrace",
+      "radius": 1.0,
+      "mode": "subdivision",
+      "passes": 3,
+      "teardrop": true,
+      "width": 1.0,
+      "points": [
+        { "col": 8, "row": 9 },
+        { "col": 8, "row": 5 },
+        { "col": 6, "row": 5 }
+      ]
+    },
+    {
+      "id": "sig-audio",
+      "type": "roundtrace",
+      "radius": 1.0,
+      "mode": "subdivision",
+      "passes": 3,
+      "teardrop": true,
+      "width": 1.0,
+      "points": [
+        { "col": 9, "row": 6 },
+        { "col": 12, "row": 6 },
+        { "col": 12, "row": 5 },
+        { "col": 13, "row": 5 }
+      ]
+    }
+  ],
+  "jumpers": [
+    { "id": "j-vcc", "col1": 2, "row1": 9, "col2": 7, "row2": 9, "color": "#ff2d95" }
+  ],
+  "annotations": [
+    { "id": "lbl-vcc", "col": 0, "row": 2, "text": "V+", "color": "#ff2d95" },
+    { "id": "lbl-gnd", "col": 0, "row": 3, "text": "GND", "color": "#a3e635" },
+    { "id": "lbl-aud", "col": 14, "row": 5, "text": "OUT", "color": "#00f0ff" },
+    { "id": "lbl-pot1", "col": 3, "row": 8, "text": "PITCH", "color": "#fbbf24" },
+    { "id": "lbl-pot2", "col": 8, "row": 8, "text": "MOD", "color": "#a855f7" }
+  ]
+}

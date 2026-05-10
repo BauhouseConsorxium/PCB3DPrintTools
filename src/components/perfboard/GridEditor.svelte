@@ -3152,4 +3152,5 @@
       </div>
     </div>
   {/if}
+  <span class="absolute bottom-2 right-3 text-[10px] text-white/30 pointer-events-none select-none z-10">Bauhouse Consorxium</span>
 </div>

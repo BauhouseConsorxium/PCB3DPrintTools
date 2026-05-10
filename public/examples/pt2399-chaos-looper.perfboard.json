@@ -1,0 +1,241 @@
+{
+  "version": 1,
+  "name": "PT2399 Chaos Looper",
+  "grid": { "cols": 24, "rows": 16, "pitch": 2.54 },
+  "boardThickness": 1.6,
+  "copperThickness": 0.035,
+  "drillDiameter": 1.0,
+  "padDiameter": 2.0,
+  "traceWidth": 0.8,
+  "pads": [
+    { "id": "j1a", "col": 8, "row": 8 },
+    { "id": "j1b", "col": 14, "row": 8 },
+    { "id": "j2a", "col": 13, "row": 8 },
+    { "id": "j2b", "col": 18, "row": 8 }
+  ],
+  "headers": [
+    { "id": "pwr", "col": 1, "row": 2, "count": 2, "orientation": "v" },
+    { "id": "audio_in", "col": 1, "row": 8, "count": 2, "orientation": "v" },
+    { "id": "audio_out", "col": 22, "row": 8, "count": 2, "orientation": "v" },
+    { "id": "time_pot", "col": 4, "row": 14, "count": 3, "orientation": "h" },
+    { "id": "fdbk_pot", "col": 16, "row": 14, "count": 3, "orientation": "h" },
+    { "id": "chaos_sw", "col": 12, "row": 1, "count": 2, "orientation": "h" }
+  ],
+  "dips": [
+    { "id": "pt2399", "col": 10, "row": 4, "count": 8, "orientation": "v", "rowSpacing": 3 }
+  ],
+  "traces": [
+    {
+      "id": "vcc-bus",
+      "type": "roundtrace",
+      "radius": 1.0,
+      "mode": "subdivision",
+      "passes": 3,
+      "teardrop": true,
+      "width": 1.0,
+      "points": [
+        { "col": 1, "row": 2 },
+        { "col": 1, "row": 1 },
+        { "col": 10, "row": 1 },
+        { "col": 10, "row": 4 }
+      ]
+    },
+    {
+      "id": "gnd-bus",
+      "type": "roundtrace",
+      "radius": 1.0,
+      "mode": "subdivision",
+      "passes": 3,
+      "teardrop": true,
+      "width": 1.0,
+      "points": [
+        { "col": 1, "row": 3 },
+        { "col": 1, "row": 15 },
+        { "col": 22, "row": 15 },
+        { "col": 22, "row": 9 }
+      ]
+    },
+    {
+      "id": "gnd-audio-in",
+      "type": "roundtrace",
+      "radius": 1.0,
+      "mode": "subdivision",
+      "passes": 3,
+      "teardrop": true,
+      "width": 1.0,
+      "points": [
+        { "col": 1, "row": 9 },
+        { "col": 1, "row": 10 },
+        { "col": 2, "row": 10 },
+        { "col": 2, "row": 15 }
+      ]
+    },
+    {
+      "id": "gnd-pt2399-agnd",
+      "type": "roundtrace",
+      "radius": 1.0,
+      "mode": "subdivision",
+      "passes": 3,
+      "teardrop": true,
+      "width": 1.0,
+      "points": [
+        { "col": 10, "row": 6 },
+        { "col": 11, "row": 6 },
+        { "col": 11, "row": 15 }
+      ]
+    },
+    {
+      "id": "gnd-pt2399-dgnd",
+      "type": "roundtrace",
+      "radius": 1.0,
+      "mode": "subdivision",
+      "passes": 3,
+      "teardrop": true,
+      "width": 1.0,
+      "points": [
+        { "col": 10, "row": 7 },
+        { "col": 12, "row": 7 },
+        { "col": 12, "row": 15 }
+      ]
+    },
+    {
+      "id": "time-pot-gnd",
+      "type": "roundtrace",
+      "radius": 1.0,
+      "mode": "subdivision",
+      "passes": 3,
+      "teardrop": true,
+      "width": 1.0,
+      "points": [
+        { "col": 4, "row": 14 },
+        { "col": 4, "row": 15 }
+      ]
+    },
+    {
+      "id": "time-pot-wiper",
+      "type": "roundtrace",
+      "radius": 1.0,
+      "mode": "subdivision",
+      "passes": 3,
+      "teardrop": true,
+      "width": 1.0,
+      "points": [
+        { "col": 5, "row": 14 },
+        { "col": 5, "row": 9 },
+        { "col": 10, "row": 9 }
+      ]
+    },
+    {
+      "id": "audio-in-trace1",
+      "type": "roundtrace",
+      "radius": 1.0,
+      "mode": "subdivision",
+      "passes": 3,
+      "teardrop": true,
+      "width": 1.0,
+      "points": [
+        { "col": 1, "row": 8 },
+        { "col": 8, "row": 8 }
+      ]
+    },
+    {
+      "id": "audio-in-trace2",
+      "type": "roundtrace",
+      "radius": 1.0,
+      "mode": "subdivision",
+      "passes": 3,
+      "teardrop": true,
+      "width": 1.0,
+      "points": [
+        { "col": 14, "row": 8 },
+        { "col": 14, "row": 10 },
+        { "col": 13, "row": 10 }
+      ]
+    },
+    {
+      "id": "fdbk-pot-in",
+      "type": "roundtrace",
+      "radius": 1.0,
+      "mode": "subdivision",
+      "passes": 3,
+      "teardrop": true,
+      "width": 1.0,
+      "points": [
+        { "col": 16, "row": 14 },
+        { "col": 16, "row": 6 },
+        { "col": 13, "row": 6 }
+      ]
+    },
+    {
+      "id": "fdbk-pot-wiper",
+      "type": "roundtrace",
+      "radius": 1.0,
+      "mode": "subdivision",
+      "passes": 3,
+      "teardrop": true,
+      "width": 1.0,
+      "points": [
+        { "col": 17, "row": 14 },
+        { "col": 17, "row": 5 },
+        { "col": 13, "row": 5 }
+      ]
+    },
+    {
+      "id": "audio-out-trace",
+      "type": "roundtrace",
+      "radius": 1.0,
+      "mode": "subdivision",
+      "passes": 3,
+      "teardrop": true,
+      "width": 1.0,
+      "points": [
+        { "col": 18, "row": 8 },
+        { "col": 22, "row": 8 }
+      ]
+    },
+    {
+      "id": "chaos-sw-1",
+      "type": "roundtrace",
+      "radius": 1.0,
+      "mode": "subdivision",
+      "passes": 3,
+      "teardrop": true,
+      "width": 1.0,
+      "points": [
+        { "col": 12, "row": 1 },
+        { "col": 14, "row": 1 },
+        { "col": 14, "row": 4 },
+        { "col": 13, "row": 4 }
+      ]
+    },
+    {
+      "id": "chaos-sw-2",
+      "type": "roundtrace",
+      "radius": 1.0,
+      "mode": "subdivision",
+      "passes": 3,
+      "teardrop": true,
+      "width": 1.0,
+      "points": [
+        { "col": 13, "row": 1 },
+        { "col": 15, "row": 1 },
+        { "col": 15, "row": 5 },
+        { "col": 13, "row": 5 }
+      ]
+    }
+  ],
+  "jumpers": [
+    { "id": "j-audio", "col1": 8, "row1": 8, "col2": 14, "row2": 8, "color": "#00f0ff" },
+    { "id": "j-aout", "col1": 13, "row1": 8, "col2": 18, "row2": 8, "color": "#fbbf24" }
+  ],
+  "annotations": [
+    { "id": "lbl-vcc", "col": 0, "row": 2, "text": "9V", "color": "#ff2d95" },
+    { "id": "lbl-gnd", "col": 0, "row": 3, "text": "GND", "color": "#a3e635" },
+    { "id": "lbl-ain", "col": 0, "row": 8, "text": "IN", "color": "#fbbf24" },
+    { "id": "lbl-aout", "col": 23, "row": 8, "text": "OUT", "color": "#fbbf24" },
+    { "id": "lbl-pot1", "col": 5, "row": 13, "text": "TIME", "color": "#a855f7" },
+    { "id": "lbl-pot2", "col": 17, "row": 13, "text": "FDBK", "color": "#ff6bcb" },
+    { "id": "lbl-sw", "col": 12, "row": 0, "text": "CHAOS", "color": "#f0f0f0" },
+    { "id": "lbl-pt", "col": 11, "row": 12, "text": "PT2399", "color": "#00f0ff" }
+  ]
+}
