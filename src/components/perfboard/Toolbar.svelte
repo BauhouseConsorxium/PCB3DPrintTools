@@ -11,6 +11,7 @@
     { id: 'label', label: 'Label', icon: 'label', key: '6' },
     { id: 'erase', label: 'Erase', icon: 'erase', key: '7' },
     { id: 'curve', label: 'Curve', icon: 'curve', key: '8' },
+    { id: 'roundtrace', label: 'Round', icon: 'roundtrace', key: '9' },
   ]
 </script>
 
@@ -57,6 +58,8 @@
             <path d="M3 17h14M6 13l8-8M5 14l3-3M10 14l4-4" stroke-linecap="round" />
           {:else if tool.icon === 'curve'}
             <path d="M3 16C3 8 10 12 10 8S17 4 17 8" stroke-linecap="round" fill="none" />
+          {:else if tool.icon === 'roundtrace'}
+            <path d="M4 16V9A5 5 0 0 1 9 4H16" stroke-linecap="round" fill="none" />
           {/if}
         </svg>
         <span>{tool.label}</span>

@@ -8,6 +8,9 @@
     curveEndWidth = $bindable(3.0),
     curveEndWidth2 = $bindable(3.0),
     curveTaperDistance = $bindable(0),
+    roundTraceRadius = $bindable(1.0),
+    roundTraceMode = $bindable('arc'),
+    roundTracePasses = $bindable(2),
     boardThickness = $bindable(1.6),
     onBeforeChange = () => {},
   } = $props()
@@ -66,6 +69,35 @@
       <label class="text-[10px] text-purple-light block mb-0.5">Board thickness</label>
       <input type="number" bind:value={boardThickness} min="0.5" max="5" step="0.1" onfocus={onBeforeChange}
         class="w-full bg-surface-2 text-cyan-light text-xs rounded-lg px-2 py-1 border-2 border-black focus:border-accent outline-none shadow-[2px_2px_0_black]" />
+    </div>
+  </div>
+
+  <div class="text-[10px] uppercase tracking-wider text-accent font-bold mb-2 mt-3">Round Trace</div>
+
+  <div class="grid grid-cols-2 gap-2">
+    <div>
+      <label class="text-[10px] text-purple-light block mb-0.5">Radius (mm)</label>
+      <input type="number" bind:value={roundTraceRadius} min="0.2" max="10" step="0.1" onfocus={onBeforeChange}
+        class="w-full bg-surface-2 text-cyan-light text-xs rounded-lg px-2 py-1 border-2 border-black focus:border-accent outline-none shadow-[2px_2px_0_black]" />
+    </div>
+    <div>
+      <label class="text-[10px] text-purple-light block mb-0.5">Passes</label>
+      <input type="number" bind:value={roundTracePasses} min="1" max="5" step="1" onfocus={onBeforeChange}
+        class="w-full bg-surface-2 text-cyan-light text-xs rounded-lg px-2 py-1 border-2 border-black focus:border-accent outline-none shadow-[2px_2px_0_black]"
+        disabled={roundTraceMode !== 'subdivision'} />
+    </div>
+    <div class="col-span-2">
+      <label class="text-[10px] text-purple-light block mb-0.5">Mode</label>
+      <div class="flex gap-1">
+        <button
+          class="flex-1 px-2 py-1 text-[10px] rounded-lg border-2 border-black transition-colors {roundTraceMode === 'arc' ? 'bg-accent text-white shadow-[2px_2px_0_black]' : 'bg-surface-2 text-cyan-light hover:bg-surface-3'}"
+          onclick={() => { onBeforeChange(); roundTraceMode = 'arc' }}
+        >Arc</button>
+        <button
+          class="flex-1 px-2 py-1 text-[10px] rounded-lg border-2 border-black transition-colors {roundTraceMode === 'subdivision' ? 'bg-accent text-white shadow-[2px_2px_0_black]' : 'bg-surface-2 text-cyan-light hover:bg-surface-3'}"
+          onclick={() => { onBeforeChange(); roundTraceMode = 'subdivision' }}
+        >Subdivision</button>
+      </div>
     </div>
   </div>
 </div>

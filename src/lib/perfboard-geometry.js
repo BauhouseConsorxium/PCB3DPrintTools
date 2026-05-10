@@ -1,6 +1,7 @@
 import earcut from 'earcut'
 import { buildBoardGeometry, buildTracesGeometry, HOLE_N } from './geometry.js'
 import { sampleCatmullRom, sampleCatmullRomWithWidth } from './catmull-rom.js'
+import { computeRoundedCorners, computeSubdivisionRounding, sampleRoundedPath } from './round-trace.js'
 
 const PAD_CIRCLE_N = 32
 
@@ -147,6 +148,41 @@ function collectTraceSegments(doc, padPositions) {
   const TOL = 0.01
   const segments = []
   for (const trace of doc.traces) {
+    if (trace.type === 'roundtrace') {
+      const pathSegs = (trace.mode === 'subdivision')
+        ? computeSubdivisionRounding(trace.points, trace.radius ?? 1.0, trace.passes ?? 2, pitch)
+        : computeRoundedCorners(trace.points, trace.radius ?? 1.0, pitch)
+      const samples = sampleRoundedPath(pathSegs, 12)
+      for (let i = 0; i < samples.length - 1; i++) {
+        const ax = samples[i].x, ay = samples[i].y
+        const bx = samples[i + 1].x, by = samples[i + 1].y
+        const dx = bx - ax, dy = by - ay
+        const lenSq = dx * dx + dy * dy
+        if (lenSq < TOL * TOL) continue
+        const hits = []
+        for (const p of padPositions) {
+          const t = ((p.x - ax) * dx + (p.y - ay) * dy) / lenSq
+          if (t <= TOL || t >= 1 - TOL) continue
+          const px = ax + t * dx, py = ay + t * dy
+          const distSq = (px - p.x) ** 2 + (py - p.y) ** 2
+          if (distSq < TOL * TOL) hits.push(t)
+        }
+        if (hits.length === 0) {
+          segments.push({ x1: ax, y1: ay, x2: bx, y2: by, width: trace.width, layer: 'F.Cu' })
+        } else {
+          hits.sort((a, b) => a - b)
+          let prevX = ax, prevY = ay
+          for (const t of hits) {
+            const mx = ax + t * dx, my = ay + t * dy
+            segments.push({ x1: prevX, y1: prevY, x2: mx, y2: my, width: trace.width, layer: 'F.Cu' })
+            prevX = mx; prevY = my
+          }
+          segments.push({ x1: prevX, y1: prevY, x2: bx, y2: by, width: trace.width, layer: 'F.Cu' })
+        }
+      }
+      continue
+    }
+
     if (trace.type === 'curve') {
       const ew1 = trace.endWidth ?? trace.width
       const ew2 = trace.endWidth2 ?? ew1
@@ -635,6 +671,9 @@ export function createDefaultDocument() {
     curveEndWidth: 2.0,
     curveEndWidth2: 2.0,
     curveTaperDistance: 3.5,
+    roundTraceRadius: 1.0,
+    roundTraceMode: 'arc',
+    roundTracePasses: 2,
     pads: [],
     headers: [],
     dips: [],

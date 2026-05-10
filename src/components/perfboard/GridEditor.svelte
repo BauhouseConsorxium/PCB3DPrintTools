@@ -1,6 +1,7 @@
 <script>
   import { onMount, tick } from 'svelte'
   import { catmullRomSVGPath, sampleCatmullRom, variableWidthOutlinePath } from '../../lib/catmull-rom.js'
+  import { computeRoundedCorners, computeSubdivisionRounding, roundedPathToSVG } from '../../lib/round-trace.js'
 
   let {
     doc,
@@ -18,6 +19,8 @@
     onUpdateCurve = () => {},
     onUpdateTraceWidth = () => {},
     onMeltTraces = () => {},
+    onRoundTraces = () => {},
+    onUpdateRoundTrace = () => {},
     onUpdatePadLabel = () => {},
     onUpdateHeaderLabels = () => {},
     onMoveSelected = () => {},
@@ -87,6 +90,7 @@
   let editingHeader = $state(null)
   let editingCurve = $state(null)
   let editingTrace = $state(null)
+  let editingRoundTrace = $state(null)
   let editInput
   let dipEditInput
   let padEditInput
@@ -253,6 +257,7 @@
     if (editingHeader) { commitHeaderEdit() }
     if (editingCurve) { closeCurveEdit() }
     if (editingTrace) { closeTraceEdit() }
+    if (editingRoundTrace) { closeRoundTraceEdit() }
     if (e.button === 1 || (e.button === 0 && e.shiftKey && activeTool !== 'select')) {
       isPanning = true
       panStart = { x: e.clientX, y: e.clientY, vx: vb.x, vy: vb.y }
@@ -317,6 +322,21 @@
         if (last.col === col && last.row === row) {
           if (tracePoints.length >= 2) {
             onAddTrace([...tracePoints])
+          }
+          tracePoints = []
+          tracePreview = null
+        } else {
+          tracePoints = [...tracePoints, { col: col, row: last.row }, { col, row }]
+        }
+      }
+    } else if (activeTool === 'roundtrace') {
+      if (tracePoints.length === 0) {
+        tracePoints = [{ col, row }]
+      } else {
+        const last = tracePoints[tracePoints.length - 1]
+        if (last.col === col && last.row === row) {
+          if (tracePoints.length >= 2) {
+            onAddTrace([...tracePoints], 'roundtrace')
           }
           tracePoints = []
           tracePreview = null
@@ -410,7 +430,7 @@
       return
     }
 
-    if (activeTool === 'trace' && tracePoints.length > 0) {
+    if ((activeTool === 'trace' || activeTool === 'roundtrace') && tracePoints.length > 0) {
       const last = tracePoints[tracePoints.length - 1]
       tracePreview = { col1: last.col, row1: last.row, col2: col, row2: row }
     }
@@ -587,6 +607,12 @@
       tracePreview = null
       return
     }
+    if (activeTool === 'roundtrace' && tracePoints.length >= 2) {
+      onAddTrace([...tracePoints], 'roundtrace')
+      tracePoints = []
+      tracePreview = null
+      return
+    }
     if (activeTool === 'select') {
       cpDrag = null
       const sp = svgPoint(e)
@@ -662,7 +688,19 @@
           left: e.clientX - rect.left,
           top: e.clientY - rect.top - 20
         }
-      } else if (el && doc.traces.find(t => t.id === el.id && t.type !== 'curve')) {
+      } else if (el && doc.traces.find(t => t.id === el.id && t.type === 'roundtrace')) {
+        const trace = doc.traces.find(t => t.id === el.id)
+        const rect = containerEl.getBoundingClientRect()
+        editingRoundTrace = {
+          id: el.id,
+          width: trace.width,
+          radius: trace.radius ?? 1.0,
+          mode: trace.mode ?? 'arc',
+          passes: trace.passes ?? 2,
+          left: e.clientX - rect.left,
+          top: e.clientY - rect.top - 20
+        }
+      } else if (el && doc.traces.find(t => t.id === el.id && t.type !== 'curve' && t.type !== 'roundtrace')) {
         const trace = doc.traces.find(t => t.id === el.id)
         const rect = containerEl.getBoundingClientRect()
         editingTrace = {
@@ -750,6 +788,21 @@
     if (e.key === 'Enter' || e.key === 'Escape') closeTraceEdit()
   }
 
+  function applyRoundTraceEdit() {
+    if (!editingRoundTrace) return
+    onUpdateRoundTrace(editingRoundTrace.id, editingRoundTrace.width, editingRoundTrace.radius, editingRoundTrace.mode, editingRoundTrace.passes)
+  }
+
+  function closeRoundTraceEdit() {
+    applyRoundTraceEdit()
+    editingRoundTrace = null
+  }
+
+  function handleRoundTraceEditKeydown(e) {
+    e.stopPropagation()
+    if (e.key === 'Enter' || e.key === 'Escape') closeRoundTraceEdit()
+  }
+
   function cancelDrawing() {
     if (cpDrag) {
       cpDrag = null
@@ -759,7 +812,7 @@
       selectionBox = null
       return true
     }
-    if (activeTool === 'trace' && tracePoints.length > 0) {
+    if ((activeTool === 'trace' || activeTool === 'roundtrace') && tracePoints.length > 0) {
       tracePoints = []
       tracePreview = null
       return true
@@ -800,7 +853,7 @@
     cancelDrawing()
   }
 
-  const toolHotkeys = { '1': 'pad', '2': 'header', '3': 'dip', '4': 'trace', '5': 'jumper', '6': 'label', '7': 'erase', '8': 'curve' }
+  const toolHotkeys = { '1': 'pad', '2': 'header', '3': 'dip', '4': 'trace', '5': 'jumper', '6': 'label', '7': 'erase', '8': 'curve', '9': 'roundtrace' }
 
   function handleKeydown(e) {
     const isInput = e.target?.tagName === 'INPUT' || e.target?.tagName === 'TEXTAREA'
@@ -814,6 +867,7 @@
       if (editingJumper) { editingJumper = null; return }
       if (editingCurve) { closeCurveEdit(); return }
       if (editingTrace) { closeTraceEdit(); return }
+      if (editingRoundTrace) { closeRoundTraceEdit(); return }
       const cancelled = cancelDrawing()
       if (!cancelled && activeTool !== 'select') {
         onToolChange('select')
@@ -826,6 +880,10 @@
     }
     if ((e.key === 'm' || e.key === 'M') && activeTool === 'select' && selectedIds.length > 0) {
       onMeltTraces(selectedIds)
+      return
+    }
+    if ((e.key === 'o' || e.key === 'O') && activeTool === 'select' && selectedIds.length > 0) {
+      onRoundTraces(selectedIds)
       return
     }
     const tool = toolHotkeys[e.key]
@@ -954,6 +1012,68 @@
           />
         {:else}
           {@const d = catmullRomSVGPath(pts, tn)}
+          {#if isSelected}
+            <path {d}
+              stroke="rgba(255,255,255,0.45)"
+              stroke-width={trace.width + pitch * 0.08}
+              stroke-linecap="round" stroke-linejoin="round" fill="none"
+            />
+          {/if}
+          <path {d}
+            stroke={isSelected ? '#fbbf24' : '#f5c842'}
+            stroke-width={trace.width}
+            stroke-linecap="round" stroke-linejoin="round" fill="none"
+            opacity={isSelected ? 1 : 0.85}
+          />
+        {/if}
+        {#if isSelected}
+          <!-- Control polygon -->
+          {#each trace.points as pt, i}
+            {#if i > 0}
+              <line
+                x1={trace.points[i-1].col * pitch} y1={trace.points[i-1].row * pitch}
+                x2={pt.col * pitch} y2={pt.row * pitch}
+                stroke="rgba(34,197,94,0.5)" stroke-width={pitch * 0.03}
+                stroke-dasharray="{pitch * 0.08}"
+              />
+            {/if}
+          {/each}
+          {#each trace.points as pt, i}
+            {@const isActiveCP = activeCP && activeCP.traceId === trace.id && activeCP.pointIndex === i}
+            <circle cx={pt.col * pitch} cy={pt.row * pitch} r={isActiveCP ? pitch * 0.18 : pitch * 0.14}
+              fill={isActiveCP ? '#fbbf24' : '#22c55e'} stroke="white" stroke-width={pitch * 0.02} opacity="0.9"
+              style="cursor: pointer"
+            />
+            {#if isActiveCP && trace.points.length > 2 && i > 0 && i < trace.points.length - 1}
+              <!-- svelte-ignore a11y_click_events_have_key_events -->
+              <!-- svelte-ignore a11y_no_static_element_interactions -->
+              <g
+                style="cursor: pointer"
+                onpointerdown={(e) => { e.stopPropagation(); onDeleteControlPoint(activeCP.traceId, activeCP.pointIndex); activeCP = null }}
+              >
+                <circle cx={pt.col * pitch + pitch * 0.3} cy={pt.row * pitch - pitch * 0.3} r={pitch * 0.13}
+                  fill="#ef4444" stroke="white" stroke-width={pitch * 0.02}
+                />
+                <line
+                  x1={pt.col * pitch + pitch * 0.3 - pitch * 0.06} y1={pt.row * pitch - pitch * 0.3 - pitch * 0.06}
+                  x2={pt.col * pitch + pitch * 0.3 + pitch * 0.06} y2={pt.row * pitch - pitch * 0.3 + pitch * 0.06}
+                  stroke="white" stroke-width={pitch * 0.03} stroke-linecap="round"
+                />
+                <line
+                  x1={pt.col * pitch + pitch * 0.3 + pitch * 0.06} y1={pt.row * pitch - pitch * 0.3 - pitch * 0.06}
+                  x2={pt.col * pitch + pitch * 0.3 - pitch * 0.06} y2={pt.row * pitch - pitch * 0.3 + pitch * 0.06}
+                  stroke="white" stroke-width={pitch * 0.03} stroke-linecap="round"
+                />
+              </g>
+            {/if}
+          {/each}
+        {/if}
+      {:else if trace.type === 'roundtrace'}
+        {@const pathSegs = (trace.mode === 'subdivision')
+          ? computeSubdivisionRounding(trace.points, trace.radius ?? 1.0, trace.passes ?? 2, pitch)
+          : computeRoundedCorners(trace.points, trace.radius ?? 1.0, pitch)}
+        {@const d = roundedPathToSVG(pathSegs)}
+        {#if d}
           {#if isSelected}
             <path {d}
               stroke="rgba(255,255,255,0.45)"
@@ -1749,6 +1869,65 @@
           onfocus={(e) => e.target.select()}
         />
       </div>
+    </div>
+  {/if}
+
+  {#if editingRoundTrace}
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
+    <div
+      class="absolute bg-surface-1 rounded-lg border-2 border-black shadow-[4px_4px_0_black] z-10 p-2 space-y-1.5"
+      style="left: {editingRoundTrace.left}px; top: {editingRoundTrace.top}px"
+      onfocusout={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) closeRoundTraceEdit() }}
+    >
+      <div>
+        <label class="text-[10px] text-purple-light block mb-0.5">Width (mm)</label>
+        <input
+          type="number"
+          value={editingRoundTrace.width}
+          min="0.3" max="5" step="0.1"
+          class="bg-surface-2 text-xs text-cyan-light rounded-lg px-2 py-1 border-2 border-black outline-none shadow-[2px_2px_0_black] w-28"
+          onkeydown={handleRoundTraceEditKeydown}
+          oninput={(e) => { editingRoundTrace = { ...editingRoundTrace, width: parseFloat(e.target.value) || 0.3 }; applyRoundTraceEdit() }}
+          onfocus={(e) => e.target.select()}
+        />
+      </div>
+      <div>
+        <label class="text-[10px] text-purple-light block mb-0.5">Radius (mm)</label>
+        <input
+          type="number"
+          value={editingRoundTrace.radius}
+          min="0.2" max="10" step="0.1"
+          class="bg-surface-2 text-xs text-cyan-light rounded-lg px-2 py-1 border-2 border-black outline-none shadow-[2px_2px_0_black] w-28"
+          onkeydown={handleRoundTraceEditKeydown}
+          oninput={(e) => { editingRoundTrace = { ...editingRoundTrace, radius: parseFloat(e.target.value) || 1.0 }; applyRoundTraceEdit() }}
+          onfocus={(e) => e.target.select()}
+        />
+      </div>
+      <div>
+        <label class="text-[10px] text-purple-light block mb-0.5">Mode</label>
+        <div class="flex gap-1">
+          <button
+            class="px-2 py-0.5 text-[10px] rounded border-2 border-black {editingRoundTrace.mode === 'arc' ? 'bg-accent text-white' : 'bg-surface-2 text-cyan-light'}"
+            onclick={() => { editingRoundTrace = { ...editingRoundTrace, mode: 'arc' }; applyRoundTraceEdit() }}
+          >Arc</button>
+          <button
+            class="px-2 py-0.5 text-[10px] rounded border-2 border-black {editingRoundTrace.mode === 'subdivision' ? 'bg-accent text-white' : 'bg-surface-2 text-cyan-light'}"
+            onclick={() => { editingRoundTrace = { ...editingRoundTrace, mode: 'subdivision' }; applyRoundTraceEdit() }}
+          >Subdiv</button>
+        </div>
+      </div>
+      {#if editingRoundTrace.mode === 'subdivision'}
+        <div>
+          <label class="text-[10px] text-purple-light block mb-0.5">Passes ({editingRoundTrace.passes})</label>
+          <input
+            type="range"
+            value={editingRoundTrace.passes}
+            min="1" max="5" step="1"
+            class="w-28"
+            oninput={(e) => { editingRoundTrace = { ...editingRoundTrace, passes: parseInt(e.target.value) || 2 }; applyRoundTraceEdit() }}
+          />
+        </div>
+      {/if}
     </div>
   {/if}
 

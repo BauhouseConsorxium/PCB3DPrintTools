@@ -109,6 +109,11 @@
       trace.taperDistance = doc.curveTaperDistance ?? 0
       trace.tension = 0.5
     }
+    if (type === 'roundtrace') {
+      trace.radius = doc.roundTraceRadius ?? 1.0
+      trace.mode = doc.roundTraceMode ?? 'arc'
+      trace.passes = doc.roundTracePasses ?? 2
+    }
     doc.traces = [...doc.traces, trace]
   }
 
@@ -226,6 +231,31 @@
       trace.tension = trace.tension ?? 0.5
     }
     doc.traces = [...doc.traces]
+  }
+
+  function roundTraces(ids) {
+    const targets = doc.traces.filter(t => ids.includes(t.id) && t.type !== 'roundtrace')
+    if (targets.length === 0) return
+    pushUndo()
+    for (const trace of targets) {
+      trace.type = 'roundtrace'
+      trace.radius = trace.radius ?? doc.roundTraceRadius ?? 1.0
+      trace.mode = trace.mode ?? doc.roundTraceMode ?? 'arc'
+      trace.passes = trace.passes ?? doc.roundTracePasses ?? 2
+    }
+    doc.traces = [...doc.traces]
+  }
+
+  function updateRoundTrace(id, width, radius, mode, passes) {
+    pushUndo()
+    const trace = doc.traces.find(t => t.id === id)
+    if (trace) {
+      trace.width = width
+      trace.radius = radius
+      trace.mode = mode
+      trace.passes = passes
+      doc.traces = [...doc.traces]
+    }
   }
 
   function addAnnotation(col, row) {
@@ -381,6 +411,9 @@
     entry.doc.curveEndWidth = entry.doc.curveEndWidth ?? 3.0
     entry.doc.curveEndWidth2 = entry.doc.curveEndWidth2 ?? entry.doc.curveEndWidth
     entry.doc.curveTaperDistance = entry.doc.curveTaperDistance ?? 0
+    entry.doc.roundTraceRadius = entry.doc.roundTraceRadius ?? 1.0
+    entry.doc.roundTraceMode = entry.doc.roundTraceMode ?? 'arc'
+    entry.doc.roundTracePasses = entry.doc.roundTracePasses ?? 2
     doc = entry.doc
     selectedIds = []
   }
@@ -415,6 +448,9 @@
         parsed.curveEndWidth = parsed.curveEndWidth ?? 3.0
         parsed.curveEndWidth2 = parsed.curveEndWidth2 ?? parsed.curveEndWidth
         parsed.curveTaperDistance = parsed.curveTaperDistance ?? 0
+        parsed.roundTraceRadius = parsed.roundTraceRadius ?? 1.0
+        parsed.roundTraceMode = parsed.roundTraceMode ?? 'arc'
+        parsed.roundTracePasses = parsed.roundTracePasses ?? 2
         doc = parsed
         selectedIds = []
       } catch { alert('Failed to parse file') }
@@ -438,6 +474,9 @@
       parsed.annotations = parsed.annotations ?? []
       parsed.curveEndWidth = parsed.curveEndWidth ?? 3.0
       parsed.curveEndWidth2 = parsed.curveEndWidth2 ?? parsed.curveEndWidth
+      parsed.roundTraceRadius = parsed.roundTraceRadius ?? 1.0
+      parsed.roundTraceMode = parsed.roundTraceMode ?? 'arc'
+      parsed.roundTracePasses = parsed.roundTracePasses ?? 2
       doc = parsed
       selectedIds = []
     } catch { alert('Failed to load example') }
@@ -547,6 +586,9 @@
         bind:curveEndWidth={doc.curveEndWidth}
         bind:curveEndWidth2={doc.curveEndWidth2}
         bind:curveTaperDistance={doc.curveTaperDistance}
+        bind:roundTraceRadius={doc.roundTraceRadius}
+        bind:roundTraceMode={doc.roundTraceMode}
+        bind:roundTracePasses={doc.roundTracePasses}
         bind:boardThickness={doc.boardThickness}
         onBeforeChange={pushUndo}
       />
@@ -678,6 +720,8 @@
             onUpdateCurve={updateCurve}
             onUpdateTraceWidth={updateTraceWidth}
             onMeltTraces={meltTraces}
+            onRoundTraces={roundTraces}
+            onUpdateRoundTrace={updateRoundTrace}
             onUpdateHeaderLabels={updateHeaderLabels}
             onUpdatePadLabel={updatePadLabel}
             onMoveSelected={moveSelected}
