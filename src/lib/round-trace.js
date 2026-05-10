@@ -237,9 +237,9 @@ export function sampleRoundedPath(pathSegments, samplesPerArc = 12) {
 
       let sweep = endAngle - startAngle
       if (seg.sweepFlag === 1) {
-        if (sweep > 0) sweep -= 2 * PI
-      } else {
         if (sweep < 0) sweep += 2 * PI
+      } else {
+        if (sweep > 0) sweep -= 2 * PI
       }
 
       const n = max(3, Math.round(abs(sweep) / (PI / 2) * samplesPerArc))
