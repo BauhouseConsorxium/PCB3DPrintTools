@@ -30,6 +30,7 @@
   let meshMap = {};
   let animId;
   let needsRender = true;
+  let dimCameraFitPending = false;
 
   // flip animation
   let isFlipped = false;
@@ -399,6 +400,7 @@
           if (grid) grid.position.y = box2.min.y - 0.05;
         } else {
           fitCamera();
+          if (showDimensions) dimCameraFitPending = true;
         }
 
         originalMaterials = {};
@@ -730,7 +732,29 @@
     const bS = boardZScale;
     untrack(() => {
       clearDimGroup();
-      if (show && b.length) buildDimensions();
+      if (show && b.length) {
+        buildDimensions();
+        if (dimCameraFitPending && boardGroup && camera && controls) {
+          dimCameraFitPending = false;
+          boardGroup.updateMatrixWorld(true);
+          const fullBox = new THREE.Box3();
+          for (const mesh of Object.values(meshMap))
+            fullBox.expandByObject(mesh);
+          if (dimGroup.children.length) fullBox.expandByObject(dimGroup);
+          if (!fullBox.isEmpty()) {
+            const center = fullBox.getCenter(new THREE.Vector3());
+            const size = fullBox.getSize(new THREE.Vector3());
+            const span = Math.max(size.x, size.z);
+            camera.position.set(
+              center.x,
+              center.y + span * 1.0,
+              center.z - span * 0.7,
+            );
+            controls.target.copy(center);
+            controls.update();
+          }
+        }
+      }
       requestRender();
     });
   });
