@@ -162,34 +162,80 @@ export function buildTracesGeometry(segments, drills, layer, zBot, zTop, squareE
 
   for (let si = 0; si < segs.length; si++) {
     const seg = segs[si]
-    const p1x = seg.x1, p1y = -seg.y1
-    const p2x = seg.x2, p2y = -seg.y2
+    let p1x = seg.x1, p1y = -seg.y1
+    let p2x = seg.x2, p2y = -seg.y2
     const hw = seg.width / 2
-    const dx = p2x - p1x, dy = p2y - p1y
+    let dx = p2x - p1x, dy = p2y - p1y
+    let segLenSq = dx * dx + dy * dy
     const theta = Math.atan2(dy, dx)
 
     const p1Sq = squareEnds && endpointFree[si]?.p1
     const p2Sq = squareEnds && endpointFree[si]?.p2
 
+    let trimP1 = false, trimP2 = false
+    const segLen = Math.sqrt(segLenSq)
+    if (segLen > 1e-4) {
+      const ux = dx / segLen, uy = dy / segLen
+      const origP1x = p1x, origP1y = p1y
+      let tStart = 0, tEnd = segLen
+      for (const d of drills) {
+        if (d.r < hw) continue
+        const dlx = d.x, dly = -d.y
+        const vx = dlx - origP1x, vy = dly - origP1y
+        const projT = vx * ux + vy * uy
+        const perpSq = vx * vx + vy * vy - projT * projT
+        const perpDist = Math.sqrt(Math.max(0, perpSq))
+        const inner = hw + perpDist
+        const Rsq = d.r * d.r - inner * inner
+        if (Rsq <= 0) continue
+        const R = Math.sqrt(Rsq) + 0.02
+        const cutStart = projT - R
+        const cutEnd = projT + R
+        if (cutStart <= tStart && cutEnd > tStart) tStart = cutEnd
+        if (cutEnd >= tEnd && cutStart < tEnd) tEnd = cutStart
+      }
+      if (tStart >= tEnd) continue
+      if (tStart > 0) {
+        p1x = origP1x + ux * tStart; p1y = origP1y + uy * tStart
+        trimP1 = true
+      }
+      if (tEnd < segLen) {
+        p2x = origP1x + ux * tEnd; p2y = origP1y + uy * tEnd
+        trimP2 = true
+      }
+      dx = p2x - p1x; dy = p2y - p1y
+      segLenSq = dx * dx + dy * dy
+    }
+
     const outline = []
-    if (p2Sq) {
+    if (p2Sq && !trimP2) {
       const ct = Math.cos(theta), st = Math.sin(theta)
       const nx = -st, ny = ct
       const ex = p2x + hw * ct, ey = p2y + hw * st
       outline.push([ex - hw * nx, ey - hw * ny])
       outline.push([ex + hw * nx, ey + hw * ny])
+    } else if (trimP2) {
+      const ct = Math.cos(theta), st = Math.sin(theta)
+      const nx = -st, ny = ct
+      outline.push([p2x - hw * nx, p2y - hw * ny])
+      outline.push([p2x + hw * nx, p2y + hw * ny])
     } else {
       for (let i = 0; i <= HALF_N; i++) {
         const a = theta - Math.PI / 2 + Math.PI * i / HALF_N
         outline.push([p2x + hw * Math.cos(a), p2y + hw * Math.sin(a)])
       }
     }
-    if (p1Sq) {
+    if (p1Sq && !trimP1) {
       const ct = Math.cos(theta), st = Math.sin(theta)
       const nx = -st, ny = ct
       const ex = p1x - hw * ct, ey = p1y - hw * st
       outline.push([ex + hw * nx, ey + hw * ny])
       outline.push([ex - hw * nx, ey - hw * ny])
+    } else if (trimP1) {
+      const ct = Math.cos(theta), st = Math.sin(theta)
+      const nx = -st, ny = ct
+      outline.push([p1x + hw * nx, p1y + hw * ny])
+      outline.push([p1x - hw * nx, p1y - hw * ny])
     } else {
       for (let i = 1; i < HALF_N; i++) {
         const a = theta + Math.PI / 2 + Math.PI * i / HALF_N
@@ -198,7 +244,6 @@ export function buildTracesGeometry(segments, drills, layer, zBot, zTop, squareE
     }
 
     const holes = []
-    const segLenSq = dx * dx + dy * dy
     for (const d of drills) {
       const dlx = d.x, dly = -d.y
       let dist
@@ -209,6 +254,7 @@ export function buildTracesGeometry(segments, drills, layer, zBot, zTop, squareE
         dist = Math.hypot(dlx - (p1x + t * dx), dly - (p1y + t * dy))
       }
       if (dist >= hw) continue
+      if (d.r >= hw) continue
       const hr = Math.min(d.r, hw - dist - 0.02)
       if (hr > 0.05) {
         const h = []
