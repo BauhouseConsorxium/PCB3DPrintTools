@@ -397,18 +397,21 @@ export function computeTeardrops(points, width, pitch, padPositions, padR, hPerc
     return { outline, svgPath: outlineToSVG(outline) }
   }
 
-  // check first endpoint
-  const firstPad = findPadAt(pts[0].x, pts[0].y)
-  if (firstPad) {
-    const td = buildTeardrop(pts[0], pts[1], firstPad)
-    if (td) teardrops.push(td)
-  }
-
-  // check last endpoint
-  const lastPad = findPadAt(pts[pts.length - 1].x, pts[pts.length - 1].y)
-  if (lastPad) {
-    const td = buildTeardrop(pts[pts.length - 1], pts[pts.length - 2], lastPad)
-    if (td) teardrops.push(td)
+  // check all waypoints
+  for (let i = 0; i < pts.length; i++) {
+    const pad = findPadAt(pts[i].x, pts[i].y)
+    if (pad) {
+      if (i > 0) {
+        // teardrop towards the previous point
+        const td = buildTeardrop(pts[i], pts[i - 1], pad)
+        if (td) teardrops.push(td)
+      }
+      if (i < pts.length - 1) {
+        // teardrop towards the next point
+        const td = buildTeardrop(pts[i], pts[i + 1], pad)
+        if (td) teardrops.push(td)
+      }
+    }
   }
 
   return teardrops
