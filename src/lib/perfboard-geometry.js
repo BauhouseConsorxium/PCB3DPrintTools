@@ -1,5 +1,6 @@
 import earcut from 'earcut'
-import { buildBoardGeometry, buildTracesGeometry, HOLE_N } from './geometry.js'
+import polygonClipping from 'polygon-clipping'
+import { buildBoardGeometry, buildTracesGeometry, buildPolygonsWithDrills, HOLE_N } from './geometry.js'
 import { sampleCatmullRom, sampleCatmullRomWithWidth } from './catmull-rom.js'
 import { computeRoundedCorners, computeSubdivisionRounding, sampleRoundedPath, computeTeardrops } from './round-trace.js'
 
@@ -329,6 +330,8 @@ function pointInPolygonLocal(px, py, poly) {
   return inside
 }
 
+// Removed buildPolygonsWithDrills to use the one from geometry.js
+
 function buildCurveTraceGeometry(doc, drills, zBot, zTop) {
   const { pitch } = doc.grid
   const curveTraces = doc.traces.filter(t => {
@@ -339,104 +342,18 @@ function buildCurveTraceGeometry(doc, drills, zBot, zTop) {
   })
   if (!curveTraces.length) return null
 
-  const allPos = [], allNrm = [], allIdx = []
-  let vOff = 0
-
+  const shapes = []
   for (const trace of curveTraces) {
     const pts = trace.points.map(p => ({ x: p.col * pitch, y: p.row * pitch }))
     const ew1 = trace.endWidth ?? trace.width
     const ew2 = trace.endWidth2 ?? ew1
     const tn = trace.tension ?? 0.5
     const samples = sampleCatmullRomWithWidth(pts, trace.width, ew1, 32, tn, trace.taperDistance ?? 0, ew2)
-
     const { outline, endpointCircles } = buildCurveOutline(samples)
-
-    const shapes = [outline, ...endpointCircles]
-    for (const shape of shapes) {
-      const flat = []
-      const holeIndices = []
-      for (const [x, y] of shape) flat.push(x, y)
-
-      for (const d of drills) {
-        const dlx = d.x, dly = -d.y
-        if (!pointInPolygonLocal(dlx, dly, shape)) continue
-        holeIndices.push(flat.length / 2)
-        for (let i = 0; i < HOLE_N; i++) {
-          const a = -i * 2 * Math.PI / HOLE_N
-          flat.push(dlx + d.r * Math.cos(a), dly + d.r * Math.sin(a))
-        }
-      }
-
-      const triIdx = earcut(flat, holeIndices.length ? holeIndices : null, 2)
-      if (!triIdx.length) continue
-
-      const nFace = flat.length / 2
-      const outN = shape.length
-      const pos = [], nrm = [], idx = []
-      let lvi = 0
-
-      const tB = lvi
-      for (let i = 0; i < nFace; i++) {
-        pos.push(flat[i * 2], flat[i * 2 + 1], zTop); nrm.push(0, 0, 1); lvi++
-      }
-      for (let i = 0; i < triIdx.length; i += 3)
-        idx.push(tB + triIdx[i], tB + triIdx[i + 1], tB + triIdx[i + 2])
-
-      const bB = lvi
-      for (let i = 0; i < nFace; i++) {
-        pos.push(flat[i * 2], flat[i * 2 + 1], zBot); nrm.push(0, 0, -1); lvi++
-      }
-      for (let i = 0; i < triIdx.length; i += 3)
-        idx.push(bB + triIdx[i], bB + triIdx[i + 2], bB + triIdx[i + 1])
-
-      for (let i = 0; i < outN; i++) {
-        const j = (i + 1) % outN
-        const [x0, y0] = shape[i], [x1, y1] = shape[j]
-        const edx = x1 - x0, edy = y1 - y0
-        const edL = Math.hypot(edx, edy) || 1
-        const onx = edy / edL, ony = -edx / edL
-        const a0 = lvi, a1 = lvi + 1, b0 = lvi + 2, b1 = lvi + 3
-        pos.push(x0, y0, zBot); nrm.push(onx, ony, 0); lvi++
-        pos.push(x0, y0, zTop); nrm.push(onx, ony, 0); lvi++
-        pos.push(x1, y1, zBot); nrm.push(onx, ony, 0); lvi++
-        pos.push(x1, y1, zTop); nrm.push(onx, ony, 0); lvi++
-        idx.push(a0, b0, b1, a0, b1, a1)
-      }
-
-      const nHoles = holeIndices.length
-      let hStart = outN
-      for (let hi = 0; hi < nHoles; hi++) {
-        for (let i = 0; i < HOLE_N; i++) {
-          const j = (i + 1) % HOLE_N
-          const gi = hStart + i, gj = hStart + j
-          const [x0, y0] = [flat[gi * 2], flat[gi * 2 + 1]]
-          const [x1, y1] = [flat[gj * 2], flat[gj * 2 + 1]]
-          const edx = x1 - x0, edy = y1 - y0
-          const edL = Math.hypot(edx, edy) || 1
-          const inx = edy / edL, iny = -edx / edL
-          const a0 = lvi, a1 = lvi + 1, b0 = lvi + 2, b1 = lvi + 3
-          pos.push(x0, y0, zBot); nrm.push(inx, iny, 0); lvi++
-          pos.push(x0, y0, zTop); nrm.push(inx, iny, 0); lvi++
-          pos.push(x1, y1, zBot); nrm.push(inx, iny, 0); lvi++
-          pos.push(x1, y1, zTop); nrm.push(inx, iny, 0); lvi++
-          idx.push(a0, b0, b1, a0, b1, a1)
-        }
-        hStart += HOLE_N
-      }
-
-      for (let i = 0; i < pos.length; i++) { allPos.push(pos[i]); allNrm.push(nrm[i]) }
-      for (const i of idx) allIdx.push(i + vOff)
-      vOff += lvi
-    }
+    shapes.push(outline, ...endpointCircles)
   }
 
-  if (!allPos.length) return null
-  return {
-    name: 'CurveTraces_F.Cu',
-    positions: new Float32Array(allPos),
-    normals: new Float32Array(allNrm),
-    indices: new Uint32Array(allIdx)
-  }
+  return buildPolygonsWithDrills(shapes, drills, 'CurveTraces_F.Cu', zBot, zTop)
 }
 
 function buildCompoundBody(name, boxes) {
@@ -448,18 +365,18 @@ function buildCompoundBody(name, boxes) {
     const y0 = cy - hd, y1 = cy + hd
 
     function quad(ax, ay, az, bx, by, bz, cx2, cy2, cz, dx, dy, dz, nx, ny, nz) {
-      allPos.push(ax,ay,az, bx,by,bz, cx2,cy2,cz, dx,dy,dz)
-      allNrm.push(nx,ny,nz, nx,ny,nz, nx,ny,nz, nx,ny,nz)
-      allIdx.push(vOff, vOff+1, vOff+2, vOff, vOff+2, vOff+3)
+      allPos.push(ax, ay, az, bx, by, bz, cx2, cy2, cz, dx, dy, dz)
+      allNrm.push(nx, ny, nz, nx, ny, nz, nx, ny, nz, nx, ny, nz)
+      allIdx.push(vOff, vOff + 1, vOff + 2, vOff, vOff + 2, vOff + 3)
       vOff += 4
     }
 
-    quad(x0,y0,zTop, x1,y0,zTop, x1,y1,zTop, x0,y1,zTop, 0,0,1)
-    quad(x0,y1,zBot, x1,y1,zBot, x1,y0,zBot, x0,y0,zBot, 0,0,-1)
-    quad(x0,y0,zBot, x1,y0,zBot, x1,y0,zTop, x0,y0,zTop, 0,-1,0)
-    quad(x0,y1,zTop, x1,y1,zTop, x1,y1,zBot, x0,y1,zBot, 0,1,0)
-    quad(x0,y0,zBot, x0,y0,zTop, x0,y1,zTop, x0,y1,zBot, -1,0,0)
-    quad(x1,y0,zTop, x1,y0,zBot, x1,y1,zBot, x1,y1,zTop, 1,0,0)
+    quad(x0, y0, zTop, x1, y0, zTop, x1, y1, zTop, x0, y1, zTop, 0, 0, 1)
+    quad(x0, y1, zBot, x1, y1, zBot, x1, y0, zBot, x0, y0, zBot, 0, 0, -1)
+    quad(x0, y0, zBot, x1, y0, zBot, x1, y0, zTop, x0, y0, zTop, 0, -1, 0)
+    quad(x0, y1, zTop, x1, y1, zTop, x1, y1, zBot, x0, y1, zBot, 0, 1, 0)
+    quad(x0, y0, zBot, x0, y0, zTop, x0, y1, zTop, x0, y1, zBot, -1, 0, 0)
+    quad(x1, y0, zTop, x1, y0, zBot, x1, y1, zBot, x1, y1, zTop, 1, 0, 0)
   }
 
   return {
@@ -539,20 +456,28 @@ function buildComponentBodies(doc) {
         boxes.push(
           { cx, cy: row1, hw: lenHw, hd: sWall / 2, zBot: dBot, zTop: dBot + sH },
           { cx, cy: row2, hw: lenHw, hd: sWall / 2, zBot: dBot, zTop: dBot + sH },
-          { cx: cx - lenHw + sWall / 2, cy, hw: sWall / 2,
-            hd: spanLen / 2 - sWall / 2, zBot: dBot, zTop: dBot + sH },
-          { cx: cx + lenHw - sWall / 2, cy, hw: sWall / 2,
-            hd: spanLen / 2 - sWall / 2, zBot: dBot, zTop: dBot + sH },
+          {
+            cx: cx - lenHw + sWall / 2, cy, hw: sWall / 2,
+            hd: spanLen / 2 - sWall / 2, zBot: dBot, zTop: dBot + sH
+          },
+          {
+            cx: cx + lenHw - sWall / 2, cy, hw: sWall / 2,
+            hd: spanLen / 2 - sWall / 2, zBot: dBot, zTop: dBot + sH
+          },
           { cx, cy, hw: lenHw, hd: spanLen / 2, zBot: dBot, zTop: dBot + 0.5 }
         )
       } else {
         boxes.push(
           { cx: row1, cy, hw: sWall / 2, hd: lenHw, zBot: dBot, zTop: dBot + sH },
           { cx: row2, cy, hw: sWall / 2, hd: lenHw, zBot: dBot, zTop: dBot + sH },
-          { cx, cy: cy + lenHw - sWall / 2, hw: spanLen / 2 - sWall / 2,
-            hd: sWall / 2, zBot: dBot, zTop: dBot + sH },
-          { cx, cy: cy - lenHw + sWall / 2, hw: spanLen / 2 - sWall / 2,
-            hd: sWall / 2, zBot: dBot, zTop: dBot + sH },
+          {
+            cx, cy: cy + lenHw - sWall / 2, hw: spanLen / 2 - sWall / 2,
+            hd: sWall / 2, zBot: dBot, zTop: dBot + sH
+          },
+          {
+            cx, cy: cy - lenHw + sWall / 2, hw: spanLen / 2 - sWall / 2,
+            hd: sWall / 2, zBot: dBot, zTop: dBot + sH
+          },
           { cx, cy, hw: spanLen / 2, hd: lenHw, zBot: dBot, zTop: dBot + 0.5 }
         )
       }
@@ -567,10 +492,14 @@ function buildComponentBodies(doc) {
           p2x = row2; p2y = -((d.row + i) * pitch)
         }
         boxes.push(
-          { cx: p1x, cy: p1y, hw: pinHw, hd: pinHw,
-            zBot: -DIP_SOLDER, zTop: dBot + sH },
-          { cx: p2x, cy: p2y, hw: pinHw, hd: pinHw,
-            zBot: -DIP_SOLDER, zTop: dBot + sH }
+          {
+            cx: p1x, cy: p1y, hw: pinHw, hd: pinHw,
+            zBot: -DIP_SOLDER, zTop: dBot + sH
+          },
+          {
+            cx: p2x, cy: p2y, hw: pinHw, hd: pinHw,
+            zBot: -DIP_SOLDER, zTop: dBot + sH
+          }
         )
       }
     } else {
@@ -592,17 +521,25 @@ function buildComponentBodies(doc) {
 
           const edge1 = cy + bodyHd
           boxes.push(
-            { cx: p1x, cy: (edge1 + p1y) / 2, hw: pinHw,
-              hd: (p1y - edge1) / 2 + pinHt, zBot: legZ0, zTop: legZ1 },
-            { cx: p1x, cy: p1y, hw: pinHw, hd: pinHt,
-              zBot: -DIP_SOLDER, zTop: legZ1 }
+            {
+              cx: p1x, cy: (edge1 + p1y) / 2, hw: pinHw,
+              hd: (p1y - edge1) / 2 + pinHt, zBot: legZ0, zTop: legZ1
+            },
+            {
+              cx: p1x, cy: p1y, hw: pinHw, hd: pinHt,
+              zBot: -DIP_SOLDER, zTop: legZ1
+            }
           )
           const edge2 = cy - bodyHd
           boxes.push(
-            { cx: p2x, cy: (edge2 + p2y) / 2, hw: pinHw,
-              hd: (edge2 - p2y) / 2 + pinHt, zBot: legZ0, zTop: legZ1 },
-            { cx: p2x, cy: p2y, hw: pinHw, hd: pinHt,
-              zBot: -DIP_SOLDER, zTop: legZ1 }
+            {
+              cx: p2x, cy: (edge2 + p2y) / 2, hw: pinHw,
+              hd: (edge2 - p2y) / 2 + pinHt, zBot: legZ0, zTop: legZ1
+            },
+            {
+              cx: p2x, cy: p2y, hw: pinHw, hd: pinHt,
+              zBot: -DIP_SOLDER, zTop: legZ1
+            }
           )
         } else {
           p1x = d.col * pitch; p1y = -((d.row + i) * pitch)
@@ -610,17 +547,25 @@ function buildComponentBodies(doc) {
 
           const edge1 = cx - bodyHw
           boxes.push(
-            { cx: (edge1 + p1x) / 2, cy: p1y,
-              hw: (edge1 - p1x) / 2 + pinHt, hd: pinHw, zBot: legZ0, zTop: legZ1 },
-            { cx: p1x, cy: p1y, hw: pinHt, hd: pinHw,
-              zBot: -DIP_SOLDER, zTop: legZ1 }
+            {
+              cx: (edge1 + p1x) / 2, cy: p1y,
+              hw: (edge1 - p1x) / 2 + pinHt, hd: pinHw, zBot: legZ0, zTop: legZ1
+            },
+            {
+              cx: p1x, cy: p1y, hw: pinHt, hd: pinHw,
+              zBot: -DIP_SOLDER, zTop: legZ1
+            }
           )
           const edge2 = cx + bodyHw
           boxes.push(
-            { cx: (edge2 + p2x) / 2, cy: p2y,
-              hw: (p2x - edge2) / 2 + pinHt, hd: pinHw, zBot: legZ0, zTop: legZ1 },
-            { cx: p2x, cy: p2y, hw: pinHt, hd: pinHw,
-              zBot: -DIP_SOLDER, zTop: legZ1 }
+            {
+              cx: (edge2 + p2x) / 2, cy: p2y,
+              hw: (p2x - edge2) / 2 + pinHt, hd: pinHw, zBot: legZ0, zTop: legZ1
+            },
+            {
+              cx: p2x, cy: p2y, hw: pinHt, hd: pinHw,
+              zBot: -DIP_SOLDER, zTop: legZ1
+            }
           )
         }
       }
@@ -632,13 +577,10 @@ function buildComponentBodies(doc) {
   return bodies
 }
 
-function buildTeardropGeometry(doc, padPositions, zBot, zTop) {
+function buildTeardropGeometry(doc, padPositions, drills, zBot, zTop) {
   const { pitch } = doc.grid
   const padR = doc.padDiameter / 2
-  const allPos = []
-  const allNrm = []
-  const allIdx = []
-  let offset = 0
+  const shapes = []
 
   for (const trace of doc.traces) {
     if (trace.type !== 'roundtrace' || !trace.teardrop) continue
@@ -648,35 +590,13 @@ function buildTeardropGeometry(doc, padPositions, zBot, zTop) {
     )
     for (const td of teardrops) {
       if (td.outline.length < 3) continue
-      const flat = []
-      for (const p of td.outline) { flat.push(p.x, -p.y) }
-      const indices = earcut(flat)
-      if (indices.length === 0) continue
-
-      const n = td.outline.length
-      for (let i = 0; i < n; i++) {
-        allPos.push(flat[i * 2], flat[i * 2 + 1], zTop)
-        allNrm.push(0, 0, 1)
-      }
-      for (let i = 0; i < n; i++) {
-        allPos.push(flat[i * 2], flat[i * 2 + 1], zBot)
-        allNrm.push(0, 0, -1)
-      }
-      for (let i = 0; i < indices.length; i += 3) {
-        allIdx.push(offset + indices[i], offset + indices[i + 1], offset + indices[i + 2])
-        allIdx.push(offset + n + indices[i + 2], offset + n + indices[i + 1], offset + n + indices[i])
-      }
-      offset += n * 2
+      const flatShape = td.outline.map(p => [p.x, -p.y])
+      shapes.push(flatShape)
     }
   }
 
-  if (allPos.length === 0) return null
-  return {
-    name: 'Teardrops_F.Cu',
-    positions: new Float32Array(allPos),
-    normals: new Float32Array(allNrm),
-    indices: new Uint32Array(allIdx)
-  }
+  if (!shapes.length) return null
+  return buildPolygonsWithDrills(shapes, drills, 'Teardrops_F.Cu', zBot, zTop)
 }
 
 export function buildPerfboardBodies(doc) {
@@ -700,7 +620,7 @@ export function buildPerfboardBodies(doc) {
     : null
 
   const curveTracesBody = buildCurveTraceGeometry(doc, drills, zBot, zTop)
-  const teardropBody = buildTeardropGeometry(doc, padPositions, zBot, zTop)
+  const teardropBody = buildTeardropGeometry(doc, padPositions, drills, zBot, zTop)
 
   const componentBodies = buildComponentBodies(doc)
   return [boardBody, padsBody, tracesBody, curveTracesBody, teardropBody, ...componentBodies].filter(Boolean)

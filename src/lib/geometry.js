@@ -1,4 +1,5 @@
 import earcut from 'earcut'
+import polygonClipping from 'polygon-clipping'
 
 export const HALF_N = 24
 export const HOLE_N = 32
@@ -32,7 +33,7 @@ export function pointInPolygon(px, py, poly) {
 
 export function makeDrillLookup(drills) {
   const local = drills.map(d => ({ lx: d.x, ly: -d.y, r: d.r }))
-  return function(cx, cy) {
+  return function (cx, cy) {
     for (const d of local) {
       const dx = d.lx - cx, dy = d.ly - cy
       if (dx * dx + dy * dy < DRILL_TOL_SQ) return d.r
@@ -128,6 +129,131 @@ export function buildBoardGeometry(polygon, drills, thickness) {
   }
 }
 
+export function buildPolygonsWithDrills(shapes, drills, name, zBot, zTop) {
+  const allPos = [], allNrm = [], allIdx = []
+  let vOff = 0
+
+  for (let sIdx = 0; sIdx < shapes.length; sIdx++) {
+    const shape = shapes[sIdx]
+    if (!shape || shape.length < 3) continue
+
+    // Ensure shape is closed
+    const closedShape = [...shape]
+    const firstP = closedShape[0], lastP = closedShape[closedShape.length - 1]
+    if (Math.abs(firstP[0] - lastP[0]) > 1e-4 || Math.abs(firstP[1] - lastP[1]) > 1e-4) {
+      closedShape.push([firstP[0], firstP[1]])
+    }
+    const tracePoly = [[closedShape]]
+
+    const holesPolys = []
+    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity
+    for (const [px, py] of closedShape) {
+      if (px < minX) minX = px; if (px > maxX) maxX = px
+      if (py < minY) minY = py; if (py > maxY) maxY = py
+    }
+
+    for (const d of drills) {
+      const dlx = d.x, dly = -d.y
+      if (dlx + d.r < minX || dlx - d.r > maxX || dly + d.r < minY || dly - d.r > maxY) continue
+
+      const holeRing = []
+      for (let i = 0; i < HOLE_N; i++) {
+        const a = i * 2 * Math.PI / HOLE_N
+        holeRing.push([dlx + d.r * Math.cos(a), dly + d.r * Math.sin(a)])
+      }
+      holeRing.push(holeRing[0].slice())
+      holesPolys.push([[holeRing]])
+    }
+
+    let resultPolys = []
+    if (holesPolys.length > 0) {
+      try {
+        resultPolys = polygonClipping.difference(tracePoly, ...holesPolys)
+      } catch (e) {
+        console.warn('polygonClipping fail', e)
+        resultPolys = [tracePoly]
+      }
+    } else {
+      resultPolys = polygonClipping.union(tracePoly)
+    }
+
+    for (const multi of resultPolys) {
+      const flat = []
+      const holeIndices = []
+
+      const outRing = multi[0]
+      const outN = outRing.length - 1
+      for (let i = 0; i < outN; i++) flat.push(outRing[i][0], outRing[i][1])
+
+      const ringStartIndices = [0]
+      const ringLengths = [outN]
+
+      for (let i = 1; i < multi.length; i++) {
+        const hRing = multi[i]
+        const hN = hRing.length - 1
+        holeIndices.push(flat.length / 2)
+        ringStartIndices.push(flat.length / 2)
+        ringLengths.push(hN)
+        for (let j = 0; j < hN; j++) flat.push(hRing[j][0], hRing[j][1])
+      }
+
+      const triIdx = earcut(flat, holeIndices.length ? holeIndices : null, 2)
+      if (!triIdx.length) continue
+
+      const nFace = flat.length / 2
+      const pos = [], nrm = [], idx = []
+      let lvi = 0
+
+      const tB = lvi
+      for (let i = 0; i < nFace; i++) {
+        pos.push(flat[i * 2], flat[i * 2 + 1], zTop); nrm.push(0, 0, 1); lvi++
+      }
+      for (let i = 0; i < triIdx.length; i += 3)
+        idx.push(tB + triIdx[i], tB + triIdx[i + 1], tB + triIdx[i + 2])
+
+      const bB = lvi
+      for (let i = 0; i < nFace; i++) {
+        pos.push(flat[i * 2], flat[i * 2 + 1], zBot); nrm.push(0, 0, -1); lvi++
+      }
+      for (let i = 0; i < triIdx.length; i += 3)
+        idx.push(bB + triIdx[i], bB + triIdx[i + 2], bB + triIdx[i + 1])
+
+      for (let ri = 0; ri < ringStartIndices.length; ri++) {
+        const startIdx = ringStartIndices[ri]
+        const rN = ringLengths[ri]
+        for (let i = 0; i < rN; i++) {
+          const j = (i + 1) % rN
+          const g_i = startIdx + i, g_j = startIdx + j
+          const x0 = flat[g_i * 2], y0 = flat[g_i * 2 + 1]
+          const x1 = flat[g_j * 2], y1 = flat[g_j * 2 + 1]
+          const edx = x1 - x0, edy = y1 - y0
+          const edL = Math.hypot(edx, edy) || 1
+          const onx = edy / edL, ony = -edx / edL
+
+          const a0 = lvi, a1 = lvi + 1, b0 = lvi + 2, b1 = lvi + 3
+          pos.push(x0, y0, zBot); nrm.push(onx, ony, 0); lvi++
+          pos.push(x0, y0, zTop); nrm.push(onx, ony, 0); lvi++
+          pos.push(x1, y1, zBot); nrm.push(onx, ony, 0); lvi++
+          pos.push(x1, y1, zTop); nrm.push(onx, ony, 0); lvi++
+          idx.push(a0, b0, b1, a0, b1, a1)
+        }
+      }
+
+      for (let i = 0; i < pos.length; i++) { allPos.push(pos[i]); allNrm.push(nrm[i]) }
+      for (const i of idx) allIdx.push(i + vOff)
+      vOff += lvi
+    }
+  }
+
+  if (!allPos.length) return null
+  return {
+    name,
+    positions: new Float32Array(allPos),
+    normals: new Float32Array(allNrm),
+    indices: new Uint32Array(allIdx)
+  }
+}
+
 export function buildTracesGeometry(segments, drills, layer, zBot, zTop, squareEnds) {
   const segs = segments.filter(s => s.layer === layer)
   if (!segs.length) return null
@@ -156,9 +282,7 @@ export function buildTracesGeometry(segments, drills, layer, zBot, zTop, squareE
     }
   }
 
-  const lookupDrill = makeDrillLookup(drills)
-  const allPos = [], allNrm = [], allIdx = []
-  let vOff = 0
+  const shapes = []
 
   for (let si = 0; si < segs.length; si++) {
     const seg = segs[si]
@@ -166,74 +290,31 @@ export function buildTracesGeometry(segments, drills, layer, zBot, zTop, squareE
     let p2x = seg.x2, p2y = -seg.y2
     const hw = seg.width / 2
     let dx = p2x - p1x, dy = p2y - p1y
-    let segLenSq = dx * dx + dy * dy
     const theta = Math.atan2(dy, dx)
 
     const p1Sq = squareEnds && endpointFree[si]?.p1
     const p2Sq = squareEnds && endpointFree[si]?.p2
 
-    let trimP1 = false, trimP2 = false
-    const segLen = Math.sqrt(segLenSq)
-    if (segLen > 1e-4) {
-      const ux = dx / segLen, uy = dy / segLen
-      const origP1x = p1x, origP1y = p1y
-      let tStart = 0, tEnd = segLen
-      for (const d of drills) {
-        const dlx = d.x, dly = -d.y
-        const vx = dlx - origP1x, vy = dly - origP1y
-        const projT = vx * ux + vy * uy
-        const perpSq = vx * vx + vy * vy - projT * projT
-        const perpDistSq = Math.max(0, perpSq)
-        const Rsq = d.r * d.r - perpDistSq
-        if (Rsq <= 0) continue
-        const R = Math.sqrt(Rsq) + 0.02
-        const cutStart = projT - R
-        const cutEnd = projT + R
-        if (cutStart <= tStart && cutEnd > tStart) tStart = cutEnd
-        if (cutEnd >= tEnd && cutStart < tEnd) tEnd = cutStart
-      }
-      if (tStart >= tEnd) continue
-      if (tStart > 0) {
-        p1x = origP1x + ux * tStart; p1y = origP1y + uy * tStart
-        trimP1 = true
-      }
-      if (tEnd < segLen) {
-        p2x = origP1x + ux * tEnd; p2y = origP1y + uy * tEnd
-        trimP2 = true
-      }
-      dx = p2x - p1x; dy = p2y - p1y
-      segLenSq = dx * dx + dy * dy
-    }
-
     const outline = []
-    if (p2Sq && !trimP2) {
+    if (p2Sq) {
       const ct = Math.cos(theta), st = Math.sin(theta)
       const nx = -st, ny = ct
       const ex = p2x + hw * ct, ey = p2y + hw * st
       outline.push([ex - hw * nx, ey - hw * ny])
       outline.push([ex + hw * nx, ey + hw * ny])
-    } else if (trimP2) {
-      const ct = Math.cos(theta), st = Math.sin(theta)
-      const nx = -st, ny = ct
-      outline.push([p2x - hw * nx, p2y - hw * ny])
-      outline.push([p2x + hw * nx, p2y + hw * ny])
     } else {
       for (let i = 0; i <= HALF_N; i++) {
         const a = theta - Math.PI / 2 + Math.PI * i / HALF_N
         outline.push([p2x + hw * Math.cos(a), p2y + hw * Math.sin(a)])
       }
     }
-    if (p1Sq && !trimP1) {
+
+    if (p1Sq) {
       const ct = Math.cos(theta), st = Math.sin(theta)
       const nx = -st, ny = ct
       const ex = p1x - hw * ct, ey = p1y - hw * st
       outline.push([ex + hw * nx, ey + hw * ny])
       outline.push([ex - hw * nx, ey - hw * ny])
-    } else if (trimP1) {
-      const ct = Math.cos(theta), st = Math.sin(theta)
-      const nx = -st, ny = ct
-      outline.push([p1x + hw * nx, p1y + hw * ny])
-      outline.push([p1x - hw * nx, p1y - hw * ny])
     } else {
       for (let i = 1; i < HALF_N; i++) {
         const a = theta + Math.PI / 2 + Math.PI * i / HALF_N
@@ -241,100 +322,8 @@ export function buildTracesGeometry(segments, drills, layer, zBot, zTop, squareE
       }
     }
 
-    const holes = []
-    for (const d of drills) {
-      const dlx = d.x, dly = -d.y
-      let dist
-      if (segLenSq < 1e-8) {
-        dist = Math.hypot(dlx - p1x, dly - p1y)
-      } else {
-        const t = Math.max(0, Math.min(1, ((dlx - p1x) * dx + (dly - p1y) * dy) / segLenSq))
-        dist = Math.hypot(dlx - (p1x + t * dx), dly - (p1y + t * dy))
-      }
-      if (dist >= hw) continue
-      if (d.r >= hw) continue
-      const hr = Math.min(d.r, hw - dist - 0.02)
-      if (hr > 0.05) {
-        const h = []
-        for (let i = 0; i < HOLE_N; i++) {
-          const a = -i * 2 * Math.PI / HOLE_N
-          h.push([dlx + hr * Math.cos(a), dly + hr * Math.sin(a)])
-        }
-        holes.push(h)
-      }
-    }
-
-    const flat = []
-    const hIdx = []
-    for (const [x, y] of outline) flat.push(x, y)
-    for (const hole of holes) {
-      hIdx.push(flat.length / 2)
-      for (const [x, y] of hole) flat.push(x, y)
-    }
-    const triIdx = earcut(flat, hIdx.length ? hIdx : null, 2)
-
-    const nFace = flat.length / 2
-    const outN = outline.length
-
-    const pos = [], nrm = [], idx = []
-    let lvi = 0
-
-    const tB = lvi
-    for (let i = 0; i < nFace; i++) {
-      pos.push(flat[i * 2], flat[i * 2 + 1], zTop); nrm.push(0, 0, 1); lvi++
-    }
-    for (let i = 0; i < triIdx.length; i += 3)
-      idx.push(tB + triIdx[i], tB + triIdx[i + 1], tB + triIdx[i + 2])
-
-    const bB = lvi
-    for (let i = 0; i < nFace; i++) {
-      pos.push(flat[i * 2], flat[i * 2 + 1], zBot); nrm.push(0, 0, -1); lvi++
-    }
-    for (let i = 0; i < triIdx.length; i += 3)
-      idx.push(bB + triIdx[i], bB + triIdx[i + 2], bB + triIdx[i + 1])
-
-    for (let i = 0; i < outN; i++) {
-      const j = (i + 1) % outN
-      const [x0, y0] = outline[i], [x1, y1] = outline[j]
-      const edx = x1 - x0, edy = y1 - y0
-      const edL = Math.hypot(edx, edy) || 1
-      const onx = edy / edL, ony = -edx / edL
-      const a0 = lvi, a1 = lvi + 1, b0 = lvi + 2, b1 = lvi + 3
-      pos.push(x0, y0, zBot); nrm.push(onx, ony, 0); lvi++
-      pos.push(x0, y0, zTop); nrm.push(onx, ony, 0); lvi++
-      pos.push(x1, y1, zBot); nrm.push(onx, ony, 0); lvi++
-      pos.push(x1, y1, zTop); nrm.push(onx, ony, 0); lvi++
-      idx.push(a0, b0, b1, a0, b1, a1)
-    }
-
-    for (const hole of holes) {
-      const hN = hole.length
-      for (let i = 0; i < hN; i++) {
-        const j = (i + 1) % hN
-        const [x0, y0] = hole[i], [x1, y1] = hole[j]
-        const edx = x1 - x0, edy = y1 - y0
-        const edL = Math.hypot(edx, edy) || 1
-        const inx = edy / edL, iny = -edx / edL
-        const a0 = lvi, a1 = lvi + 1, b0 = lvi + 2, b1 = lvi + 3
-        pos.push(x0, y0, zBot); nrm.push(inx, iny, 0); lvi++
-        pos.push(x0, y0, zTop); nrm.push(inx, iny, 0); lvi++
-        pos.push(x1, y1, zBot); nrm.push(inx, iny, 0); lvi++
-        pos.push(x1, y1, zTop); nrm.push(inx, iny, 0); lvi++
-        idx.push(a0, b0, b1, a0, b1, a1)
-      }
-    }
-
-    for (let i = 0; i < pos.length; i++) { allPos.push(pos[i]); allNrm.push(nrm[i]) }
-    for (const i of idx) allIdx.push(i + vOff)
-    vOff += lvi
+    shapes.push(outline)
   }
 
-  if (!allPos.length) return null
-
-  return {
-    name: layer,
-    positions: new Float32Array(allPos),
-    normals: new Float32Array(allNrm),
-    indices: new Uint32Array(allIdx)
-  }
+  return buildPolygonsWithDrills(shapes, drills, layer, zBot, zTop)
 }
