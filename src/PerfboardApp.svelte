@@ -115,6 +115,24 @@
     ];
   }
 
+  function addCapacitor(col, row, orientation) {
+    pushUndo();
+    doc.capacitors = [
+      ...(doc.capacitors || []),
+      { id: crypto.randomUUID(), col, row, orientation, type: 'ceramic' },
+    ];
+  }
+
+  function updateCapacitor(id, type, label) {
+    pushUndo();
+    const cap = (doc.capacitors || []).find((c) => c.id === id);
+    if (cap) {
+      cap.type = type;
+      cap.label = label;
+      doc.capacitors = [...(doc.capacitors || [])];
+    }
+  }
+
   function addTrace(points, type) {
     if (points.length < 2) return;
     pushUndo();
@@ -394,6 +412,12 @@
         dip.row += dr;
         continue;
       }
+      const cap = (doc.capacitors || []).find((c) => c.id === id);
+      if (cap) {
+        cap.col += dc;
+        cap.row += dr;
+        continue;
+      }
       const jumper = doc.jumpers.find((j) => j.id === id);
       if (jumper) {
         jumper.col1 += dc;
@@ -412,6 +436,7 @@
     doc.pads = [...doc.pads];
     doc.headers = [...doc.headers];
     doc.dips = [...(doc.dips || [])];
+    doc.capacitors = [...(doc.capacitors || [])];
     doc.traces = [...doc.traces];
     doc.jumpers = [...doc.jumpers];
     doc.annotations = [...doc.annotations];
@@ -429,6 +454,11 @@
       const dip = (doc.dips || []).find((d) => d.id === id);
       if (dip) {
         dip.orientation = dip.orientation === "h" ? "v" : "h";
+        continue;
+      }
+      const cap = (doc.capacitors || []).find((c) => c.id === id);
+      if (cap) {
+        cap.orientation = cap.orientation === "h" ? "v" : "h";
         continue;
       }
       const trace = doc.traces.find((t) => t.id === id);
@@ -459,6 +489,7 @@
     }
     doc.headers = [...doc.headers];
     doc.dips = [...(doc.dips || [])];
+    doc.capacitors = [...(doc.capacitors || [])];
     doc.traces = [...doc.traces];
     doc.jumpers = [...doc.jumpers];
   }
@@ -468,6 +499,7 @@
     doc.pads = doc.pads.filter((p) => p.id !== id);
     doc.headers = doc.headers.filter((h) => h.id !== id);
     doc.dips = (doc.dips || []).filter((d) => d.id !== id);
+    doc.capacitors = (doc.capacitors || []).filter((c) => c.id !== id);
     doc.traces = doc.traces.filter((t) => t.id !== id);
     doc.jumpers = doc.jumpers.filter((j) => j.id !== id);
     doc.annotations = doc.annotations.filter((a) => a.id !== id);
@@ -558,6 +590,7 @@
   function applyParsedDoc(parsed) {
     pushUndo();
     parsed.dips = parsed.dips ?? [];
+    parsed.capacitors = parsed.capacitors ?? [];
     parsed.jumpers = parsed.jumpers ?? [];
     parsed.annotations = parsed.annotations ?? [];
     parsed.curveEndWidth = parsed.curveEndWidth ?? 3.0;
@@ -650,6 +683,7 @@
         doc.pads = doc.pads.filter((p) => !idSet.has(p.id));
         doc.headers = doc.headers.filter((h) => !idSet.has(h.id));
         doc.dips = (doc.dips || []).filter((d) => !idSet.has(d.id));
+        doc.capacitors = (doc.capacitors || []).filter((c) => !idSet.has(c.id));
         doc.traces = doc.traces.filter((t) => !idSet.has(t.id));
         doc.jumpers = doc.jumpers.filter((j) => !idSet.has(j.id));
         doc.annotations = doc.annotations.filter((a) => !idSet.has(a.id));
@@ -949,10 +983,7 @@
           ).toFixed(1)} mm
         </div>
         <div>
-          Pads: {doc.pads.length} | Headers: {doc.headers.length} | DIPs: {(
-            doc.dips || []
-          ).length} | Traces: {doc.traces.length} | Jumpers: {doc.jumpers
-            .length} | Labels: {doc.annotations.length}
+          Pads: {doc.pads.length} | Headers: {doc.headers.length} | DIPs: {(doc.dips || []).length} | Caps: {(doc.capacitors || []).length} | Traces: {doc.traces.length} | Jumpers: {doc.jumpers.length} | Labels: {doc.annotations.length}
         </div>
       </div>
     </div>
@@ -990,6 +1021,8 @@
             onAddHeader={addHeader}
             onAddTrace={addTrace}
             onAddDip={addDip}
+            onAddCapacitor={addCapacitor}
+            onUpdateCapacitor={updateCapacitor}
             onAddJumper={addJumper}
             onAddAnnotation={addAnnotation}
             onUpdateAnnotation={updateAnnotation}

@@ -42,6 +42,8 @@
     onSelect = () => {},
     onBulkSelect = () => {},
     onToolChange = () => {},
+    onAddCapacitor = () => {},
+    onUpdateCapacitor = () => {},
   } = $props();
 
   let svgEl;
@@ -73,6 +75,11 @@
   // DIP drawing state
   let dipStart = $state(null);
   let dipPreview = $state(null);
+
+  // Capacitor drawing state
+  let capStart = $state(null);
+  let capPreview = $state(null);
+  let editingCapacitor = $state(null);
 
   // Jumper drawing state
   let jumperStart = $state(null);
@@ -224,6 +231,11 @@
         }
       }
     }
+    for (const cap of doc.capacitors || []) {
+      const c2col = cap.orientation === 'h' ? cap.col + 1 : cap.col
+      const c2row = cap.orientation === 'h' ? cap.row : cap.row + 1
+      if ((cap.col === col && cap.row === row) || (c2col === col && c2row === row)) return cap
+    }
     for (const t of doc.traces) {
       for (const pt of t.points) {
         if (pt.col === col && pt.row === row) return t;
@@ -323,6 +335,9 @@
     if (editingDip) {
       editingDip = null;
     }
+    if (editingCapacitor) {
+      editingCapacitor = null;
+    }
     if (editingPad) {
       editingPad = null;
     }
@@ -406,6 +421,17 @@
           dipStart = null;
           dipPreview = null;
         }
+      }
+    } else if (activeTool === "cap") {
+      if (!capStart) {
+        capStart = { col, row };
+      } else {
+        const dc = col - capStart.col;
+        const dr = row - capStart.row;
+        const orientation = Math.abs(dc) >= Math.abs(dr) ? "h" : "v";
+        onAddCapacitor(capStart.col, capStart.row, orientation);
+        capStart = null;
+        capPreview = null;
       }
     } else if (activeTool === "trace") {
       if (tracePoints.length === 0) {
@@ -589,6 +615,13 @@
         orientation === "v" ? Math.min(dipStart.row, row) : dipStart.row;
       dipPreview = { col: startCol, row: startRow, count, orientation };
     }
+
+    if (activeTool === "cap" && capStart) {
+      const dc = col - capStart.col;
+      const dr = row - capStart.row;
+      const orientation = Math.abs(dc) >= Math.abs(dr) ? "h" : "v";
+      capPreview = { col: capStart.col, row: capStart.row, orientation };
+    }
   }
 
   function findElementsInRect(x1, y1, x2, y2) {
@@ -631,6 +664,12 @@
         }
       }
       if (found) ids.push(d.id);
+    }
+    for (const cap of doc.capacitors || []) {
+      const c2col = cap.orientation === 'h' ? cap.col + 1 : cap.col;
+      const c2row = cap.orientation === 'h' ? cap.row : cap.row + 1;
+      if (inRect(cap.col * pitch, cap.row * pitch) || inRect(c2col * pitch, c2row * pitch))
+        ids.push(cap.id);
     }
     for (const t of doc.traces) {
       for (const pt of t.points) {
@@ -811,6 +850,16 @@
             dipEditInput.select();
           }
         });
+      } else if (el && (doc.capacitors || []).find((c) => c.id === el.id)) {
+        const cap = (doc.capacitors || []).find((c) => c.id === el.id);
+        const rect = containerEl.getBoundingClientRect();
+        editingCapacitor = {
+          id: el.id,
+          type: cap.type ?? "ceramic",
+          label: cap.label ?? "",
+          left: e.clientX - rect.left,
+          top: e.clientY - rect.top - 20,
+        };
       } else if (el && doc.headers.find((h) => h.id === el.id)) {
         const header = doc.headers.find((h) => h.id === el.id);
         const rect = containerEl.getBoundingClientRect();
@@ -950,6 +999,21 @@
     if (e.key === "Enter" || e.key === "Escape") closeDipEdit();
   }
 
+  function applyCapEdit() {
+    if (!editingCapacitor) return;
+    onUpdateCapacitor(editingCapacitor.id, editingCapacitor.type, editingCapacitor.label);
+  }
+
+  function closeCapEdit() {
+    applyCapEdit();
+    editingCapacitor = null;
+  }
+
+  function handleCapEditKeydown(e) {
+    e.stopPropagation();
+    if (e.key === "Enter" || e.key === "Escape") closeCapEdit();
+  }
+
   function applyCurveEdit() {
     if (!editingCurve) return;
     onUpdateCurve(
@@ -1044,6 +1108,11 @@
       dipPreview = null;
       return true;
     }
+    if (activeTool === "cap" && capStart) {
+      capStart = null;
+      capPreview = null;
+      return true;
+    }
     if (activeTool === "jumper" && jumperStart) {
       jumperStart = null;
       jumperPreview = null;
@@ -1075,6 +1144,7 @@
     "7": "erase",
     "8": "curve",
     "9": "roundtrace",
+    "0": "cap",
   };
 
   function handleKeydown(e) {
@@ -1100,6 +1170,10 @@
       }
       if (editingDip) {
         editingDip = null;
+        return;
+      }
+      if (editingCapacitor) {
+        editingCapacitor = null;
         return;
       }
       if (editingJumper) {
@@ -1210,6 +1284,11 @@
       for (const dp of getDipPads(d)) {
         positions.push({ x: dp.col * pitch, y: dp.row * pitch });
       }
+    }
+    for (const cap of doc.capacitors || []) {
+      positions.push({ x: cap.col * pitch, y: cap.row * pitch });
+      if (cap.orientation === 'h') positions.push({ x: (cap.col + 1) * pitch, y: cap.row * pitch });
+      else positions.push({ x: cap.col * pitch, y: (cap.row + 1) * pitch });
     }
     return positions;
   });
@@ -2184,6 +2263,92 @@
       >
     {/if}
 
+    <!-- Capacitors -->
+    {#each doc.capacitors || [] as cap}
+      {@const isSelected = selectedIds.includes(cap.id)}
+      {@const p1x = cap.col * pitch}
+      {@const p1y = cap.row * pitch}
+      {@const p2x = cap.orientation === 'h' ? (cap.col + 1) * pitch : cap.col * pitch}
+      {@const p2y = cap.orientation === 'h' ? cap.row * pitch : (cap.row + 1) * pitch}
+      {@const midX = (p1x + p2x) / 2}
+      {@const midY = (p1y + p2y) / 2}
+      {@const isElyt = (cap.type ?? 'ceramic') === 'electrolytic'}
+      {@const bodyColor = isSelected ? "rgba(251,191,36,0.15)" : "rgba(40,40,60,0.8)"}
+      {@const strokeColor = isSelected ? "#fbbf24" : "rgba(255,255,255,0.3)"}
+      {@const lineColor = isSelected ? "#fbbf24" : "rgba(180,220,255,0.85)"}
+      <!-- Lead lines -->
+      {#if cap.orientation === 'h'}
+        <line x1={p1x} y1={p1y} x2={midX - pitch * 0.12} y2={p1y} stroke={lineColor} stroke-width="0.12" stroke-linecap="round"/>
+        <line x1={midX + pitch * 0.12} y1={p1y} x2={p2x} y2={p1y} stroke={lineColor} stroke-width="0.12" stroke-linecap="round"/>
+        <!-- Plate 1 -->
+        <line x1={midX - pitch * 0.12} y1={midY - pitch * 0.38} x2={midX - pitch * 0.12} y2={midY + pitch * 0.38} stroke={lineColor} stroke-width="0.22" stroke-linecap="round"/>
+        <!-- Plate 2 -->
+        {#if isElyt}
+          <path d="M{midX + pitch * 0.12},{midY - pitch * 0.38} Q{midX + pitch * 0.22},{midY} {midX + pitch * 0.12},{midY + pitch * 0.38}" fill="none" stroke={lineColor} stroke-width="0.18" stroke-linecap="round"/>
+          <text x={p1x + pitch * 0.12} y={p1y - pitch * 0.22} font-size={pitch * 0.28} text-anchor="middle" font-family="monospace" fill={lineColor}>+</text>
+        {:else}
+          <line x1={midX + pitch * 0.12} y1={midY - pitch * 0.38} x2={midX + pitch * 0.12} y2={midY + pitch * 0.38} stroke={lineColor} stroke-width="0.22" stroke-linecap="round"/>
+        {/if}
+      {:else}
+        <line x1={p1x} y1={p1y} x2={p1x} y2={midY - pitch * 0.12} stroke={lineColor} stroke-width="0.12" stroke-linecap="round"/>
+        <line x1={p1x} y1={midY + pitch * 0.12} x2={p2x} y2={p2y} stroke={lineColor} stroke-width="0.12" stroke-linecap="round"/>
+        <!-- Plate 1 -->
+        <line x1={midX - pitch * 0.38} y1={midY - pitch * 0.12} x2={midX + pitch * 0.38} y2={midY - pitch * 0.12} stroke={lineColor} stroke-width="0.22" stroke-linecap="round"/>
+        <!-- Plate 2 -->
+        {#if isElyt}
+          <path d="M{midX - pitch * 0.38},{midY + pitch * 0.12} Q{midX},{midY + pitch * 0.22} {midX + pitch * 0.38},{midY + pitch * 0.12}" fill="none" stroke={lineColor} stroke-width="0.18" stroke-linecap="round"/>
+          <text x={p1x + pitch * 0.22} y={p1y + pitch * 0.28} font-size={pitch * 0.28} text-anchor="middle" font-family="monospace" fill={lineColor}>+</text>
+        {:else}
+          <line x1={midX - pitch * 0.38} y1={midY + pitch * 0.12} x2={midX + pitch * 0.38} y2={midY + pitch * 0.12} stroke={lineColor} stroke-width="0.22" stroke-linecap="round"/>
+        {/if}
+      {/if}
+      <!-- Pads -->
+      {#if isSelected}
+        <circle cx={p1x} cy={p1y} r={padR + pitch * 0.04} fill="rgba(255,255,255,0.45)"/>
+        <circle cx={p2x} cy={p2y} r={padR + pitch * 0.04} fill="rgba(255,255,255,0.45)"/>
+      {/if}
+      <circle cx={p1x} cy={p1y} r={padR} fill={isSelected ? "#fbbf24" : "#d4a534"}/>
+      <circle cx={p1x} cy={p1y} r={drillR} fill="#1a1a2e"/>
+      <circle cx={p2x} cy={p2y} r={padR} fill={isSelected ? "#fbbf24" : "#d4a534"}/>
+      <circle cx={p2x} cy={p2y} r={drillR} fill="#1a1a2e"/>
+      {#if cap.label}
+        <text
+          x={midX}
+          y={cap.orientation === 'h' ? midY - padR - pitch * 0.08 : midX + padR + pitch * 0.05}
+          text-anchor="middle"
+          dominant-baseline="auto"
+          fill="rgba(255,255,255,0.7)"
+          font-size={pitch * 0.32}
+          font-family="monospace"
+          font-weight="bold">{cap.label}</text>
+      {/if}
+    {/each}
+
+    <!-- Capacitor preview -->
+    {#if capPreview}
+      {@const p1x = capPreview.col * pitch}
+      {@const p1y = capPreview.row * pitch}
+      {@const p2x = capPreview.orientation === 'h' ? (capPreview.col + 1) * pitch : capPreview.col * pitch}
+      {@const p2y = capPreview.orientation === 'h' ? capPreview.row * pitch : (capPreview.row + 1) * pitch}
+      {@const midX = (p1x + p2x) / 2}
+      {@const midY = (p1y + p2y) / 2}
+      {#if capPreview.orientation === 'h'}
+        <line x1={p1x} y1={p1y} x2={midX - pitch * 0.12} y2={p1y} stroke="rgba(180,220,255,0.4)" stroke-width="0.12"/>
+        <line x1={midX + pitch * 0.12} y1={p1y} x2={p2x} y2={p1y} stroke="rgba(180,220,255,0.4)" stroke-width="0.12"/>
+        <line x1={midX - pitch * 0.12} y1={midY - pitch * 0.38} x2={midX - pitch * 0.12} y2={midY + pitch * 0.38} stroke="rgba(180,220,255,0.4)" stroke-width="0.22"/>
+        <line x1={midX + pitch * 0.12} y1={midY - pitch * 0.38} x2={midX + pitch * 0.12} y2={midY + pitch * 0.38} stroke="rgba(180,220,255,0.4)" stroke-width="0.22"/>
+      {:else}
+        <line x1={p1x} y1={p1y} x2={p1x} y2={midY - pitch * 0.12} stroke="rgba(180,220,255,0.4)" stroke-width="0.12"/>
+        <line x1={p1x} y1={midY + pitch * 0.12} x2={p2x} y2={p2y} stroke="rgba(180,220,255,0.4)" stroke-width="0.12"/>
+        <line x1={midX - pitch * 0.38} y1={midY - pitch * 0.12} x2={midX + pitch * 0.38} y2={midY - pitch * 0.12} stroke="rgba(180,220,255,0.4)" stroke-width="0.22"/>
+        <line x1={midX - pitch * 0.38} y1={midY + pitch * 0.12} x2={midX + pitch * 0.38} y2={midY + pitch * 0.12} stroke="rgba(180,220,255,0.4)" stroke-width="0.22"/>
+      {/if}
+      <circle cx={p1x} cy={p1y} r={padR} fill="#d4a534" opacity="0.4"/>
+      <circle cx={p1x} cy={p1y} r={drillR} fill="#1a1a2e" opacity="0.4"/>
+      <circle cx={p2x} cy={p2y} r={padR} fill="#d4a534" opacity="0.4"/>
+      <circle cx={p2x} cy={p2y} r={drillR} fill="#1a1a2e" opacity="0.4"/>
+    {/if}
+
     <!-- Pads -->
     {#each doc.pads as pad}
       {@const isSelected = selectedIds.includes(pad.id)}
@@ -2247,7 +2412,7 @@
     {/each}
 
     <!-- Ghost cursor -->
-    {#if ghostPos && (activeTool === "pad" || activeTool === "header" || (activeTool === "dip" && !dipStart))}
+    {#if ghostPos && (activeTool === "pad" || activeTool === "header" || (activeTool === "dip" && !dipStart) || (activeTool === "cap" && !capStart))}
       <circle
         cx={ghostPos.col * pitch}
         cy={ghostPos.row * pitch}
@@ -2563,6 +2728,14 @@
             />
           {/each}
         {/each}
+        {#each (doc.capacitors || []).filter((c) => selectedIds.includes(c.id)) as cap}
+          {@const c2col = cap.orientation === 'h' ? cap.col + 1 : cap.col}
+          {@const c2row = cap.orientation === 'h' ? cap.row : cap.row + 1}
+          <circle cx={(cap.col + dc) * pitch} cy={(cap.row + dr) * pitch} r={padR} fill="#fbbf24" opacity="0.4"/>
+          <circle cx={(cap.col + dc) * pitch} cy={(cap.row + dr) * pitch} r={drillR} fill="#1a1a2e" opacity="0.4"/>
+          <circle cx={(c2col + dc) * pitch} cy={(c2row + dr) * pitch} r={padR} fill="#fbbf24" opacity="0.4"/>
+          <circle cx={(c2col + dc) * pitch} cy={(c2row + dr) * pitch} r={drillR} fill="#1a1a2e" opacity="0.4"/>
+        {/each}
         {#each doc.traces.filter((t) => selectedIds.includes(t.id)) as trace}
           {#if trace.type === "curve"}
             {@const pts = trace.points.map((p) => ({
@@ -2744,6 +2917,34 @@
             applyDipEdit();
           }}>IC Socket</button
         >
+      </div>
+    </div>
+  {/if}
+
+  {#if editingCapacitor}
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
+    <div
+      class="absolute bg-surface-1 rounded-lg border-2 border-black shadow-[4px_4px_0_black] z-10 p-1.5 flex flex-col gap-1.5"
+      style="left: {editingCapacitor.left}px; top: {editingCapacitor.top}px"
+      onfocusout={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) closeCapEdit() }}
+    >
+      <input
+        type="text"
+        value={editingCapacitor.label}
+        placeholder="Value (e.g. 100nF)"
+        class="bg-surface-2 text-xs text-cyan-light rounded-lg px-2 py-1 border-2 border-black outline-none shadow-[2px_2px_0_black] w-36"
+        onkeydown={handleCapEditKeydown}
+        oninput={(e) => { editingCapacitor = { ...editingCapacitor, label: e.target.value }; applyCapEdit() }}
+      />
+      <div class="flex gap-1">
+        <button
+          class="flex-1 text-[10px] px-1.5 py-1 rounded-lg border-2 border-black {editingCapacitor.type === 'ceramic' ? 'bg-accent text-white shadow-[2px_2px_0_black]' : 'bg-surface-2 text-purple-light'}"
+          onmousedown={(e) => e.preventDefault()}
+          onclick={() => { editingCapacitor = { ...editingCapacitor, type: 'ceramic' }; applyCapEdit() }}>Ceramic</button>
+        <button
+          class="flex-1 text-[10px] px-1.5 py-1 rounded-lg border-2 border-black {editingCapacitor.type === 'electrolytic' ? 'bg-accent text-white shadow-[2px_2px_0_black]' : 'bg-surface-2 text-purple-light'}"
+          onmousedown={(e) => e.preventDefault()}
+          onclick={() => { editingCapacitor = { ...editingCapacitor, type: 'electrolytic' }; applyCapEdit() }}>Electrolytic</button>
       </div>
     </div>
   {/if}

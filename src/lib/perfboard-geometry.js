@@ -41,6 +41,12 @@ function collectPadPositions(doc) {
     }
   }
 
+  for (const cap of (doc.capacitors || [])) {
+    addPad(cap.col, cap.row)
+    if (cap.orientation === 'h') addPad(cap.col + 1, cap.row)
+    else addPad(cap.col, cap.row + 1)
+  }
+
   return positions
 }
 
@@ -356,6 +362,147 @@ function buildCurveTraceGeometry(doc, drills, zBot, zTop) {
   return buildPolygonsWithDrills(shapes, drills, 'CurveTraces_F.Cu', zBot, zTop)
 }
 
+function cylGeom(cx, cy, r, zBot, zTop, n = 20) {
+  const pos = [], nrm = [], idx = []
+  let v = 0
+
+  for (let i = 0; i < n; i++) {
+    const a0 = (i / n) * 2 * Math.PI
+    const a1 = ((i + 1) / n) * 2 * Math.PI
+    const x0 = cx + r * Math.cos(a0), y0 = cy + r * Math.sin(a0)
+    const x1 = cx + r * Math.cos(a1), y1 = cy + r * Math.sin(a1)
+    const nx0 = Math.cos(a0), ny0 = Math.sin(a0)
+    const nx1 = Math.cos(a1), ny1 = Math.sin(a1)
+    pos.push(x0, y0, zBot, x0, y0, zTop, x1, y1, zTop, x1, y1, zBot)
+    nrm.push(nx0, ny0, 0, nx0, ny0, 0, nx1, ny1, 0, nx1, ny1, 0)
+    idx.push(v, v + 1, v + 2, v, v + 2, v + 3)
+    v += 4
+  }
+
+  const tc = v; pos.push(cx, cy, zTop); nrm.push(0, 0, 1); v++
+  const tr = v
+  for (let i = 0; i < n; i++) {
+    const a = (i / n) * 2 * Math.PI
+    pos.push(cx + r * Math.cos(a), cy + r * Math.sin(a), zTop); nrm.push(0, 0, 1); v++
+  }
+  for (let i = 0; i < n; i++) idx.push(tc, tr + i, tr + (i + 1) % n)
+
+  const bc = v; pos.push(cx, cy, zBot); nrm.push(0, 0, -1); v++
+  const br = v
+  for (let i = 0; i < n; i++) {
+    const a = (i / n) * 2 * Math.PI
+    pos.push(cx + r * Math.cos(a), cy + r * Math.sin(a), zBot); nrm.push(0, 0, -1); v++
+  }
+  for (let i = 0; i < n; i++) idx.push(bc, br + (i + 1) % n, br + i)
+
+  return { pos, nrm, idx }
+}
+
+// Flat disc standing on edge, axis horizontal.
+// axisIsX=true  → disc face perpendicular to X (use when leads run in X, i.e. 'h' orientation)
+// axisIsX=false → disc face perpendicular to Y (use when leads run in Y, i.e. 'v' orientation)
+// cz = Z of disc centre, r = disc radius, ht = half-thickness along axis
+function cylGeomDisc(cx, cy, cz, r, ht, axisIsX, n = 20) {
+  const pos = [], nrm = [], idx = []
+  let v = 0
+
+  for (let i = 0; i < n; i++) {
+    const a0 = (i / n) * 2 * Math.PI
+    const a1 = ((i + 1) / n) * 2 * Math.PI
+    // curved surface coords depend on which axis the disc is perpendicular to
+    let x0, y0, z0, x1, y1, z1, nx0, ny0, nz0, nx1, ny1, nz1
+    if (axisIsX) {
+      // disc in YZ plane, axis along X
+      y0 = cy + r * Math.cos(a0); z0 = cz + r * Math.sin(a0)
+      y1 = cy + r * Math.cos(a1); z1 = cz + r * Math.sin(a1)
+      x0 = cx - ht; x1 = cx + ht
+      nx0 = 0; ny0 = Math.cos(a0); nz0 = Math.sin(a0)
+      nx1 = 0; ny1 = Math.cos(a1); nz1 = Math.sin(a1)
+      pos.push(x0, y0, z0,  x1, y0, z0,  x1, y1, z1,  x0, y1, z1)
+      nrm.push(nx0, ny0, nz0,  nx0, ny0, nz0,  nx1, ny1, nz1,  nx1, ny1, nz1)
+    } else {
+      // disc in XZ plane, axis along Y
+      x0 = cx + r * Math.cos(a0); z0 = cz + r * Math.sin(a0)
+      x1 = cx + r * Math.cos(a1); z1 = cz + r * Math.sin(a1)
+      y0 = cy - ht; y1 = cy + ht
+      nx0 = Math.cos(a0); ny0 = 0; nz0 = Math.sin(a0)
+      nx1 = Math.cos(a1); ny1 = 0; nz1 = Math.sin(a1)
+      pos.push(x0, y0, z0,  x0, y1, z0,  x1, y1, z1,  x1, y0, z1)
+      nrm.push(nx0, ny0, nz0,  nx0, ny0, nz0,  nx1, ny1, nz1,  nx1, ny1, nz1)
+    }
+    idx.push(v, v + 1, v + 2,  v, v + 2, v + 3)
+    v += 4
+  }
+
+  // Two flat cap faces
+  for (const sign of [-1, 1]) {
+    const fc = v
+    if (axisIsX) {
+      pos.push(cx + sign * ht, cy, cz); nrm.push(sign, 0, 0); v++
+      const fr = v
+      for (let i = 0; i < n; i++) {
+        const a = (i / n) * 2 * Math.PI
+        pos.push(cx + sign * ht, cy + r * Math.cos(a), cz + r * Math.sin(a))
+        nrm.push(sign, 0, 0); v++
+      }
+      if (sign > 0) for (let i = 0; i < n; i++) idx.push(fc, fr + i, fr + (i + 1) % n)
+      else          for (let i = 0; i < n; i++) idx.push(fc, fr + (i + 1) % n, fr + i)
+    } else {
+      pos.push(cx, cy + sign * ht, cz); nrm.push(0, sign, 0); v++
+      const fr = v
+      for (let i = 0; i < n; i++) {
+        const a = (i / n) * 2 * Math.PI
+        pos.push(cx + r * Math.cos(a), cy + sign * ht, cz + r * Math.sin(a))
+        nrm.push(0, sign, 0); v++
+      }
+      if (sign > 0) for (let i = 0; i < n; i++) idx.push(fc, fr + i, fr + (i + 1) % n)
+      else          for (let i = 0; i < n; i++) idx.push(fc, fr + (i + 1) % n, fr + i)
+    }
+  }
+
+  return { pos, nrm, idx }
+}
+
+function boxGeomRaw(cx, cy, hw, hd, zBot, zTop) {
+  const x0 = cx - hw, x1 = cx + hw
+  const y0 = cy - hd, y1 = cy + hd
+  const pos = [], nrm = [], idx = []
+  let v = 0
+
+  function quad(ax, ay, az, bx, by, bz, cx2, cy2, cz, dx, dy, dz, nx, ny, nz) {
+    pos.push(ax, ay, az, bx, by, bz, cx2, cy2, cz, dx, dy, dz)
+    nrm.push(nx, ny, nz, nx, ny, nz, nx, ny, nz, nx, ny, nz)
+    idx.push(v, v + 1, v + 2, v, v + 2, v + 3)
+    v += 4
+  }
+
+  quad(x0, y0, zTop, x1, y0, zTop, x1, y1, zTop, x0, y1, zTop, 0, 0, 1)
+  quad(x0, y1, zBot, x1, y1, zBot, x1, y0, zBot, x0, y0, zBot, 0, 0, -1)
+  quad(x0, y0, zBot, x1, y0, zBot, x1, y0, zTop, x0, y0, zTop, 0, -1, 0)
+  quad(x0, y1, zTop, x1, y1, zTop, x1, y1, zBot, x0, y1, zBot, 0, 1, 0)
+  quad(x0, y0, zBot, x0, y0, zTop, x0, y1, zTop, x0, y1, zBot, -1, 0, 0)
+  quad(x1, y0, zTop, x1, y0, zBot, x1, y1, zBot, x1, y1, zTop, 1, 0, 0)
+
+  return { pos, nrm, idx }
+}
+
+function mergeGeoms(name, geoms) {
+  const allPos = [], allNrm = [], allIdx = []
+  let vOff = 0
+  for (const g of geoms) {
+    for (const x of g.pos) allPos.push(x)
+    for (const x of g.nrm) allNrm.push(x)
+    for (const i of g.idx) allIdx.push(i + vOff)
+    vOff += g.pos.length / 3
+  }
+  return {
+    name,
+    positions: new Float32Array(allPos),
+    normals: new Float32Array(allNrm),
+    indices: new Uint32Array(allIdx)
+  }
+}
+
 function buildCompoundBody(name, boxes) {
   const allPos = [], allNrm = [], allIdx = []
   let vOff = 0
@@ -574,6 +721,85 @@ function buildComponentBodies(doc) {
     bodies.push(buildCompoundBody(`Component_d${di}`, boxes))
   }
 
+  const CAP_SOLDER = 1.5
+  const CAP_PIN_HW = 0.25
+
+  for (let ci = 0; ci < (doc.capacitors || []).length; ci++) {
+    const cap = (doc.capacitors || [])[ci]
+    const p1x = cap.col * pitch
+    const p1y = -(cap.row * pitch)
+    const p2x = cap.orientation === 'h' ? (cap.col + 1) * pitch : cap.col * pitch
+    const p2y = cap.orientation === 'h' ? p1y : -((cap.row + 1) * pitch)
+    const midX = (p1x + p2x) / 2
+    const midY = (p1y + p2y) / 2
+    const geoms = []
+
+    if ((cap.type ?? 'ceramic') === 'electrolytic') {
+      const elytBot = boardThickness + 0.3
+      const elytTop = elytBot + 8.0
+      const elytR = 2.2
+
+      // Main cylinder body
+      geoms.push(cylGeom(midX, midY, elytR, elytBot, elytTop, 24))
+
+      // Negative stripe: a raised ridge on the - (pin 2) side of the cylinder.
+      // It's a thin partial-arc slice sitting just inside the cylinder wall.
+      const stripeH = 1.4
+      const stripeN = 8
+      const stripeStart = cap.orientation === 'h' ? -Math.PI * 0.28 : Math.PI * 0.72
+      const stripeEnd   = cap.orientation === 'h' ?  Math.PI * 0.28 : Math.PI * 1.28
+      const sZBot = elytTop - stripeH, sZTop = elytTop + 0.05
+      const stripeR = elytR - 0.05
+      const sPos = [], sNrm = [], sIdx = []
+      let sv = 0
+      for (let i = 0; i < stripeN; i++) {
+        const a0 = stripeStart + (i / stripeN) * (stripeEnd - stripeStart)
+        const a1 = stripeStart + ((i + 1) / stripeN) * (stripeEnd - stripeStart)
+        const x0 = midX + stripeR * Math.cos(a0), y0 = midY + stripeR * Math.sin(a0)
+        const x1 = midX + stripeR * Math.cos(a1), y1 = midY + stripeR * Math.sin(a1)
+        const nx0 = Math.cos(a0), ny0 = Math.sin(a0)
+        const nx1 = Math.cos(a1), ny1 = Math.sin(a1)
+        sPos.push(x0, y0, sZBot, x0, y0, sZTop, x1, y1, sZTop, x1, y1, sZBot)
+        sNrm.push(nx0, ny0, 0, nx0, ny0, 0, nx1, ny1, 0, nx1, ny1, 0)
+        sIdx.push(sv, sv + 1, sv + 2, sv, sv + 2, sv + 3)
+        sv += 4
+      }
+      // Top face of stripe
+      const stc = sv; sPos.push(midX, midY, sZTop); sNrm.push(0, 0, 1); sv++
+      for (let i = 0; i < stripeN; i++) {
+        const a = stripeStart + (i / stripeN) * (stripeEnd - stripeStart)
+        sPos.push(midX + stripeR * Math.cos(a), midY + stripeR * Math.sin(a), sZTop)
+        sNrm.push(0, 0, 1); sv++
+      }
+      for (let i = 0; i < stripeN - 1; i++) sIdx.push(stc, stc + 1 + i, stc + 2 + i)
+      geoms.push({ pos: sPos, nrm: sNrm, idx: sIdx })
+
+      // Vent cross on top cap (+/- markings hinted by a cross groove on top)
+      const crossW = 0.2, crossL = elytR * 0.7, zCross = elytTop
+      geoms.push(boxGeomRaw(midX, midY, crossW, crossL, zCross - 0.25, zCross + 0.15))
+      geoms.push(boxGeomRaw(midX, midY, crossL, crossW, zCross - 0.25, zCross + 0.15))
+
+      // Pin wires
+      geoms.push(boxGeomRaw(p1x, p1y, CAP_PIN_HW, CAP_PIN_HW, -CAP_SOLDER, elytTop))
+      geoms.push(boxGeomRaw(p2x, p2y, CAP_PIN_HW, CAP_PIN_HW, -CAP_SOLDER, elytTop))
+    } else {
+      // Ceramic disc cap: flat disc standing on edge between the two leads.
+      // The disc face is perpendicular to the lead direction.
+      const cerR = 2.5                            // disc radius (5mm diameter)
+      const cerHT = 0.65                          // half-thickness (~1.3mm thick disc)
+      const cerCZ = boardThickness + 0.4 + cerR  // disc centre Z: bottom edge just above board
+
+      geoms.push(cylGeomDisc(midX, midY, cerCZ, cerR, cerHT, cap.orientation === 'v', 20))
+
+      // Lead wires rising from under the board up to the disc bottom edge
+      const leadTop = boardThickness + 0.4
+      geoms.push(boxGeomRaw(p1x, p1y, CAP_PIN_HW, CAP_PIN_HW, -CAP_SOLDER, leadTop))
+      geoms.push(boxGeomRaw(p2x, p2y, CAP_PIN_HW, CAP_PIN_HW, -CAP_SOLDER, leadTop))
+    }
+
+    bodies.push(mergeGeoms(`Component_cap${ci}`, geoms))
+  }
+
   return bodies
 }
 
@@ -630,7 +856,7 @@ export function createDefaultDocument() {
   return {
     version: 1,
     name: 'untitled',
-    grid: { cols: 10, rows: 8, pitch: 2.54 },
+    grid: { cols: 14, rows: 14, pitch: 2.54 },
     boardThickness: 1.6,
     copperThickness: 0.035,
     drillDiameter: 1.0,
@@ -648,6 +874,7 @@ export function createDefaultDocument() {
     pads: [],
     headers: [],
     dips: [],
+    capacitors: [],
     traces: [],
     jumpers: [],
     annotations: []
