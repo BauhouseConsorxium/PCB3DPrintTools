@@ -1056,47 +1056,39 @@
         class="bg-surface-1 border-3 border-black rounded-2xl shadow-[8px_8px_0_black] max-w-md w-full mx-4 p-8 text-center"
         onclick={(e) => e.stopPropagation()}
       >
-        <div class="text-5xl mb-4">&#x1f4cb;&#x26a1;&#x1f331;</div>
-        <h2 class="text-2xl font-black text-accent mb-2">
+        <h2 class="text-lg font-black text-accent mb-3">
           Perfboard 3D Print Tools
         </h2>
-        <p class="text-cyan-light text-sm leading-relaxed mb-4">
-          Design your own perfboard PCB layouts and export them as 3D-printable
-          STL files. Artistic, hands-on, and eco-friendly — no chemical etching
-          required!
-        </p>
-        <div class="flex flex-wrap justify-center gap-2 mb-6">
-          <span
-            class="px-3 py-1 text-[11px] font-bold rounded-lg border-2 border-black bg-accent text-white shadow-[2px_2px_0_black]"
-            >DIY PCB Design</span
-          >
-          <span
-            class="px-3 py-1 text-[11px] font-bold rounded-lg border-2 border-black bg-cyan text-black shadow-[2px_2px_0_black]"
-            >3D Printable</span
-          >
-          <span
-            class="px-3 py-1 text-[11px] font-bold rounded-lg border-2 border-black bg-lime text-black shadow-[2px_2px_0_black]"
-            >Eco-Friendly</span
-          >
-          <span
-            class="px-3 py-1 text-[11px] font-bold rounded-lg border-2 border-black bg-purple text-white shadow-[2px_2px_0_black]"
-            >Artistic</span
-          >
+
+        <div class="text-left space-y-2.5 mb-5">
+          <p class="text-[11px] text-purple-light leading-relaxed">
+            I used to etch my own PCBs. Ferric chloride, UV exposure, careful timing. Every batch ended the same way &mdash; copper-laced waste down the sink. I knew it was wrong. I kept doing it because the results were good.
+          </p>
+          <p class="text-[11px] text-purple-light leading-relaxed">
+            Eventually I couldn't justify it anymore, so I stopped. No more homemade boards. That lasted years.
+          </p>
+          <p class="text-[11px] text-cyan-light leading-relaxed">
+            3D printing a substrate and laying copper tape by hand got me back in. The traces are rougher. The tolerances are worse. You can't do fine-pitch SMD this way. But nothing toxic leaves the room, and you end up holding something you actually made &mdash; not something a chemical bath revealed.
+          </p>
+          <p class="text-[11px] text-purple-light leading-relaxed">
+            This tool handles the layout. Design, export STL, print, lay copper. It was built with AI assistance &mdash; not casually, but as a deliberate choice to spend less compute, not more. Whether that matters at the scale of one small tool, I'm honestly not sure. But I'd rather ask the question than ignore it.
+          </p>
+          <p class="text-[10px] text-purple-light/50 mt-1">
+            &mdash; Budi Prakosa
+          </p>
         </div>
+
         <button
-          class="px-6 py-3 text-sm font-black rounded-xl bg-accent hover:bg-accent-light text-white border-3 border-black shadow-[6px_6px_0_black] transition-all hover:shadow-[7px_7px_0_black] hover:-translate-x-px hover:-translate-y-px active:translate-x-1 active:translate-y-1 active:shadow-[2px_2px_0_black]"
+          class="px-5 py-2.5 text-xs font-bold rounded-xl bg-accent hover:bg-accent-light text-white border-2 border-black shadow-[4px_4px_0_black] transition-all hover:shadow-[5px_5px_0_black] hover:-translate-x-px hover:-translate-y-px active:translate-x-0.5 active:translate-y-0.5 active:shadow-[2px_2px_0_black]"
           onclick={() => {
             showIntro = false;
             localStorage.setItem("perfboard-intro-seen", "1");
           }}
         >
-          Let's Build!
+          Start Building
         </button>
-        <p class="text-purple-light/60 text-xs font-bold mt-4">
-          By Bauhouse Consorxium
-        </p>
-        <p class="text-purple-light/40 text-[10px] mt-1">
-          Skip etching. Start printing.
+        <p class="text-purple-light/40 text-[10px] mt-4">
+          Bauhouse Consorxium
         </p>
       </div>
     </div>

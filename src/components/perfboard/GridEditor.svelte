@@ -419,11 +419,14 @@
           tracePoints = [];
           tracePreview = null;
         } else {
-          tracePoints = [
-            ...tracePoints,
-            { col: col, row: last.row },
-            { col, row },
-          ];
+          const corner = { col: col, row: last.row };
+          const isDifferentFromLast = corner.col !== last.col || corner.row !== last.row;
+          const isDifferentFromClick = corner.col !== col || corner.row !== row;
+          if (isDifferentFromLast && isDifferentFromClick) {
+            tracePoints = [...tracePoints, corner, { col, row }];
+          } else {
+            tracePoints = [...tracePoints, { col, row }];
+          }
         }
       }
     } else if (activeTool === "roundtrace") {
@@ -438,11 +441,14 @@
           tracePoints = [];
           tracePreview = null;
         } else {
-          tracePoints = [
-            ...tracePoints,
-            { col: col, row: last.row },
-            { col, row },
-          ];
+          const corner = { col: col, row: last.row };
+          const isDifferentFromLast = corner.col !== last.col || corner.row !== last.row;
+          const isDifferentFromClick = corner.col !== col || corner.row !== row;
+          if (isDifferentFromLast && isDifferentFromClick) {
+            tracePoints = [...tracePoints, corner, { col, row }];
+          } else {
+            tracePoints = [...tracePoints, { col, row }];
+          }
         }
       }
     } else if (activeTool === "curve") {
@@ -2259,7 +2265,7 @@
         opacity="0.3"
       />
     {/if}
-    {#if ghostPos && activeTool === "trace" && tracePoints.length === 0}
+    {#if ghostPos && (activeTool === "trace" || activeTool === "roundtrace") && tracePoints.length === 0}
       <circle
         cx={ghostPos.col * pitch}
         cy={ghostPos.row * pitch}
