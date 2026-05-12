@@ -42,6 +42,8 @@
     onDeleteControlPoint = () => {},
     onSubdivideCurve = () => {},
     onRotateSelected = () => {},
+    onResizeGrid = () => {},
+    onBeforeResize = () => {},
     onRemoveElement = () => {},
     onSelect = () => {},
     onBulkSelect = () => {},
@@ -130,6 +132,10 @@
   // Drag-to-move state
   let dragInfo = $state(null);
 
+  // Dimension drag state
+  let dimDrag = $state(null);
+  let dimHover = $state(null);
+
   // Control point drag state
   let cpDrag = $state(null);
   let activeCP = $state(null);
@@ -173,6 +179,7 @@
   $effect(() => {
     const w = boardW;
     const h = boardH;
+    if (dimDrag) return;
     const pad = Math.max(w, h) * 0.15 + pitch * 2;
     vb = { x: -margin - pad, y: -margin - pad, w: w + 2 * pad, h: h + 2 * pad };
   });
@@ -431,6 +438,28 @@
 
     const sp = svgPoint(e);
     if (!sp) return;
+
+    // Dimension drag handles — check before tool dispatch
+    {
+      const hitR = pitch * 1.2;
+      const rightArrowX = -margin + boardW;
+      const rightArrowY = dimensionTopY;
+      const bottomArrowX = dimensionLeftX;
+      const bottomArrowY = -margin + boardH;
+      if (Math.hypot(sp.x - rightArrowX, sp.y - rightArrowY) < hitR) {
+        onBeforeResize();
+        dimDrag = { edge: "right", origCols: cols, origRows: rows };
+        e.preventDefault();
+        return;
+      }
+      if (Math.hypot(sp.x - bottomArrowX, sp.y - bottomArrowY) < hitR) {
+        onBeforeResize();
+        dimDrag = { edge: "bottom", origCols: cols, origRows: rows };
+        e.preventDefault();
+        return;
+      }
+    }
+
     const { col, row } = snapToGrid(sp.x, sp.y);
 
     if (activeTool === "pad") {
@@ -650,6 +679,35 @@
 
     const sp = svgPoint(e);
     if (!sp) return;
+
+    // Dimension drag in progress
+    if (dimDrag) {
+      if (dimDrag.edge === "right") {
+        const newCols = Math.max(2, Math.min(40, Math.round((sp.x + margin) / pitch)));
+        onResizeGrid(newCols, rows);
+      } else {
+        const newRows = Math.max(2, Math.min(40, Math.round((sp.y + margin) / pitch)));
+        onResizeGrid(cols, newRows);
+      }
+      return;
+    }
+
+    // Dimension hover detection
+    {
+      const hitR = pitch * 1.2;
+      const rightArrowX = -margin + boardW;
+      const rightArrowY = dimensionTopY;
+      const bottomArrowX = dimensionLeftX;
+      const bottomArrowY = -margin + boardH;
+      if (Math.hypot(sp.x - rightArrowX, sp.y - rightArrowY) < hitR) {
+        dimHover = "right";
+      } else if (Math.hypot(sp.x - bottomArrowX, sp.y - bottomArrowY) < hitR) {
+        dimHover = "bottom";
+      } else {
+        dimHover = null;
+      }
+    }
+
     const { col, row } = snapToGrid(sp.x, sp.y);
     ghostPos = { col, row };
     freeGhostPos = freePosition(sp.x, sp.y);
@@ -803,6 +861,10 @@
   }
 
   function handlePointerUp(e) {
+    if (dimDrag) {
+      dimDrag = null;
+      return;
+    }
     if (isPanning) {
       isPanning = false;
       return;
@@ -1316,6 +1378,11 @@
       e.target?.tagName === "INPUT" || e.target?.tagName === "TEXTAREA";
     if (isInput) return;
     if (e.key === "Escape") {
+      if (dimDrag) {
+        onResizeGrid(dimDrag.origCols, dimDrag.origRows);
+        dimDrag = null;
+        return;
+      }
       if (activeCP) {
         activeCP = null;
         return;
@@ -1470,6 +1537,8 @@
   // Dimension layout variables
   const dimensionTopY = $derived(-margin - pitch * 1.5);
   const dimensionLeftX = $derived(-margin - pitch * 1.5);
+  const dimRightActive = $derived(dimDrag?.edge === "right" || dimHover === "right");
+  const dimBottomActive = $derived(dimDrag?.edge === "bottom" || dimHover === "bottom");
 </script>
 
 <svelte:window onkeydown={handleKeydown} />
@@ -1483,6 +1552,7 @@
     bind:this={svgEl}
     viewBox="{vb.x} {vb.y} {vb.w} {vb.h}"
     class="w-full h-full"
+    style={dimDrag?.edge === "right" || dimHover === "right" ? "cursor: ew-resize" : dimDrag?.edge === "bottom" || dimHover === "bottom" ? "cursor: ns-resize" : ""}
     onpointerdown={handlePointerDown}
     onpointermove={handlePointerMove}
     onpointerup={handlePointerUp}
@@ -1499,7 +1569,7 @@
       rx="0.5"
     />
 
-    <!-- Dimensions (Decorative Technical Drawing style) -->
+    <!-- Dimensions (Interactive Technical Drawing style) -->
     <g
       class="dimensions"
       opacity="0.5"
@@ -1534,6 +1604,7 @@
           boardW -
           pitch * 0.4}, {dimensionTopY + pitch * 0.15}"
         stroke="none"
+        opacity={dimRightActive ? 1 : undefined}
       />
       <line
         x1={-margin}
@@ -1586,6 +1657,7 @@
           pitch * 0.15}, {-margin + boardH - pitch * 0.4} {dimensionLeftX +
           pitch * 0.15}, {-margin + boardH - pitch * 0.4}"
         stroke="none"
+        opacity={dimBottomActive ? 1 : undefined}
       />
       <line
         x1={dimensionLeftX - pitch * 0.3}
@@ -1619,6 +1691,28 @@
         >
       </g>
     </g>
+
+    <!-- Dimension drag handles (invisible hit targets) -->
+    <circle
+      cx={-margin + boardW}
+      cy={dimensionTopY}
+      r={pitch * 1.0}
+      fill={dimRightActive ? "rgba(56,189,248,0.15)" : "transparent"}
+      stroke={dimRightActive ? "#38bdf8" : "none"}
+      stroke-width={pitch * 0.06}
+      stroke-dasharray={dimRightActive ? `${pitch * 0.15},${pitch * 0.1}` : "none"}
+      style="cursor: ew-resize"
+    />
+    <circle
+      cx={dimensionLeftX}
+      cy={-margin + boardH}
+      r={pitch * 1.0}
+      fill={dimBottomActive ? "rgba(56,189,248,0.15)" : "transparent"}
+      stroke={dimBottomActive ? "#38bdf8" : "none"}
+      stroke-width={pitch * 0.06}
+      stroke-dasharray={dimBottomActive ? `${pitch * 0.15},${pitch * 0.1}` : "none"}
+      style="cursor: ns-resize"
+    />
 
     <!-- Grid lines -->
     <g class="grid-lines">

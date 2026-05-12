@@ -98,6 +98,11 @@
     doc.grid.rows = Math.max(2, Math.min(40, Number(v) || 2));
   }
 
+  function resizeGrid(newCols, newRows) {
+    doc.grid.cols = Math.max(2, Math.min(40, newCols));
+    doc.grid.rows = Math.max(2, Math.min(40, newRows));
+  }
+
   function addPad(col, row) {
     pushUndo();
     const exists = doc.pads.find((p) => p.col === col && p.row === row);
@@ -1222,6 +1227,8 @@
             onSubdivideCurve={subdivideCurve}
             onRotateSelected={rotateSelected}
             onRemoveElement={removeElement}
+            onResizeGrid={resizeGrid}
+            onBeforeResize={pushUndo}
             onSelect={selectElement}
             onBulkSelect={bulkSelect}
             onToolChange={(t) => {
