@@ -3,7 +3,7 @@
   import * as THREE from "three";
   import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 
-  import { isCopper, isPcbBoard, isSilkscreen, isCopperText, isEnclosure, isComponent } from "../lib/viewer-predicates.js";
+  import { isCopper, isPcbBoard, isSilkscreen, isCopperText, isEnclosure, isComponent, isPinHousing, isPinHousingBase } from "../lib/viewer-predicates.js";
   import { makeMaterial, previewMat, subtractCutterMat, subtractBoardMat, previewSubtractBoardMat } from "../lib/viewer-materials.js";
   import { doRaiseExport, doSubtractExport } from "../lib/viewer-export.js";
   import { clearDimGroup, buildDimensions } from "../lib/viewer-dimensions.js";
@@ -55,6 +55,9 @@
   let boardOriginalPosY = 0;
   let boardBottomY = 0;
   let boardTop = 0;
+  let pinHousingOriginalY = {};
+  let pinHousingTotalH = {};
+  let copperThicknessLocal = 0;
   let copperOriginalY = {};
   let copperLocalZBottom = {};
   let copperNaturalTopOffset = {};
@@ -93,7 +96,7 @@
 
   function applyBoardScale(bS) {
     for (const [name, mesh] of Object.entries(meshMap)) {
-      if (isCopper(name) || isComponent(name) || isEnclosure(name)) continue;
+      if (isCopper(name) || isComponent(name) || isEnclosure(name) || isPinHousing(name) || isPinHousingBase(name)) continue;
       mesh.scale.z = bS;
       mesh.position.y = boardBottomY + (boardOriginalPosY - boardBottomY) * bS;
     }
@@ -104,6 +107,19 @@
     const boardHeight = boardTop - boardBottomY;
     const boardTopCurrent = boardTop + boardHeight * (bS - 1);
     for (const [name, mesh] of Object.entries(meshMap)) {
+      if (isPinHousingBase(name)) {
+        mesh.scale.z = zS;
+        mesh.position.y = (pinHousingOriginalY[name] ?? 0)
+          + boardHeight * (bS - 1);
+        continue;
+      }
+      if (isPinHousing(name)) {
+        mesh.scale.z = 1;
+        mesh.position.y = (pinHousingOriginalY[name] ?? 0)
+          + boardHeight * (bS - 1)
+          + copperThicknessLocal * (zS - 1);
+        continue;
+      }
       if (!isCopper(name)) continue;
       const isText = isCopperText(name);
       const s = isText ? tS : zS;
@@ -291,6 +307,9 @@
         originalMaterials = {};
         copperOriginalY = {};
         copperLocalZBottom = {};
+        pinHousingOriginalY = {};
+        pinHousingTotalH = {};
+        copperThicknessLocal = 0;
         boardOriginalPosY = 0;
         boardBottomY = 0;
         boardTop = 0;
@@ -299,6 +318,12 @@
           originalMaterials[name] = mesh.material;
           if (isEnclosure(name)) {
             encBaseZ = mesh.position.z;
+          } else if (isPinHousingBase(name)) {
+            pinHousingOriginalY[name] = mesh.position.y;
+          } else if (isPinHousing(name)) {
+            pinHousingOriginalY[name] = mesh.position.y;
+            mesh.geometry.computeBoundingBox();
+            pinHousingTotalH[name] = mesh.geometry.boundingBox.max.z - mesh.geometry.boundingBox.min.z;
           } else if (isPcbBoard(name)) {
             const box = new THREE.Box3().setFromObject(mesh);
             boardOriginalPosY = mesh.position.y;
@@ -308,6 +333,10 @@
             copperOriginalY[name] = mesh.position.y;
             mesh.geometry.computeBoundingBox();
             copperLocalZBottom[name] = mesh.geometry.boundingBox.max.z;
+            if (!copperThicknessLocal) {
+              const bb = mesh.geometry.boundingBox;
+              copperThicknessLocal = bb.max.z - bb.min.z;
+            }
           }
         }
 

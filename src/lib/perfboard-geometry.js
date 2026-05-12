@@ -517,6 +517,7 @@ function buildCompoundBody(name, boxes) {
 function buildComponentBodies(doc) {
   const { pitch } = doc.grid
   const boardThickness = doc.boardThickness
+  const copperThickness = doc.copperThickness
   const bodies = []
 
   const HOUSING_H_MALE = 2.5
@@ -818,6 +819,47 @@ function buildComponentBodies(doc) {
     bodies.push(mergeGeoms(`Component_res${ri}`, geoms))
   }
 
+  const PH_HW = pitch / 2 - 0.2
+  const PH_ABOVE_COPPER = 2.5
+  const BORE_HW = 0.4
+  const phTop = -copperThickness
+  const phBot = -(copperThickness + PH_ABOVE_COPPER)
+  const boreCenter = -copperThickness - PH_ABOVE_COPPER / 2
+  const boreBotZ = boreCenter + BORE_HW
+  const boreTopZ = boreCenter - BORE_HW
+
+  for (let phi = 0; phi < (doc.pinHousings ?? []).length; phi++) {
+    const ph = (doc.pinHousings ?? [])[phi]
+    const isH = ph.orientation === 'h'
+    const count = ph.count ?? 2
+    const boreAlongX = (ph.facing === 'E' || ph.facing === 'W')
+
+    const geoms = []
+    const baseGeoms = []
+
+    for (let i = 0; i < count; i++) {
+      const px = isH ? (ph.col + i) * pitch : ph.col * pitch
+      const py = isH ? -(ph.row * pitch) : -((ph.row + i) * pitch)
+
+      baseGeoms.push(boxGeomRaw(px, py, PH_HW, PH_HW, phTop, 0))
+      geoms.push(boxGeomRaw(px, py, PH_HW, PH_HW, boreBotZ, phTop))
+      geoms.push(boxGeomRaw(px, py, PH_HW, PH_HW, phBot, boreTopZ))
+
+      const wallHD = (PH_HW - BORE_HW) / 2
+      const wallOff = (PH_HW + BORE_HW) / 2
+      if (boreAlongX) {
+        geoms.push(boxGeomRaw(px, py - wallOff, PH_HW, wallHD, boreTopZ, boreBotZ))
+        geoms.push(boxGeomRaw(px, py + wallOff, PH_HW, wallHD, boreTopZ, boreBotZ))
+      } else {
+        geoms.push(boxGeomRaw(px - wallOff, py, wallHD, PH_HW, boreTopZ, boreBotZ))
+        geoms.push(boxGeomRaw(px + wallOff, py, wallHD, PH_HW, boreTopZ, boreBotZ))
+      }
+    }
+
+    bodies.push(mergeGeoms(`SocketBase_pcb_${phi}`, baseGeoms))
+    bodies.push(mergeGeoms(`Socket_pcb_${phi}`, geoms))
+  }
+
   return bodies
 }
 
@@ -946,7 +988,8 @@ function buildTeardropGeometry(doc, padPositions, drills, zBot, zTop) {
 
 export function buildPerfboardBodies(doc) {
   const boardPoly = buildBoardPolygon(doc)
-  const padPositions = enumerateConductorNodes(doc)
+  const allNodes = enumerateConductorNodes(doc)
+  const padPositions = allNodes.filter(p => p.source !== 'pinhousing')
   const { boardThickness, copperThickness, drillDiameter, padDiameter } = doc
   const drillR = drillDiameter / 2
   const padR = padDiameter / 2
@@ -996,6 +1039,7 @@ export function createDefaultDocument() {
     dips: [],
     capacitors: [],
     resistors: [],
+    pinHousings: [],
     traces: [],
     jumpers: [],
     joints: [],

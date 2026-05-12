@@ -41,8 +41,10 @@ Grid coords are half-integer col/row (0-based, snapped to 0.5 increments for hal
 - Pad rings: `'Pads_F.Cu'` — contains `.cu`, gold copper material via `isCopper()`
 - Traces: `'F.Cu'` — standard copper name
 - Component bodies: `'Component_h{i}'`, `'Component_d{i}'` — pink via `isComponent()`
+- Pin housing socket: `'Socket_pcb_{i}'` — green via `isPinHousing()`, shifts with copper Z-scale
+- Pin housing base: `'SocketBase_pcb_{i}'` — green via `isPinHousingBase()`, scales with copper Z-scale, anchored at board surface
 
-These names are chosen to trigger the correct Viewer3D material predicates. If you add new body types, ensure the name matches an existing predicate or add a new one to **both** `Viewer3D.svelte` and `LayerPanel.svelte`.
+These names are chosen to trigger the correct Viewer3D material predicates and Z-scale behavior. If you add new body types, ensure the name matches an existing predicate or add a new one to `src/lib/viewer-predicates.js`. **The predicate determines Z-scale positioning** — see the Z-scale classification table in `docs/claude/viewer3d.md`.
 
 ## Geometry pipeline (`src/lib/perfboard-geometry.js`)
 

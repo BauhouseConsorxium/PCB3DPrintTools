@@ -61,6 +61,14 @@ export function enumerateConductorNodes(doc) {
     if (res.orientation === 'h') add(res.col + spacing, res.row, 'resistor', res.id, '')
     else add(res.col, res.row + spacing, 'resistor', res.id, '')
   }
+  for (const ph of doc.pinHousings ?? []) {
+    const isH = ph.orientation === 'h'
+    for (let i = 0; i < (ph.count ?? 2); i++) {
+      const c = isH ? ph.col + i : ph.col
+      const r = isH ? ph.row : ph.row + i
+      add(c, r, 'pinhousing', ph.id, '')
+    }
+  }
 
   return nodes
 }

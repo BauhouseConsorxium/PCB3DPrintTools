@@ -3,9 +3,17 @@ export function isCopper(name) {
   return n.includes("copper") || n.includes(".cu") || n.includes("_cu");
 }
 
+export function isPinHousingBase(name) {
+  return name.startsWith('SocketBase_pcb');
+}
+
 export function isPcbBoard(name) {
   const n = name.toLowerCase();
-  return !isCopper(name) && (n.includes("_pcb") || n.endsWith("pcb"));
+  return !isCopper(name) && !isPinHousing(name) && !isPinHousingBase(name) && (n.includes("_pcb") || n.endsWith("pcb"));
+}
+
+export function isPinHousing(name) {
+  return name.startsWith('Socket_pcb') && !isPinHousingBase(name);
 }
 
 export function isSilkscreen(name) {
@@ -31,6 +39,8 @@ export function isComponent(name) {
     !isPcbBoard(name) &&
     !isEnclosure(name) &&
     !isSilkscreen(name) &&
-    !isJumper(name)
+    !isJumper(name) &&
+    !isPinHousing(name) &&
+    !isPinHousingBase(name)
   );
 }

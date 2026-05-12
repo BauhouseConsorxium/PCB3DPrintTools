@@ -39,13 +39,15 @@ DirectionalLight(0xffffff, 0.4) at (0, -60, -100)    // back
 
 ## Body name predicates (matches viewer's auto-assigned materials)
 
-Predicates in `Viewer3D.svelte` AND `LayerPanel.svelte` (duplicated):
-- `isCopper(name)` — `.cu` in lowercase
-- `isPcbBoard(name)` — not copper AND (`_pcb` or ends with `pcb`)
+Predicates live in `src/lib/viewer-predicates.js` (imported by both Viewer3D and LayerPanel):
+- `isCopper(name)` — `.cu` in lowercase → gold material, scales with copper zScale
+- `isPcbBoard(name)` — not copper, not pin housing/base AND (`_pcb` or ends with `pcb`) → green, scales with board zScale
+- `isPinHousing(name)` — starts with `Socket_pcb` (not base) → green, no scale, position shifts with copper zScale
+- `isPinHousingBase(name)` — starts with `SocketBase_pcb` → green, scales with copper zScale, anchored at board surface
 - `isSilkscreen(name)` — `silks` in lowercase
-- `isComponent(name)` — none of the above (and not enclosure)
+- `isComponent(name)` — none of the above (and not enclosure, jumper)
 
-If you rename or add bodies, update predicates in **both** files.
+If you rename or add bodies, update predicates in the file. **The predicate a body matches determines its Z-scale behavior** — this is the most common source of positioning bugs.
 
 Example body names:
 - Board: `"PCB"` — `isPcbBoard()` matches via `endsWith('pcb')`
@@ -54,8 +56,24 @@ Example body names:
 - Front copper text: `"F.Cu_text"` — also matched by `isCopper()` (contains `.cu`)
 - Front silkscreen: `"F.SilkS"` — `isSilkscreen()` matches via `includes('silks')`
 - Component bodies (perfboard): `"Component_h0"`, `"Component_d0"` — pink via `isComponent()`
+- Pin housing socket: `"Socket_pcb_0"` — green via `isPinHousing()`
+- Pin housing base: `"SocketBase_pcb_0"` — green via `isPinHousingBase()`
 
 Silkscreen scales with board (not copper) in `applyBoardScale`. Copper text (`*_text`) matched by `isCopper()` → scales with copper zScale.
+
+### Z-scale classification rules
+
+Each predicate corresponds to a different Z-scale behavior in `applyCopperScale` / `applyBoardScale`:
+
+| Predicate | `scale.z` | Position shift | Anchored at |
+|-----------|-----------|---------------|-------------|
+| `isPcbBoard` | boardZScale | board bottom fixed | board bottom |
+| `isCopper` | copperZScale | board shift + local-Z drift | per-body |
+| `isPinHousing` | 1 (no scale) | board shift + copper thickness growth | flush with copper top |
+| `isPinHousingBase` | copperZScale | board shift only | board surface (stretches toward housing) |
+| `isComponent` | 1 (no scale) | none | fixed |
+
+When creating a new body that sits between the board surface and a copper-scaled body, it must either scale with copper or be positioned to track the copper growth. Classifying it as `isPcbBoard` will leave it fixed while copper-scaled neighbors shift away, creating a visible gap.
 
 ## Board Z-scaling (keep bottom fixed)
 

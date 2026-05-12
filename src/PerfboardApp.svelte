@@ -155,6 +155,25 @@
     ];
   }
 
+  function addPinHousing(col, row, count, orientation) {
+    pushUndo();
+    const facing = orientation === 'h' ? 'south' : 'east';
+    doc.pinHousings = [
+      ...(doc.pinHousings || []),
+      { id: crypto.randomUUID(), col, row, count, orientation, facing },
+    ];
+  }
+
+  function updatePinHousing(id, facing, label) {
+    pushUndo();
+    const ph = (doc.pinHousings || []).find((p) => p.id === id);
+    if (ph) {
+      ph.facing = facing;
+      ph.label = label;
+      doc.pinHousings = [...(doc.pinHousings || [])];
+    }
+  }
+
   function updateResistor(id, spacing, label) {
     pushUndo();
     const res = (doc.resistors || []).find((r) => r.id === id);
@@ -475,6 +494,12 @@
         res.row += dr;
         continue;
       }
+      const ph = (doc.pinHousings || []).find((p) => p.id === id);
+      if (ph) {
+        ph.col += dc;
+        ph.row += dr;
+        continue;
+      }
       const jumper = doc.jumpers.find((j) => j.id === id);
       if (jumper) {
         jumper.col1 += dc;
@@ -501,6 +526,7 @@
     doc.dips = [...(doc.dips || [])];
     doc.capacitors = [...(doc.capacitors || [])];
     doc.resistors = [...(doc.resistors || [])];
+    doc.pinHousings = [...(doc.pinHousings || [])];
     doc.traces = [...doc.traces];
     doc.jumpers = [...doc.jumpers];
     doc.joints = [...(doc.joints || [])];
@@ -529,6 +555,13 @@
       const res = (doc.resistors || []).find((r) => r.id === id);
       if (res) {
         res.orientation = res.orientation === "h" ? "v" : "h";
+        continue;
+      }
+      const ph = (doc.pinHousings || []).find((p) => p.id === id);
+      if (ph) {
+        ph.orientation = ph.orientation === "h" ? "v" : "h";
+        const facingMap = { north: 'east', east: 'south', south: 'west', west: 'north' };
+        ph.facing = facingMap[ph.facing] ?? (ph.orientation === 'h' ? 'south' : 'east');
         continue;
       }
       const trace = doc.traces.find((t) => t.id === id);
@@ -561,6 +594,7 @@
     doc.dips = [...(doc.dips || [])];
     doc.capacitors = [...(doc.capacitors || [])];
     doc.resistors = [...(doc.resistors || [])];
+    doc.pinHousings = [...(doc.pinHousings || [])];
     doc.traces = [...doc.traces];
     doc.jumpers = [...doc.jumpers];
   }
@@ -572,6 +606,7 @@
     doc.dips = (doc.dips || []).filter((d) => d.id !== id);
     doc.capacitors = (doc.capacitors || []).filter((c) => c.id !== id);
     doc.resistors = (doc.resistors || []).filter((r) => r.id !== id);
+    doc.pinHousings = (doc.pinHousings || []).filter((p) => p.id !== id);
     doc.traces = doc.traces.filter((t) => t.id !== id);
     doc.jumpers = doc.jumpers.filter((j) => j.id !== id);
     doc.joints = (doc.joints || []).filter((j) => j.id !== id);
@@ -679,6 +714,7 @@
     parsed.dips = parsed.dips ?? [];
     parsed.capacitors = parsed.capacitors ?? [];
     parsed.resistors = parsed.resistors ?? [];
+    parsed.pinHousings = parsed.pinHousings ?? [];
     parsed.jumpers = parsed.jumpers ?? [];
     parsed.joints = parsed.joints ?? [];
     parsed.annotations = parsed.annotations ?? [];
@@ -851,6 +887,7 @@
         doc.dips = (doc.dips || []).filter((d) => !idSet.has(d.id));
         doc.capacitors = (doc.capacitors || []).filter((c) => !idSet.has(c.id));
         doc.resistors = (doc.resistors || []).filter((r) => !idSet.has(r.id));
+        doc.pinHousings = (doc.pinHousings || []).filter((p) => !idSet.has(p.id));
         doc.traces = doc.traces.filter((t) => !idSet.has(t.id));
         doc.jumpers = doc.jumpers.filter((j) => !idSet.has(j.id));
         doc.joints = (doc.joints || []).filter((j) => !idSet.has(j.id));
@@ -1166,7 +1203,7 @@
           ).toFixed(1)} mm
         </div>
         <div>
-          Pads: {doc.pads.length} | Headers: {doc.headers.length} | DIPs: {(doc.dips || []).length} | Caps: {(doc.capacitors || []).length} | Res: {(doc.resistors || []).length} | Traces: {doc.traces.length} | Jumpers: {doc.jumpers.length} | Labels: {doc.annotations.length}
+          Pads: {doc.pads.length} | Headers: {doc.headers.length} | DIPs: {(doc.dips || []).length} | Caps: {(doc.capacitors || []).length} | Res: {(doc.resistors || []).length} | Sockets: {(doc.pinHousings || []).length} | Traces: {doc.traces.length} | Jumpers: {doc.jumpers.length} | Labels: {doc.annotations.length}
         </div>
       </div>
     </div>
@@ -1209,6 +1246,8 @@
             onUpdateCapacitor={updateCapacitor}
             onAddResistor={addResistor}
             onUpdateResistor={updateResistor}
+            onAddPinHousing={addPinHousing}
+            onUpdatePinHousing={updatePinHousing}
             onAddJumper={addJumper}
             onAddJoint={addJoint}
             onAddAnnotation={addAnnotation}

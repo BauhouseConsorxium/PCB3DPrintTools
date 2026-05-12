@@ -53,6 +53,8 @@
     onUpdateCapacitor = () => {},
     onAddResistor = () => {},
     onUpdateResistor = () => {},
+    onAddPinHousing = () => {},
+    onUpdatePinHousing = () => {},
     svgRef = $bindable(null),
   } = $props();
 
@@ -124,6 +126,11 @@
   let resStart = $state(null);
   let resPreview = $state(null);
   let editingResistor = $state(null);
+
+  // Pin housing drawing state
+  let phStart = $state(null);
+  let phPreview = $state(null);
+  let editingPinHousing = $state(null);
 
   // Freetrace drawing state
   let freetraceDrawing = $state(false);
@@ -315,6 +322,13 @@
       const r2row = res.orientation === 'h' ? res.row : res.row + spacing
       if ((res.col === col && res.row === row) || (r2col === col && r2row === row)) return res
     }
+    for (const ph of doc.pinHousings || []) {
+      for (let i = 0; i < ph.count; i++) {
+        const pc = ph.orientation === 'h' ? ph.col + i : ph.col
+        const pr = ph.orientation === 'v' ? ph.row + i : ph.row
+        if (pc === col && pr === row) return ph
+      }
+    }
     for (const jt of doc.joints || []) {
       if (jt.col === col && jt.row === row) return jt;
     }
@@ -430,6 +444,9 @@
     }
     if (editingResistor) {
       editingResistor = null;
+    }
+    if (editingPinHousing) {
+      editingPinHousing = null;
     }
     if (editingPad) {
       editingPad = null;
@@ -570,6 +587,25 @@
         onAddResistor(resStart.col, resStart.row, orientation, spacing);
         resStart = null;
         resPreview = null;
+      }
+    } else if (activeTool === "pinhousing") {
+      if (!phStart) {
+        phStart = { col, row };
+      } else {
+        const dc = col - phStart.col;
+        const dr = row - phStart.row;
+        if (dc === 0 && dr === 0) {
+          phStart = null;
+          phPreview = null;
+        } else {
+          const orientation = Math.abs(dc) >= Math.abs(dr) ? "h" : "v";
+          const count = orientation === "h" ? Math.abs(dc) + 1 : Math.abs(dr) + 1;
+          const startCol = orientation === "h" ? Math.min(phStart.col, col) : phStart.col;
+          const startRow = orientation === "v" ? Math.min(phStart.row, row) : phStart.row;
+          onAddPinHousing(startCol, startRow, count, orientation);
+          phStart = null;
+          phPreview = null;
+        }
       }
     } else if (activeTool === "trace") {
       if (tracePoints.length === 0) {
@@ -825,6 +861,16 @@
       const spacing = Math.max(2, orientation === "h" ? Math.abs(dc) : Math.abs(dr));
       resPreview = { col: resStart.col, row: resStart.row, orientation, spacing };
     }
+
+    if (activeTool === "pinhousing" && phStart) {
+      const dc = col - phStart.col;
+      const dr = row - phStart.row;
+      const orientation = Math.abs(dc) >= Math.abs(dr) ? "h" : "v";
+      const count = orientation === "h" ? Math.abs(dc) + 1 : Math.abs(dr) + 1;
+      const startCol = orientation === "h" ? Math.min(phStart.col, col) : phStart.col;
+      const startRow = orientation === "v" ? Math.min(phStart.row, row) : phStart.row;
+      phPreview = { col: startCol, row: startRow, count, orientation };
+    }
   }
 
   function findElementsInRect(x1, y1, x2, y2) {
@@ -880,6 +926,13 @@
       const r2row = res.orientation === 'h' ? res.row : res.row + spacing;
       if (inRect(res.col * pitch, res.row * pitch) || inRect(r2col * pitch, r2row * pitch))
         ids.push(res.id);
+    }
+    for (const ph of doc.pinHousings || []) {
+      for (let i = 0; i < ph.count; i++) {
+        const pc = ph.orientation === 'h' ? ph.col + i : ph.col;
+        const pr = ph.orientation === 'v' ? ph.row + i : ph.row;
+        if (inRect(pc * pitch, pr * pitch)) { ids.push(ph.id); break; }
+      }
     }
     for (const t of doc.traces) {
       for (const pt of t.points) {
@@ -1102,6 +1155,16 @@
           left: e.clientX - rect.left,
           top: e.clientY - rect.top - 20,
         };
+      } else if (el && (doc.pinHousings || []).find((ph) => ph.id === el.id)) {
+        const ph = (doc.pinHousings || []).find((ph) => ph.id === el.id);
+        const rect = containerEl.getBoundingClientRect();
+        editingPinHousing = {
+          id: el.id,
+          facing: ph.facing ?? (ph.orientation === 'h' ? 'south' : 'east'),
+          label: ph.label ?? "",
+          left: e.clientX - rect.left,
+          top: e.clientY - rect.top - 20,
+        };
       } else if (el && doc.headers.find((h) => h.id === el.id)) {
         const header = doc.headers.find((h) => h.id === el.id);
         const rect = containerEl.getBoundingClientRect();
@@ -1272,6 +1335,21 @@
     if (e.key === "Enter" || e.key === "Escape") closeResEdit();
   }
 
+  function applyPhEdit() {
+    if (!editingPinHousing) return;
+    onUpdatePinHousing(editingPinHousing.id, editingPinHousing.facing, editingPinHousing.label);
+  }
+
+  function closePhEdit() {
+    applyPhEdit();
+    editingPinHousing = null;
+  }
+
+  function handlePhEditKeydown(e) {
+    e.stopPropagation();
+    if (e.key === "Enter" || e.key === "Escape") closePhEdit();
+  }
+
   function applyCurveEdit() {
     if (!editingCurve) return;
     onUpdateCurve(
@@ -1376,6 +1454,11 @@
       resPreview = null;
       return true;
     }
+    if (activeTool === "pinhousing" && phStart) {
+      phStart = null;
+      phPreview = null;
+      return true;
+    }
     if (freetraceDrawing) {
       freetraceDrawing = false;
       freetracePoints = [];
@@ -1419,6 +1502,8 @@
     "F": "freetrace",
     "r": "resistor",
     "R": "resistor",
+    "h": "pinhousing",
+    "H": "pinhousing",
   };
 
   function handleKeydown(e) {
@@ -1456,6 +1541,10 @@
       }
       if (editingResistor) {
         editingResistor = null;
+        return;
+      }
+      if (editingPinHousing) {
+        editingPinHousing = null;
         return;
       }
       if (editingJumper) {
@@ -3002,6 +3091,77 @@
       <circle cx={p2x} cy={p2y} r={drillR} fill="#1a1a2e" opacity="0.4"/>
     {/if}
 
+    <!-- Pin Housings -->
+    {#each doc.pinHousings || [] as ph}
+      {@const isSelected = selectedIds.includes(ph.id)}
+      {@const phPads = Array.from({length: ph.count}, (_, i) => ({
+        col: ph.orientation === 'h' ? ph.col + i : ph.col,
+        row: ph.orientation === 'v' ? ph.row + i : ph.row,
+      }))}
+      {@const minC = Math.min(...phPads.map(p => p.col))}
+      {@const maxC = Math.max(...phPads.map(p => p.col))}
+      {@const minR = Math.min(...phPads.map(p => p.row))}
+      {@const maxR = Math.max(...phPads.map(p => p.row))}
+      {@const facing = ph.facing ?? (ph.orientation === 'h' ? 'south' : 'east')}
+      <rect
+        x={minC * pitch - padR - 0.3}
+        y={minR * pitch - padR - 0.3}
+        width={(maxC - minC) * pitch + 2 * padR + 0.6}
+        height={(maxR - minR) * pitch + 2 * padR + 0.6}
+        fill={isSelected ? "rgba(251,191,36,0.15)" : "rgba(60,180,140,0.12)"}
+        stroke={isSelected ? "#fbbf24" : "rgba(100,220,180,0.4)"}
+        stroke-width="0.2"
+        rx="0.4"
+      />
+      {#each phPads as pp}
+        {@const ppFill = padFillFor(nets, pp.col, pp.row, isSelected, null)}
+        {@const arrowLen = pitch * 0.5}
+        {@const ax = pp.col * pitch + (facing === 'east' ? padR + 0.1 : facing === 'west' ? -padR - 0.1 : 0)}
+        {@const ay = pp.row * pitch + (facing === 'south' ? padR + 0.1 : facing === 'north' ? -padR - 0.1 : 0)}
+        {@const bx = ax + (facing === 'east' ? arrowLen : facing === 'west' ? -arrowLen : 0)}
+        {@const by = ay + (facing === 'south' ? arrowLen : facing === 'north' ? -arrowLen : 0)}
+        <g opacity={padDim(pp.col, pp.row)}>
+        {#if isSelected}
+          <circle cx={pp.col * pitch} cy={pp.row * pitch} r={padR + pitch * 0.04} fill="rgba(255,255,255,0.45)"/>
+        {/if}
+        <circle cx={pp.col * pitch} cy={pp.row * pitch} r={padR} fill={ppFill}/>
+        <circle cx={pp.col * pitch} cy={pp.row * pitch} r={drillR} fill="#1a1a2e"/>
+        <line x1={ax} y1={ay} x2={bx} y2={by} stroke="rgba(100,220,180,0.5)" stroke-width="0.12" stroke-linecap="round"/>
+        </g>
+      {/each}
+      {#if ph.label}
+        <text
+          x={(minC + maxC) / 2 * pitch}
+          y={minR * pitch - padR - pitch * 0.15}
+          text-anchor="middle"
+          dominant-baseline="auto"
+          fill="rgba(255,255,255,0.7)"
+          font-size={pitch * 0.35}
+          font-family="monospace"
+          font-weight="bold">{ph.label}</text>
+      {/if}
+    {/each}
+
+    <!-- Pin Housing preview -->
+    {#if phPreview}
+      {#each Array(phPreview.count) as _, i}
+        {@const c = phPreview.orientation === "h" ? phPreview.col + i : phPreview.col}
+        {@const r = phPreview.orientation === "v" ? phPreview.row + i : phPreview.row}
+        <circle cx={c * pitch} cy={r * pitch} r={padR} fill="#3eb489" opacity="0.4"/>
+        <circle cx={c * pitch} cy={r * pitch} r={drillR} fill="#1a1a2e" opacity="0.4"/>
+      {/each}
+      {@const midC = phPreview.orientation === "h" ? phPreview.col + (phPreview.count - 1) / 2 : phPreview.col}
+      {@const midR = phPreview.orientation === "v" ? phPreview.row + (phPreview.count - 1) / 2 : phPreview.row}
+      <text
+        x={midC * pitch}
+        y={midR * pitch - padR - pitch * 0.15}
+        text-anchor="middle"
+        dominant-baseline="auto"
+        fill="rgba(255,255,255,0.7)"
+        font-size={pitch * 0.55}
+        font-weight="bold">{phPreview.count}</text>
+    {/if}
+
     <!-- Pads -->
     {#each doc.pads as pad}
       {@const isSelected = selectedIds.includes(pad.id)}
@@ -3072,7 +3232,7 @@
     <!-- Interactive editor overlays (not exported) -->
     <g class="editor-interactive">
     <!-- Ghost cursor -->
-    {#if ghostPos && (activeTool === "pad" || activeTool === "header" || (activeTool === "dip" && !dipStart) || (activeTool === "cap" && !capStart) || (activeTool === "resistor" && !resStart))}
+    {#if ghostPos && (activeTool === "pad" || activeTool === "header" || (activeTool === "dip" && !dipStart) || (activeTool === "cap" && !capStart) || (activeTool === "resistor" && !resStart) || (activeTool === "pinhousing" && !phStart))}
       <circle
         cx={ghostPos.col * pitch}
         cy={ghostPos.row * pitch}
@@ -3451,6 +3611,15 @@
           <circle cx={(r2col + dc) * pitch} cy={(r2row + dr) * pitch} r={padR} fill="#fbbf24" opacity="0.4"/>
           <circle cx={(r2col + dc) * pitch} cy={(r2row + dr) * pitch} r={drillR} fill="#1a1a2e" opacity="0.4"/>
         {/each}
+        {#each (doc.pinHousings || []).filter((ph) => selectedIds.includes(ph.id)) as ph}
+          {#each Array.from({length: ph.count}, (_, i) => ({
+            col: ph.orientation === 'h' ? ph.col + i : ph.col,
+            row: ph.orientation === 'v' ? ph.row + i : ph.row,
+          })) as pp}
+            <circle cx={(pp.col + dc) * pitch} cy={(pp.row + dr) * pitch} r={padR} fill="#fbbf24" opacity="0.4"/>
+            <circle cx={(pp.col + dc) * pitch} cy={(pp.row + dr) * pitch} r={drillR} fill="#1a1a2e" opacity="0.4"/>
+          {/each}
+        {/each}
         {#each doc.traces.filter((t) => selectedIds.includes(t.id)) as trace}
           {#if trace.type === "curve"}
             {@const pts = trace.points.map((p) => ({
@@ -3692,6 +3861,36 @@
           onkeydown={handleResEditKeydown}
           oninput={(e) => { editingResistor = { ...editingResistor, spacing: parseInt(e.target.value) || 4 }; applyResEdit() }}
         />
+      </div>
+    </div>
+  {/if}
+
+  {#if editingPinHousing}
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
+    <div
+      class="absolute bg-surface-1 rounded-lg border-2 border-black shadow-[4px_4px_0_black] z-10 p-1.5 flex flex-col gap-1.5"
+      style="left: {editingPinHousing.left}px; top: {editingPinHousing.top}px"
+      onfocusout={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) closePhEdit() }}
+    >
+      <input
+        type="text"
+        value={editingPinHousing.label}
+        placeholder="Label (e.g. PWR)"
+        class="bg-surface-2 text-xs text-cyan-light rounded-lg px-2 py-1 border-2 border-black outline-none shadow-[2px_2px_0_black] w-36"
+        onkeydown={handlePhEditKeydown}
+        oninput={(e) => { editingPinHousing = { ...editingPinHousing, label: e.target.value }; applyPhEdit() }}
+      />
+      <div>
+        <label class="text-[10px] text-purple-light block mb-0.5">Pin opening</label>
+        <div class="grid grid-cols-4 gap-0.5">
+          {#each ['north', 'south', 'east', 'west'] as dir}
+            <button
+              class="text-[9px] px-1 py-0.5 rounded border-2 border-black {editingPinHousing.facing === dir ? 'bg-accent text-white shadow-[2px_2px_0_black]' : 'bg-surface-2 text-purple-light'}"
+              onmousedown={(e) => e.preventDefault()}
+              onclick={() => { editingPinHousing = { ...editingPinHousing, facing: dir }; applyPhEdit() }}
+            >{dir[0].toUpperCase()}</button>
+          {/each}
+        </div>
       </div>
     </div>
   {/if}

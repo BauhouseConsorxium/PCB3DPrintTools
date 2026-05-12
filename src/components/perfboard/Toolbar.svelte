@@ -16,6 +16,7 @@
     { id: 'joint', label: 'Joint', icon: 'joint', key: 'J' },
     { id: 'freetrace', label: 'Free', icon: 'freetrace', key: 'F' },
     { id: 'resistor', label: 'Res', icon: 'resistor', key: 'R' },
+    { id: 'pinhousing', label: 'Socket', icon: 'pinhousing', key: 'H' },
   ]
 </script>
 
@@ -83,6 +84,12 @@
             <path d="M7 10L8 6L9.5 14L11 6L12.5 14L13 10" stroke-linejoin="round" />
             <line x1="13" y1="10" x2="15" y2="10" stroke-linecap="round" />
             <circle cx="17" cy="10" r="2" fill="currentColor" stroke="none" />
+          {:else if tool.icon === 'pinhousing'}
+            <rect x="3" y="4" width="14" height="6" rx="1" />
+            <line x1="7" y1="10" x2="7" y2="16" stroke-linecap="round" />
+            <line x1="13" y1="10" x2="13" y2="16" stroke-linecap="round" />
+            <circle cx="7" cy="7" r="1.5" fill="currentColor" stroke="none" />
+            <circle cx="13" cy="7" r="1.5" fill="currentColor" stroke="none" />
           {/if}
         </svg>
         <span>{tool.label}</span>
