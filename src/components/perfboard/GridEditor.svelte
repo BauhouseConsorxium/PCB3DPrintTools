@@ -998,6 +998,7 @@
         const labels = header.labels ?? Array(header.count).fill("");
         editingHeader = {
           id: el.id,
+          female: header.female ?? false,
           labels:
             labels.length >= header.count
               ? labels.slice(0, header.count)
@@ -1100,7 +1101,7 @@
 
   function commitHeaderEdit() {
     if (!editingHeader) return;
-    onUpdateHeaderLabels(editingHeader.id, editingHeader.labels);
+    onUpdateHeaderLabels(editingHeader.id, editingHeader.labels, editingHeader.female);
     editingHeader = null;
   }
 
@@ -2228,20 +2229,22 @@
     <!-- Header bodies -->
     {#each doc.headers as header}
       {@const isSelected = selectedIds.includes(header.id)}
+      {@const isFemale = header.female ?? false}
       {@const hpads = getHeaderPads(header)}
       {#if hpads.length > 1}
         {@const minC = Math.min(...hpads.map((p) => p.col))}
         {@const maxC = Math.max(...hpads.map((p) => p.col))}
         {@const minR = Math.min(...hpads.map((p) => p.row))}
         {@const maxR = Math.max(...hpads.map((p) => p.row))}
+        {@const margin = isFemale ? 0.4 : 0.2}
         <rect
-          x={minC * pitch - padR - 0.2}
-          y={minR * pitch - padR - 0.2}
-          width={(maxC - minC) * pitch + 2 * padR + 0.4}
-          height={(maxR - minR) * pitch + 2 * padR + 0.4}
-          fill="none"
-          stroke={isSelected ? "#fbbf24" : "rgba(255,255,255,0.2)"}
-          stroke-width="0.15"
+          x={minC * pitch - padR - margin}
+          y={minR * pitch - padR - margin}
+          width={(maxC - minC) * pitch + 2 * padR + margin * 2}
+          height={(maxR - minR) * pitch + 2 * padR + margin * 2}
+          fill={isFemale ? "rgba(120,80,200,0.08)" : "none"}
+          stroke={isSelected ? "#fbbf24" : isFemale ? "rgba(180,140,255,0.35)" : "rgba(255,255,255,0.2)"}
+          stroke-width={isFemale ? "0.2" : "0.15"}
           rx="0.3"
         />
       {/if}
@@ -2256,12 +2259,23 @@
             fill="rgba(255,255,255,0.45)"
           />
         {/if}
-        <circle
-          cx={hp.col * pitch}
-          cy={hp.row * pitch}
-          r={padR}
-          fill={hpFill}
-        />
+        {#if isFemale}
+          <rect
+            x={hp.col * pitch - padR}
+            y={hp.row * pitch - padR}
+            width={padR * 2}
+            height={padR * 2}
+            rx={padR * 0.3}
+            fill={hpFill}
+          />
+        {:else}
+          <circle
+            cx={hp.col * pitch}
+            cy={hp.row * pitch}
+            r={padR}
+            fill={hpFill}
+          />
+        {/if}
         <circle
           cx={hp.col * pitch}
           cy={hp.row * pitch}
@@ -3765,11 +3779,31 @@
     <!-- svelte-ignore a11y_no_static_element_interactions -->
     <div
       class="absolute bg-surface-1 rounded-lg border-2 border-black shadow-[4px_4px_0_black] z-10 p-1.5"
-      style="left: {editingHeader.left}px; top: {editingHeader.top}px; max-height: 200px; overflow-y: auto"
+      style="left: {editingHeader.left}px; top: {editingHeader.top}px; max-height: 260px; overflow-y: auto"
       onfocusout={(e) => {
         if (!e.currentTarget.contains(e.relatedTarget)) commitHeaderEdit();
       }}
     >
+      <div class="flex gap-1 mb-1.5">
+        <button
+          class="flex-1 text-[10px] px-1.5 py-1 rounded-lg border-2 border-black {editingHeader.female
+            ? 'bg-surface-2 text-purple-light'
+            : 'bg-accent text-white shadow-[2px_2px_0_black]'}"
+          onmousedown={(e) => e.preventDefault()}
+          onclick={() => {
+            editingHeader = { ...editingHeader, female: false };
+          }}>Male</button
+        >
+        <button
+          class="flex-1 text-[10px] px-1.5 py-1 rounded-lg border-2 border-black {editingHeader.female
+            ? 'bg-accent text-white shadow-[2px_2px_0_black]'
+            : 'bg-surface-2 text-purple-light'}"
+          onmousedown={(e) => e.preventDefault()}
+          onclick={() => {
+            editingHeader = { ...editingHeader, female: true };
+          }}>Female</button
+        >
+      </div>
       <div class="text-[10px] text-purple-light mb-1">Pin labels</div>
       <div class="flex flex-col gap-0.5">
         {#each editingHeader.labels as label, i}

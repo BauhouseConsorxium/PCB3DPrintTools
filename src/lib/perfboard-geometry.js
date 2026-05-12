@@ -496,7 +496,8 @@ function buildComponentBodies(doc) {
   const boardThickness = doc.boardThickness
   const bodies = []
 
-  const HOUSING_H = 2.5
+  const HOUSING_H_MALE = 2.5
+  const HOUSING_H_FEMALE = 8.5
   const PIN_ABOVE = 2.5
   const PIN_BELOW = 6.0
   const PIN_HW = 0.32
@@ -504,24 +505,34 @@ function buildComponentBodies(doc) {
   for (let hi = 0; hi < doc.headers.length; hi++) {
     const h = doc.headers[hi]
     const isH = h.orientation === 'h'
+    const isFemale = h.female ?? false
     const len = (h.count - 1) * pitch
 
+    const housingH = isFemale ? HOUSING_H_FEMALE : HOUSING_H_MALE
     const cx = isH ? h.col * pitch + len / 2 : h.col * pitch
     const cy = isH ? -(h.row * pitch) : -(h.row * pitch + len / 2)
     const hw = isH ? (len + pitch) / 2 : pitch / 2
     const hd = isH ? pitch / 2 : (len + pitch) / 2
 
     const hBot = boardThickness
-    const boxes = [{ cx, cy, hw, hd, zBot: hBot, zTop: hBot + HOUSING_H }]
+    const boxes = [{ cx, cy, hw, hd, zBot: hBot, zTop: hBot + housingH }]
 
     for (let i = 0; i < h.count; i++) {
       const px = isH ? (h.col + i) * pitch : h.col * pitch
       const py = isH ? -(h.row * pitch) : -((h.row + i) * pitch)
-      boxes.push({
-        cx: px, cy: py, hw: PIN_HW, hd: PIN_HW,
-        zBot: -PIN_ABOVE,
-        zTop: hBot + HOUSING_H + PIN_BELOW
-      })
+      if (isFemale) {
+        boxes.push({
+          cx: px, cy: py, hw: PIN_HW, hd: PIN_HW,
+          zBot: -PIN_ABOVE,
+          zTop: hBot + housingH
+        })
+      } else {
+        boxes.push({
+          cx: px, cy: py, hw: PIN_HW, hd: PIN_HW,
+          zBot: -PIN_ABOVE,
+          zTop: hBot + housingH + PIN_BELOW
+        })
+      }
     }
 
     bodies.push(buildCompoundBody(`Component_h${hi}`, boxes))

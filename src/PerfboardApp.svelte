@@ -231,11 +231,12 @@
     }
   }
 
-  function updateHeaderLabels(id, labels) {
+  function updateHeaderLabels(id, labels, female) {
     pushUndo();
     const header = doc.headers.find((h) => h.id === id);
     if (header) {
       header.labels = labels;
+      header.female = female ?? false;
       doc.headers = [...doc.headers];
     }
   }

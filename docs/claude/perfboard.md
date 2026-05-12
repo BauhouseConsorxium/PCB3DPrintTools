@@ -26,7 +26,7 @@ The perfboard tool targets the same copper-tape fabrication method as the PCB to
   padDiameter: 2.0,         // mm — converted to radius in geometry
   traceWidth: 1.0,          // mm
   pads: [{ id, col, row, label? }],
-  headers: [{ id, col, row, count, orientation: "h"|"v", labels?: string[] }],
+  headers: [{ id, col, row, count, orientation: "h"|"v", labels?: string[], female?: boolean }],
   dips: [{ id, col, row, count, orientation: "h"|"v", rowSpacing: 3, label?, socket? }],
   traces: [{ id, points: [{col, row}], width }],
   jumpers: [{ id, col1, row1, col2, row2 }]
