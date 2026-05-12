@@ -19,6 +19,7 @@
   const margin = $derived(pitch / 2);
   const boardW = $derived((cols - 1) * pitch + 2 * margin);
   const boardH = $derived((rows - 1) * pitch + 2 * margin);
+  const isCircle = $derived((doc.grid.shape ?? 'rect') === 'circle');
 
   function buildExportSVG() {
     if (!svgEl) return null;
@@ -26,8 +27,16 @@
 
     const dimOffset = showDimensions ? pitch * 2 : 0;
     const pad = pitch * 0.5;
-    clone.setAttribute('viewBox',
-      `${-margin - dimOffset - pad} ${-margin - dimOffset - pad} ${boardW + dimOffset + pad * 2} ${boardH + dimOffset + pad * 2}`);
+    if (isCircle) {
+      const cx = (cols - 1) * pitch / 2;
+      const cy = (rows - 1) * pitch / 2;
+      const r = Math.min(cols - 1, rows - 1) * pitch / 2 + margin;
+      clone.setAttribute('viewBox',
+        `${cx - r - dimOffset - pad} ${cy - r - dimOffset - pad} ${r * 2 + dimOffset + pad * 2} ${r * 2 + dimOffset + pad * 2}`);
+    } else {
+      clone.setAttribute('viewBox',
+        `${-margin - dimOffset - pad} ${-margin - dimOffset - pad} ${boardW + dimOffset + pad * 2} ${boardH + dimOffset + pad * 2}`);
+    }
 
     clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
     clone.removeAttribute('class');

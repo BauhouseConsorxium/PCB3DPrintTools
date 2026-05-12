@@ -14,6 +14,7 @@
     enforceMinDistance,
   } from "../../lib/round-trace.js";
   import { computeNets, traceColor, padFillFor } from "../../lib/perfboard-nets.js";
+  import { circleParams } from "../../lib/perfboard-geometry.js";
 
   let {
     doc,
@@ -64,6 +65,9 @@
   const margin = $derived(pitch / 2);
   const boardW = $derived((cols - 1) * pitch + 2 * margin);
   const boardH = $derived((rows - 1) * pitch + 2 * margin);
+  const shape = $derived(doc.grid.shape ?? 'rect');
+  const isCircle = $derived(shape === 'circle');
+  const circle = $derived(isCircle ? circleParams(doc.grid) : null);
 
   const nets = $derived(computeNets(doc));
 
@@ -177,11 +181,17 @@
   let freeGhostPos = $state(null);
 
   $effect(() => {
-    const w = boardW;
-    const h = boardH;
     if (dimDrag) return;
-    const pad = Math.max(w, h) * 0.15 + pitch * 2;
-    vb = { x: -margin - pad, y: -margin - pad, w: w + 2 * pad, h: h + 2 * pad };
+    if (isCircle && circle) {
+      const d = circle.r * 2;
+      const pad = d * 0.15 + pitch * 2;
+      vb = { x: circle.cx - circle.r - pad, y: circle.cy - circle.r - pad, w: d + 2 * pad, h: d + 2 * pad };
+    } else {
+      const w = boardW;
+      const h = boardH;
+      const pad = Math.max(w, h) * 0.15 + pitch * 2;
+      vb = { x: -margin - pad, y: -margin - pad, w: w + 2 * pad, h: h + 2 * pad };
+    }
   });
 
   $effect(() => { svgRef = svgEl });
@@ -200,10 +210,22 @@
   function snapToGrid(x, y) {
     const col = Math.round((x / pitch) * 2) / 2;
     const row = Math.round((y / pitch) * 2) / 2;
-    return {
-      col: Math.max(0, Math.min(cols - 1, col)),
-      row: Math.max(0, Math.min(rows - 1, row)),
-    };
+    let c = Math.max(0, Math.min(cols - 1, col));
+    let r = Math.max(0, Math.min(rows - 1, row));
+
+    if (isCircle && circle) {
+      const dx = c * pitch - circle.cx;
+      const dy = r * pitch - circle.cy;
+      const dist = Math.hypot(dx, dy);
+      const limit = circle.r - pitch * 0.1;
+      if (dist > limit) {
+        const scale = limit / dist;
+        c = Math.round(((circle.cx + dx * scale) / pitch) * 2) / 2;
+        r = Math.round(((circle.cy + dy * scale) / pitch) * 2) / 2;
+      }
+    }
+
+    return { col: c, row: r };
   }
 
   function freePosition(x, y) {
@@ -442,21 +464,32 @@
     // Dimension drag handles — check before tool dispatch
     {
       const hitR = pitch * 1.2;
-      const rightArrowX = -margin + boardW;
-      const rightArrowY = dimensionTopY;
-      const bottomArrowX = dimensionLeftX;
-      const bottomArrowY = -margin + boardH;
-      if (Math.hypot(sp.x - rightArrowX, sp.y - rightArrowY) < hitR) {
-        onBeforeResize();
-        dimDrag = { edge: "right", origCols: cols, origRows: rows };
-        e.preventDefault();
-        return;
-      }
-      if (Math.hypot(sp.x - bottomArrowX, sp.y - bottomArrowY) < hitR) {
-        onBeforeResize();
-        dimDrag = { edge: "bottom", origCols: cols, origRows: rows };
-        e.preventDefault();
-        return;
+      if (isCircle && circle) {
+        const dimY = circle.cy - circle.r - pitch * 1.5;
+        const handleX = circle.cx + circle.r;
+        if (Math.hypot(sp.x - handleX, sp.y - dimY) < hitR) {
+          onBeforeResize();
+          dimDrag = { edge: "diameter", origCols: cols, origRows: rows };
+          e.preventDefault();
+          return;
+        }
+      } else {
+        const rightArrowX = -margin + boardW;
+        const rightArrowY = dimensionTopY;
+        const bottomArrowX = dimensionLeftX;
+        const bottomArrowY = -margin + boardH;
+        if (Math.hypot(sp.x - rightArrowX, sp.y - rightArrowY) < hitR) {
+          onBeforeResize();
+          dimDrag = { edge: "right", origCols: cols, origRows: rows };
+          e.preventDefault();
+          return;
+        }
+        if (Math.hypot(sp.x - bottomArrowX, sp.y - bottomArrowY) < hitR) {
+          onBeforeResize();
+          dimDrag = { edge: "bottom", origCols: cols, origRows: rows };
+          e.preventDefault();
+          return;
+        }
       }
     }
 
@@ -680,14 +713,20 @@
     const sp = svgPoint(e);
     if (!sp) return;
 
-    // Dimension drag in progress
+    // Dimension drag in progress — preview only, apply on drop
     if (dimDrag) {
-      if (dimDrag.edge === "right") {
-        const newCols = Math.max(2, Math.min(40, Math.round((sp.x + margin) / pitch)));
-        onResizeGrid(newCols, rows);
+      if (dimDrag.edge === "diameter") {
+        const cx = (cols - 1) * pitch / 2;
+        const dist = sp.x - cx;
+        const s = Math.max(2, Math.min(40, Math.round((dist * 2) / pitch) + 1));
+        dimDrag.previewCols = s;
+        dimDrag.previewRows = s;
+      } else if (dimDrag.edge === "right") {
+        dimDrag.previewCols = Math.max(2, Math.min(40, Math.round((sp.x + margin) / pitch)));
+        dimDrag.previewRows = rows;
       } else {
-        const newRows = Math.max(2, Math.min(40, Math.round((sp.y + margin) / pitch)));
-        onResizeGrid(cols, newRows);
+        dimDrag.previewCols = cols;
+        dimDrag.previewRows = Math.max(2, Math.min(40, Math.round((sp.y + margin) / pitch)));
       }
       return;
     }
@@ -695,16 +734,22 @@
     // Dimension hover detection
     {
       const hitR = pitch * 1.2;
-      const rightArrowX = -margin + boardW;
-      const rightArrowY = dimensionTopY;
-      const bottomArrowX = dimensionLeftX;
-      const bottomArrowY = -margin + boardH;
-      if (Math.hypot(sp.x - rightArrowX, sp.y - rightArrowY) < hitR) {
-        dimHover = "right";
-      } else if (Math.hypot(sp.x - bottomArrowX, sp.y - bottomArrowY) < hitR) {
-        dimHover = "bottom";
+      if (isCircle && circle) {
+        const dimY = circle.cy - circle.r - pitch * 1.5;
+        const handleX = circle.cx + circle.r;
+        dimHover = Math.hypot(sp.x - handleX, sp.y - dimY) < hitR ? "diameter" : null;
       } else {
-        dimHover = null;
+        const rightArrowX = -margin + boardW;
+        const rightArrowY = dimensionTopY;
+        const bottomArrowX = dimensionLeftX;
+        const bottomArrowY = -margin + boardH;
+        if (Math.hypot(sp.x - rightArrowX, sp.y - rightArrowY) < hitR) {
+          dimHover = "right";
+        } else if (Math.hypot(sp.x - bottomArrowX, sp.y - bottomArrowY) < hitR) {
+          dimHover = "bottom";
+        } else {
+          dimHover = null;
+        }
       }
     }
 
@@ -862,6 +907,9 @@
 
   function handlePointerUp(e) {
     if (dimDrag) {
+      if (dimDrag.previewCols != null) {
+        onResizeGrid(dimDrag.previewCols, dimDrag.previewRows);
+      }
       dimDrag = null;
       return;
     }
@@ -1379,7 +1427,6 @@
     if (isInput) return;
     if (e.key === "Escape") {
       if (dimDrag) {
-        onResizeGrid(dimDrag.origCols, dimDrag.origRows);
         dimDrag = null;
         return;
       }
@@ -1539,6 +1586,20 @@
   const dimensionLeftX = $derived(-margin - pitch * 1.5);
   const dimRightActive = $derived(dimDrag?.edge === "right" || dimHover === "right");
   const dimBottomActive = $derived(dimDrag?.edge === "bottom" || dimHover === "bottom");
+  const dimDiameterActive = $derived(dimDrag?.edge === "diameter" || dimHover === "diameter");
+
+  const dimDisplayW = $derived(dimDrag?.previewCols != null
+    ? (dimDrag.previewCols - 1) * pitch + 2 * margin : boardW);
+  const dimDisplayH = $derived(dimDrag?.previewRows != null
+    ? (dimDrag.previewRows - 1) * pitch + 2 * margin : boardH);
+  const dimDisplayDiam = $derived.by(() => {
+    if (!isCircle) return 0;
+    if (dimDrag?.previewCols != null) {
+      const pR = Math.min(dimDrag.previewCols - 1, dimDrag.previewRows - 1) * pitch / 2 + margin;
+      return pR * 2;
+    }
+    return circle ? circle.r * 2 : 0;
+  });
 </script>
 
 <svelte:window onkeydown={handleKeydown} />
@@ -1552,7 +1613,7 @@
     bind:this={svgEl}
     viewBox="{vb.x} {vb.y} {vb.w} {vb.h}"
     class="w-full h-full"
-    style={dimDrag?.edge === "right" || dimHover === "right" ? "cursor: ew-resize" : dimDrag?.edge === "bottom" || dimHover === "bottom" ? "cursor: ns-resize" : ""}
+    style={dimDrag?.edge === "diameter" || dimHover === "diameter" ? "cursor: ew-resize" : dimDrag?.edge === "right" || dimHover === "right" ? "cursor: ew-resize" : dimDrag?.edge === "bottom" || dimHover === "bottom" ? "cursor: ns-resize" : ""}
     onpointerdown={handlePointerDown}
     onpointermove={handlePointerMove}
     onpointerup={handlePointerUp}
@@ -1560,162 +1621,289 @@
     ondblclick={handleDblClick}
   >
     <!-- Board -->
-    <rect
-      x={-margin}
-      y={-margin}
-      width={boardW}
-      height={boardH}
-      fill="#1a5c35"
-      rx="0.5"
-    />
+    {#if isCircle && circle}
+      <circle
+        cx={circle.cx}
+        cy={circle.cy}
+        r={circle.r}
+        fill="#1a5c35"
+      />
+    {:else}
+      <rect
+        x={-margin}
+        y={-margin}
+        width={boardW}
+        height={boardH}
+        fill="#1a5c35"
+        rx="0.5"
+      />
+    {/if}
+
+    <!-- Dimension drag preview outline -->
+    {#if dimDrag?.previewCols != null}
+      {@const pCols = dimDrag.previewCols}
+      {@const pRows = dimDrag.previewRows}
+      {@const pW = (pCols - 1) * pitch + 2 * margin}
+      {@const pH = (pRows - 1) * pitch + 2 * margin}
+      {#if isCircle}
+        {@const pR = Math.min(pCols - 1, pRows - 1) * pitch / 2 + margin}
+        {@const pCx = (pCols - 1) * pitch / 2}
+        {@const pCy = (pRows - 1) * pitch / 2}
+        <circle
+          cx={pCx}
+          cy={pCy}
+          r={pR}
+          fill="none"
+          stroke="#38bdf8"
+          stroke-width={pitch * 0.08}
+          stroke-dasharray="{pitch * 0.2},{pitch * 0.15}"
+          opacity="0.6"
+        />
+      {:else}
+        <rect
+          x={-margin}
+          y={-margin}
+          width={pW}
+          height={pH}
+          fill="none"
+          stroke="#38bdf8"
+          stroke-width={pitch * 0.08}
+          stroke-dasharray="{pitch * 0.2},{pitch * 0.15}"
+          opacity="0.6"
+          rx="0.5"
+        />
+      {/if}
+    {/if}
 
     <!-- Dimensions (Interactive Technical Drawing style) -->
-    <g
-      class="dimensions"
-      opacity="0.5"
-      stroke="#38bdf8"
-      fill="#38bdf8"
-      font-family="monospace"
-      stroke-width={pitch * 0.05}
-    >
-      <!-- Top Width Dimension -->
-      <line
-        x1={-margin + pitch * 0.4}
-        y1={dimensionTopY}
-        x2={boardW / 2 - pitch * 1.8}
-        y2={dimensionTopY}
-      />
-      <line
-        x1={boardW / 2 + pitch * 1.8}
-        y1={dimensionTopY}
-        x2={-margin + boardW - pitch * 0.4}
-        y2={dimensionTopY}
-      />
-      <polygon
-        points="{-margin}, {dimensionTopY} {-margin +
-          pitch * 0.4}, {dimensionTopY - pitch * 0.15} {-margin +
-          pitch * 0.4}, {dimensionTopY + pitch * 0.15}"
-        stroke="none"
-      />
-      <polygon
-        points="{-margin + boardW}, {dimensionTopY} {-margin +
-          boardW -
-          pitch * 0.4}, {dimensionTopY - pitch * 0.15} {-margin +
-          boardW -
-          pitch * 0.4}, {dimensionTopY + pitch * 0.15}"
-        stroke="none"
-        opacity={dimRightActive ? 1 : undefined}
-      />
-      <line
-        x1={-margin}
-        y1={dimensionTopY - pitch * 0.3}
-        x2={-margin}
-        y2={-margin - pitch * 0.2}
-        stroke-dasharray="{pitch * 0.1},{pitch * 0.1}"
-        stroke-width={pitch * 0.04}
-      />
-      <line
-        x1={-margin + boardW}
-        y1={dimensionTopY - pitch * 0.3}
-        x2={-margin + boardW}
-        y2={-margin - pitch * 0.2}
-        stroke-dasharray="{pitch * 0.1},{pitch * 0.1}"
-        stroke-width={pitch * 0.04}
-      />
-      <text
-        x={boardW / 2 - margin}
-        y={dimensionTopY}
-        text-anchor="middle"
-        dominant-baseline="central"
-        stroke="none"
-        font-size={pitch * 0.55}
-        font-weight="bold"
-        letter-spacing="0.1em">{boardW.toFixed(1)}</text
-      >
-
-      <!-- Left Height Dimension -->
-      <line
-        x1={dimensionLeftX}
-        y1={-margin + pitch * 0.4}
-        x2={dimensionLeftX}
-        y2={boardH / 2 - pitch * 1.8}
-      />
-      <line
-        x1={dimensionLeftX}
-        y1={boardH / 2 + pitch * 1.8}
-        x2={dimensionLeftX}
-        y2={-margin + boardH - pitch * 0.4}
-      />
-      <polygon
-        points="{dimensionLeftX}, {-margin} {dimensionLeftX -
-          pitch * 0.15}, {-margin + pitch * 0.4} {dimensionLeftX +
-          pitch * 0.15}, {-margin + pitch * 0.4}"
-        stroke="none"
-      />
-      <polygon
-        points="{dimensionLeftX}, {-margin + boardH} {dimensionLeftX -
-          pitch * 0.15}, {-margin + boardH - pitch * 0.4} {dimensionLeftX +
-          pitch * 0.15}, {-margin + boardH - pitch * 0.4}"
-        stroke="none"
-        opacity={dimBottomActive ? 1 : undefined}
-      />
-      <line
-        x1={dimensionLeftX - pitch * 0.3}
-        y1={-margin}
-        x2={-margin - pitch * 0.2}
-        y2={-margin}
-        stroke-dasharray="{pitch * 0.1},{pitch * 0.1}"
-        stroke-width={pitch * 0.04}
-      />
-      <line
-        x1={dimensionLeftX - pitch * 0.3}
-        y1={-margin + boardH}
-        x2={-margin - pitch * 0.2}
-        y2={-margin + boardH}
-        stroke-dasharray="{pitch * 0.1},{pitch * 0.1}"
-        stroke-width={pitch * 0.04}
-      />
+    {#if isCircle && circle}
+      {@const dimY = circle.cy - circle.r - pitch * 1.5}
+      {@const diam = circle.r * 2}
       <g
-        transform="translate({dimensionLeftX}, {boardH / 2 -
-          margin}) rotate(-90)"
+        class="dimensions"
+        opacity="0.5"
+        stroke="#38bdf8"
+        fill="#38bdf8"
+        font-family="monospace"
+        stroke-width={pitch * 0.05}
       >
+        <!-- Diameter Dimension -->
+        <line
+          x1={circle.cx - circle.r + pitch * 0.4}
+          y1={dimY}
+          x2={circle.cx - pitch * 1.8}
+          y2={dimY}
+        />
+        <line
+          x1={circle.cx + pitch * 1.8}
+          y1={dimY}
+          x2={circle.cx + circle.r - pitch * 0.4}
+          y2={dimY}
+        />
+        <polygon
+          points="{circle.cx - circle.r},{dimY} {circle.cx - circle.r + pitch * 0.4},{dimY - pitch * 0.15} {circle.cx - circle.r + pitch * 0.4},{dimY + pitch * 0.15}"
+          stroke="none"
+        />
+        <polygon
+          points="{circle.cx + circle.r},{dimY} {circle.cx + circle.r - pitch * 0.4},{dimY - pitch * 0.15} {circle.cx + circle.r - pitch * 0.4},{dimY + pitch * 0.15}"
+          stroke="none"
+          opacity={dimDiameterActive ? 1 : undefined}
+        />
+        <line
+          x1={circle.cx - circle.r}
+          y1={dimY - pitch * 0.3}
+          x2={circle.cx - circle.r}
+          y2={circle.cy - circle.r - pitch * 0.2}
+          stroke-dasharray="{pitch * 0.1},{pitch * 0.1}"
+          stroke-width={pitch * 0.04}
+        />
+        <line
+          x1={circle.cx + circle.r}
+          y1={dimY - pitch * 0.3}
+          x2={circle.cx + circle.r}
+          y2={circle.cy - circle.r - pitch * 0.2}
+          stroke-dasharray="{pitch * 0.1},{pitch * 0.1}"
+          stroke-width={pitch * 0.04}
+        />
         <text
-          x="0"
-          y="0"
+          x={circle.cx}
+          y={dimY}
           text-anchor="middle"
           dominant-baseline="central"
           stroke="none"
           font-size={pitch * 0.55}
           font-weight="bold"
-          letter-spacing="0.1em">{boardH.toFixed(1)}</text
+          letter-spacing="0.1em">{dimDisplayDiam.toFixed(1)}</text
         >
       </g>
-    </g>
 
-    <!-- Dimension drag handles (invisible hit targets) -->
-    <circle
-      cx={-margin + boardW}
-      cy={dimensionTopY}
-      r={pitch * 1.0}
-      fill={dimRightActive ? "rgba(56,189,248,0.15)" : "transparent"}
-      stroke={dimRightActive ? "#38bdf8" : "none"}
-      stroke-width={pitch * 0.06}
-      stroke-dasharray={dimRightActive ? `${pitch * 0.15},${pitch * 0.1}` : "none"}
-      style="cursor: ew-resize"
-    />
-    <circle
-      cx={dimensionLeftX}
-      cy={-margin + boardH}
-      r={pitch * 1.0}
-      fill={dimBottomActive ? "rgba(56,189,248,0.15)" : "transparent"}
+      <!-- Diameter drag handle -->
+      <circle
+        cx={circle.cx + circle.r}
+        cy={dimY}
+        r={pitch * 1.0}
+        fill={dimDiameterActive ? "rgba(56,189,248,0.15)" : "transparent"}
+        stroke={dimDiameterActive ? "#38bdf8" : "none"}
+        stroke-width={pitch * 0.06}
+        stroke-dasharray={dimDiameterActive ? `${pitch * 0.15},${pitch * 0.1}` : "none"}
+        style="cursor: ew-resize"
+      />
+    {:else}
+      <g
+        class="dimensions"
+        opacity="0.5"
+        stroke="#38bdf8"
+        fill="#38bdf8"
+        font-family="monospace"
+        stroke-width={pitch * 0.05}
+      >
+        <!-- Top Width Dimension -->
+        <line
+          x1={-margin + pitch * 0.4}
+          y1={dimensionTopY}
+          x2={boardW / 2 - pitch * 1.8}
+          y2={dimensionTopY}
+        />
+        <line
+          x1={boardW / 2 + pitch * 1.8}
+          y1={dimensionTopY}
+          x2={-margin + boardW - pitch * 0.4}
+          y2={dimensionTopY}
+        />
+        <polygon
+          points="{-margin}, {dimensionTopY} {-margin +
+            pitch * 0.4}, {dimensionTopY - pitch * 0.15} {-margin +
+            pitch * 0.4}, {dimensionTopY + pitch * 0.15}"
+          stroke="none"
+        />
+        <polygon
+          points="{-margin + boardW}, {dimensionTopY} {-margin +
+            boardW -
+            pitch * 0.4}, {dimensionTopY - pitch * 0.15} {-margin +
+            boardW -
+            pitch * 0.4}, {dimensionTopY + pitch * 0.15}"
+          stroke="none"
+          opacity={dimRightActive ? 1 : undefined}
+        />
+        <line
+          x1={-margin}
+          y1={dimensionTopY - pitch * 0.3}
+          x2={-margin}
+          y2={-margin - pitch * 0.2}
+          stroke-dasharray="{pitch * 0.1},{pitch * 0.1}"
+          stroke-width={pitch * 0.04}
+        />
+        <line
+          x1={-margin + boardW}
+          y1={dimensionTopY - pitch * 0.3}
+          x2={-margin + boardW}
+          y2={-margin - pitch * 0.2}
+          stroke-dasharray="{pitch * 0.1},{pitch * 0.1}"
+          stroke-width={pitch * 0.04}
+        />
+        <text
+          x={boardW / 2 - margin}
+          y={dimensionTopY}
+          text-anchor="middle"
+          dominant-baseline="central"
+          stroke="none"
+          font-size={pitch * 0.55}
+          font-weight="bold"
+          letter-spacing="0.1em">{dimDisplayW.toFixed(1)}</text
+        >
+
+        <!-- Left Height Dimension -->
+        <line
+          x1={dimensionLeftX}
+          y1={-margin + pitch * 0.4}
+          x2={dimensionLeftX}
+          y2={boardH / 2 - pitch * 1.8}
+        />
+        <line
+          x1={dimensionLeftX}
+          y1={boardH / 2 + pitch * 1.8}
+          x2={dimensionLeftX}
+          y2={-margin + boardH - pitch * 0.4}
+        />
+        <polygon
+          points="{dimensionLeftX}, {-margin} {dimensionLeftX -
+            pitch * 0.15}, {-margin + pitch * 0.4} {dimensionLeftX +
+            pitch * 0.15}, {-margin + pitch * 0.4}"
+          stroke="none"
+        />
+        <polygon
+          points="{dimensionLeftX}, {-margin + boardH} {dimensionLeftX -
+            pitch * 0.15}, {-margin + boardH - pitch * 0.4} {dimensionLeftX +
+            pitch * 0.15}, {-margin + boardH - pitch * 0.4}"
+          stroke="none"
+          opacity={dimBottomActive ? 1 : undefined}
+        />
+        <line
+          x1={dimensionLeftX - pitch * 0.3}
+          y1={-margin}
+          x2={-margin - pitch * 0.2}
+          y2={-margin}
+          stroke-dasharray="{pitch * 0.1},{pitch * 0.1}"
+          stroke-width={pitch * 0.04}
+        />
+        <line
+          x1={dimensionLeftX - pitch * 0.3}
+          y1={-margin + boardH}
+          x2={-margin - pitch * 0.2}
+          y2={-margin + boardH}
+          stroke-dasharray="{pitch * 0.1},{pitch * 0.1}"
+          stroke-width={pitch * 0.04}
+        />
+        <g
+          transform="translate({dimensionLeftX}, {boardH / 2 -
+            margin}) rotate(-90)"
+        >
+          <text
+            x="0"
+            y="0"
+            text-anchor="middle"
+            dominant-baseline="central"
+            stroke="none"
+            font-size={pitch * 0.55}
+            font-weight="bold"
+            letter-spacing="0.1em">{dimDisplayH.toFixed(1)}</text
+          >
+        </g>
+      </g>
+
+      <!-- Dimension drag handles (invisible hit targets) -->
+      <circle
+        cx={-margin + boardW}
+        cy={dimensionTopY}
+        r={pitch * 1.0}
+        fill={dimRightActive ? "rgba(56,189,248,0.15)" : "transparent"}
+        stroke={dimRightActive ? "#38bdf8" : "none"}
+        stroke-width={pitch * 0.06}
+        stroke-dasharray={dimRightActive ? `${pitch * 0.15},${pitch * 0.1}` : "none"}
+        style="cursor: ew-resize"
+      />
+      <circle
+        cx={dimensionLeftX}
+        cy={-margin + boardH}
+        r={pitch * 1.0}
+        fill={dimBottomActive ? "rgba(56,189,248,0.15)" : "transparent"}
       stroke={dimBottomActive ? "#38bdf8" : "none"}
       stroke-width={pitch * 0.06}
       stroke-dasharray={dimBottomActive ? `${pitch * 0.15},${pitch * 0.1}` : "none"}
       style="cursor: ns-resize"
     />
+    {/if}
+
+    {#if isCircle && circle}
+      <defs>
+        <clipPath id="board-clip">
+          <circle cx={circle.cx} cy={circle.cy} r={circle.r} />
+        </clipPath>
+      </defs>
+    {/if}
 
     <!-- Grid lines -->
-    <g class="grid-lines">
+    <g class="grid-lines" clip-path={isCircle ? "url(#board-clip)" : undefined}>
     {#each Array(cols) as _, c}
       <line
         x1={c * pitch}
@@ -1742,13 +1930,17 @@
     <g class="grid-dots">
     {#each Array(cols * 2 - 1) as _, ci}
       {#each Array(rows * 2 - 1) as _, ri}
+        {@const dotX = (ci * pitch) / 2}
+        {@const dotY = (ri * pitch) / 2}
         {@const isFull = ci % 2 === 0 && ri % 2 === 0}
-        <circle
-          cx={(ci * pitch) / 2}
-          cy={(ri * pitch) / 2}
-          r={isFull ? pitch * 0.06 : pitch * 0.03}
-          fill={isFull ? "rgba(255,255,255,0.15)" : "rgba(255,255,255,0.06)"}
-        />
+        {#if !isCircle || !circle || Math.hypot(dotX - circle.cx, dotY - circle.cy) <= circle.r}
+          <circle
+            cx={dotX}
+            cy={dotY}
+            r={isFull ? pitch * 0.06 : pitch * 0.03}
+            fill={isFull ? "rgba(255,255,255,0.15)" : "rgba(255,255,255,0.06)"}
+          />
+        {/if}
       {/each}
     {/each}
     </g>

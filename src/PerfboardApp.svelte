@@ -675,6 +675,7 @@
   }
 
   function applySessionDoc(parsed) {
+    parsed.grid.shape = parsed.grid.shape ?? 'rect';
     parsed.dips = parsed.dips ?? [];
     parsed.capacitors = parsed.capacitors ?? [];
     parsed.resistors = parsed.resistors ?? [];
@@ -1062,6 +1063,7 @@
         bind:roundTraceTdHPercent={doc.roundTraceTdHPercent}
         bind:roundTraceTdVPercent={doc.roundTraceTdVPercent}
         bind:boardThickness={doc.boardThickness}
+        bind:shape={doc.grid.shape}
         onBeforeChange={pushUndo}
       />
 

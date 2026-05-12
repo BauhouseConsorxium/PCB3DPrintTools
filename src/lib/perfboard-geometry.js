@@ -7,9 +7,32 @@ import { enumerateConductorNodes } from './perfboard-topology.js'
 
 const PAD_CIRCLE_N = 32
 
-function buildBoardPolygon(doc) {
-  const { cols, rows, pitch } = doc.grid
+export function circleParams(grid) {
+  const { cols, rows, pitch } = grid
   const margin = pitch / 2
+  const cx = (cols - 1) * pitch / 2
+  const cy = (rows - 1) * pitch / 2
+  const r = Math.min(cols - 1, rows - 1) * pitch / 2 + margin
+  return { cx, cy, r }
+}
+
+function buildBoardPolygon(doc) {
+  const { cols, rows, pitch, shape } = doc.grid
+  const margin = pitch / 2
+
+  if (shape === 'circle') {
+    const cx = (cols - 1) * pitch / 2
+    const cy = -((rows - 1) * pitch / 2)
+    const r = Math.min(cols - 1, rows - 1) * pitch / 2 + margin
+    const N = 64
+    const poly = []
+    for (let i = 0; i < N; i++) {
+      const a = i * 2 * Math.PI / N
+      poly.push([cx + r * Math.cos(a), cy + r * Math.sin(a)])
+    }
+    return poly
+  }
+
   const x0 = -margin
   const y0 = margin
   const x1 = (cols - 1) * pitch + margin
@@ -953,7 +976,7 @@ export function createDefaultDocument() {
   return {
     version: 1,
     name: 'untitled',
-    grid: { cols: 14, rows: 14, pitch: 2.54 },
+    grid: { cols: 14, rows: 14, pitch: 2.54, shape: 'rect' },
     boardThickness: 1.6,
     copperThickness: 0.035,
     drillDiameter: 1.0,

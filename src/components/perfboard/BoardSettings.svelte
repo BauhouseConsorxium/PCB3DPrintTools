@@ -15,6 +15,7 @@
     roundTraceTdHPercent = $bindable(50),
     roundTraceTdVPercent = $bindable(90),
     boardThickness = $bindable(1.6),
+    shape = $bindable('rect'),
     onBeforeChange = () => {},
   } = $props()
 
@@ -28,6 +29,16 @@
   <!-- Grid size — always visible -->
   <div>
     <div class="text-[10px] uppercase tracking-wider text-accent font-bold mb-1.5">Board</div>
+    <div class="flex gap-1 mb-1.5">
+      <button
+        class="flex-1 px-2 py-1 text-[10px] rounded-lg border-2 border-black transition-colors {shape === 'rect' ? 'bg-accent text-white shadow-[2px_2px_0_black]' : 'bg-surface-2 text-cyan-light hover:bg-surface-3'}"
+        onclick={() => { onBeforeChange(); shape = 'rect' }}
+      >Rect</button>
+      <button
+        class="flex-1 px-2 py-1 text-[10px] rounded-lg border-2 border-black transition-colors {shape === 'circle' ? 'bg-accent text-white shadow-[2px_2px_0_black]' : 'bg-surface-2 text-cyan-light hover:bg-surface-3'}"
+        onclick={() => { onBeforeChange(); shape = 'circle' }}
+      >Circle</button>
+    </div>
     <div class="grid grid-cols-4 gap-1.5 items-center">
       <span class="text-[10px] text-purple-light">Col</span>
       <input type="number" bind:value={cols} min="2" max="40" onfocus={onBeforeChange} class={inputClass} />
