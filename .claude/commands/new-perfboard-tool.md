@@ -9,15 +9,19 @@ Use the argument as the tool name (e.g. `/new-perfboard-tool resistor`).
 
 ## Checklist — touch every file in this order
 
-### 1. `src/lib/perfboard-geometry.js`
+### 1. `src/lib/perfboard-topology.js`
+
+**Pad positions** — in `enumerateConductorNodes`, add a loop that calls
+`add(col, row, 'mytool', mytool.id, '')` for every hole the tool occupies.
+This single source of truth feeds the geometry pipeline (drill holes, pad rings)
+AND the net engine, so net coloring + highlight work for the new tool "for free."
+
+### 2. `src/lib/perfboard-geometry.js`
 
 **Data in the doc schema** — add the new array to `createDefaultDocument()`:
 ```js
 myTools: [],
 ```
-
-**Pad positions** — in `collectPadPositions`, add a loop that calls `addPad(col, row)`
-for every hole the tool occupches. Called by both geometry and 2D rendering.
 
 **3D body** — in `buildComponentBodies`, add a loop over `doc.myTools`.
 - Use `cylGeom(cx, cy, r, zBot, zTop, n)` for upright cylinders.
@@ -33,17 +37,18 @@ for every hole the tool occupches. Called by both geometry and 2D rendering.
 - `axisIsX = true`  → disc in YZ plane, face visible along X (use for 'v' leads)
 - `axisIsX = false` → disc in XZ plane, face visible along Y (use for 'h' leads)
 
-### 2. `src/components/perfboard/Toolbar.svelte`
+### 3. `src/components/perfboard/Toolbar.svelte`
 
 Add entry to the `tools` array:
 ```js
-{ id: 'mytool', label: 'MyTool', icon: 'mytool', key: '<next-free-digit>' },
+{ id: 'mytool', label: 'MyTool', icon: 'mytool', key: '<single-letter>' },
 ```
+Digit hotkeys 1–9, 0 are taken; `J` is taken by Joint. Use a letter.
 
 Add SVG icon case in the `{#if tool.icon === ...}` chain. Use `viewBox="0 0 20 20"`,
 `fill="none"`, `stroke="currentColor"`, `stroke-width="1.5"`.
 
-### 3. `src/components/perfboard/GridEditor.svelte`
+### 4. `src/components/perfboard/GridEditor.svelte`
 
 Touch these locations **in order** — each is a targeted insertion:
 
@@ -105,7 +110,7 @@ Touch these locations **in order** — each is a targeted insertion:
 - Body stroke: `rgba(255,255,255,0.25)`, selected: `#fbbf24`
 - Symbol lines: `rgba(180,220,255,0.85)`, selected: `#fbbf24`
 
-### 4. `src/PerfboardApp.svelte`
+### 5. `src/PerfboardApp.svelte`
 
 | What | Where |
 |---|---|
@@ -135,4 +140,4 @@ Touch these locations **in order** — each is a targeted insertion:
 - **applyParsedDoc**: always add `parsed.myTools = parsed.myTools ?? []` or old saved
   files will error when the geometry builder iterates the missing array.
 - **Hit testing in findElementAt**: must match exactly the same grid positions as
-  `collectPadPositions` uses, or erase/select will miss the component.
+  `enumerateConductorNodes` uses, or erase/select will miss the component.
