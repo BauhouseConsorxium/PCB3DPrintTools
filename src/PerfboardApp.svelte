@@ -605,57 +605,70 @@
     viewer.exportSTL(null, `${doc.name}_perfboard_${ts}.stl`);
   }
 
-  // Save/load
-  const STORAGE_KEY = "perfboard-saves";
+  // Session system
+  const SESSION_KEY = "perfboard-sessions";
 
-  function getSaves() {
+  const ADJECTIVES = [
+    'swift','calm','bold','bright','cool','warm','keen','sharp',
+    'lucky','happy','brave','quiet','vivid','noble','witty','rapid',
+    'neat','snug','fair','deft'
+  ];
+  const NOUNS = [
+    'falcon','river','pixel','prism','spark','coral','cedar','orbit',
+    'atlas','maple','flint','bloom','frost','ember','ridge','haven',
+    'drift','forge','crest','quartz'
+  ];
+
+  function friendlyName() {
+    const a = ADJECTIVES[Math.floor(Math.random() * ADJECTIVES.length)];
+    const n = NOUNS[Math.floor(Math.random() * NOUNS.length)];
+    return `${a}-${n}`;
+  }
+
+  function getSessionStore() {
+    try { return JSON.parse(localStorage.getItem(SESSION_KEY)) || null; }
+    catch { return null; }
+  }
+
+  function migrateOldSaves() {
+    const old = localStorage.getItem("perfboard-saves");
+    if (!old) return null;
     try {
-      return JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
-    } catch {
-      return [];
+      const saves = JSON.parse(old);
+      if (!saves.length) { localStorage.removeItem("perfboard-saves"); return null; }
+      const sessions = {};
+      let activeId;
+      for (const s of saves) {
+        const id = crypto.randomUUID();
+        if (!activeId) activeId = id;
+        sessions[id] = { name: s.name || friendlyName(), doc: s.doc, updatedAt: s.savedAt || new Date().toISOString() };
+      }
+      localStorage.removeItem("perfboard-saves");
+      return { activeId, sessions };
+    } catch { localStorage.removeItem("perfboard-saves"); return null; }
+  }
+
+  function initSession() {
+    let store = getSessionStore() || migrateOldSaves();
+    if (!store) {
+      const id = crypto.randomUUID();
+      const name = friendlyName();
+      doc.name = name;
+      store = {
+        activeId: id,
+        sessions: { [id]: { name, doc: JSON.parse(JSON.stringify(doc)), updatedAt: new Date().toISOString() } }
+      };
+      localStorage.setItem(SESSION_KEY, JSON.stringify(store));
+    } else {
+      const session = store.sessions[store.activeId];
+      if (session) {
+        applySessionDoc(session.doc);
+      }
     }
+    return store;
   }
 
-  function saveToSlot() {
-    const saves = getSaves();
-    const entry = {
-      name: doc.name,
-      doc: JSON.parse(JSON.stringify(doc)),
-      savedAt: new Date().toISOString(),
-    };
-    const idx = saves.findIndex((s) => s.name === doc.name);
-    if (idx >= 0) saves[idx] = entry;
-    else saves.unshift(entry);
-    if (saves.length > 5) saves.length = 5;
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(saves));
-    lastSavedDoc = JSON.stringify(doc);
-    saveMessage = `Saved "${doc.name}"`;
-    setTimeout(() => (saveMessage = ""), 2500);
-  }
-
-  function loadFromSlot(entry) {
-    confirmThenLoad(() => applyParsedDoc(entry.doc));
-  }
-
-  function deleteSlot(name) {
-    const saves = getSaves().filter((s) => s.name !== name);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(saves));
-  }
-
-  function downloadJSON() {
-    const blob = new Blob([JSON.stringify(doc, null, 2)], {
-      type: "application/json",
-    });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `${doc.name}.perfboard.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-  }
-
-  function applyParsedDoc(parsed) {
-    pushUndo();
+  function applySessionDoc(parsed) {
     parsed.dips = parsed.dips ?? [];
     parsed.capacitors = parsed.capacitors ?? [];
     parsed.resistors = parsed.resistors ?? [];
@@ -674,7 +687,100 @@
     doc = parsed;
     selectedIds = [];
     isRebuild = false;
-    lastSavedDoc = JSON.stringify(doc);
+  }
+
+  let sessionStore = $state(initSession());
+  let showSessionPanel = $state(false);
+  let activeSessionId = $derived(sessionStore.activeId);
+  let sessionList = $derived(
+    Object.entries(sessionStore.sessions)
+      .map(([id, s]) => ({ id, name: s.name, updatedAt: s.updatedAt }))
+      .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+  );
+
+  let autoSaveTimer;
+  $effect(() => {
+    const snapshot = JSON.stringify(doc);
+    clearTimeout(autoSaveTimer);
+    autoSaveTimer = setTimeout(() => {
+      const store = getSessionStore();
+      if (!store || !store.sessions[store.activeId]) return;
+      store.sessions[store.activeId].doc = JSON.parse(snapshot);
+      store.sessions[store.activeId].name = doc.name;
+      store.sessions[store.activeId].updatedAt = new Date().toISOString();
+      localStorage.setItem(SESSION_KEY, JSON.stringify(store));
+      sessionStore = store;
+    }, 500);
+  });
+
+  function switchSession(id) {
+    if (id === sessionStore.activeId) return;
+    const store = getSessionStore();
+    if (!store?.sessions[id]) return;
+    store.sessions[store.activeId].doc = JSON.parse(JSON.stringify(doc));
+    store.sessions[store.activeId].updatedAt = new Date().toISOString();
+    store.activeId = id;
+    localStorage.setItem(SESSION_KEY, JSON.stringify(store));
+    sessionStore = store;
+    applySessionDoc(JSON.parse(JSON.stringify(store.sessions[id].doc)));
+    undoStack = [];
+    redoStack = [];
+    showSessionPanel = false;
+  }
+
+  function newSession() {
+    const store = getSessionStore() || sessionStore;
+    store.sessions[store.activeId].doc = JSON.parse(JSON.stringify(doc));
+    store.sessions[store.activeId].updatedAt = new Date().toISOString();
+    const id = crypto.randomUUID();
+    const name = friendlyName();
+    const newDoc = createDefaultDocument();
+    newDoc.name = name;
+    store.sessions[id] = { name, doc: JSON.parse(JSON.stringify(newDoc)), updatedAt: new Date().toISOString() };
+    store.activeId = id;
+    localStorage.setItem(SESSION_KEY, JSON.stringify(store));
+    sessionStore = store;
+    doc = newDoc;
+    selectedIds = [];
+    undoStack = [];
+    redoStack = [];
+    isRebuild = false;
+    showSessionPanel = false;
+  }
+
+  function deleteSession(id) {
+    const store = getSessionStore() || sessionStore;
+    if (Object.keys(store.sessions).length <= 1) return;
+    delete store.sessions[id];
+    if (store.activeId === id) {
+      const remaining = Object.entries(store.sessions).sort((a, b) => b[1].updatedAt.localeCompare(a[1].updatedAt));
+      store.activeId = remaining[0][0];
+      localStorage.setItem(SESSION_KEY, JSON.stringify(store));
+      sessionStore = store;
+      applySessionDoc(JSON.parse(JSON.stringify(store.sessions[store.activeId].doc)));
+      undoStack = [];
+      redoStack = [];
+    } else {
+      localStorage.setItem(SESSION_KEY, JSON.stringify(store));
+      sessionStore = store;
+    }
+  }
+
+  function downloadJSON() {
+    const blob = new Blob([JSON.stringify(doc, null, 2)], {
+      type: "application/json",
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${doc.name}.perfboard.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function applyParsedDoc(parsed) {
+    pushUndo();
+    applySessionDoc(parsed);
     saveMessage = `Loaded "${parsed.name}"`;
     setTimeout(() => (saveMessage = ""), 2500);
   }
@@ -690,7 +796,7 @@
           alert("Invalid perfboard file");
           return;
         }
-        confirmThenLoad(() => applyParsedDoc(parsed));
+        applyParsedDoc(parsed);
       } catch {
         alert("Failed to parse file");
       }
@@ -700,23 +806,6 @@
   }
 
   let saveMessage = $state("");
-  let showSavePanel = $state(false);
-  let savedSlots = $derived(getSaves());
-
-  let lastSavedDoc = $state(JSON.stringify(doc));
-  let pendingLoadAction = $state(null);
-
-  function isDirty() {
-    return JSON.stringify(doc) !== lastSavedDoc;
-  }
-
-  function confirmThenLoad(action) {
-    if (isDirty()) {
-      pendingLoadAction = action;
-    } else {
-      action();
-    }
-  }
 
   async function loadExample(name) {
     try {
@@ -726,7 +815,7 @@
         alert("Invalid example file");
         return;
       }
-      confirmThenLoad(() => applyParsedDoc(parsed));
+      applyParsedDoc(parsed);
     } catch {
       alert("Failed to load example");
     }
@@ -848,19 +937,61 @@
       <!-- Separator -->
       <div class="w-px h-4 bg-purple-light/20 ml-3"></div>
 
-      <!-- Project actions — icon-only, matches undo/redo style -->
+      <!-- Session picker -->
       <div class="flex items-center gap-0.5 ml-1.5 relative">
         <button
-          onclick={saveToSlot}
-          class="p-1 rounded-lg text-purple-light hover:text-cyan hover:bg-surface-2 transition-colors"
-          title="Save (Ctrl+S)"
+          onclick={() => (showSessionPanel = !showSessionPanel)}
+          class="flex items-center gap-1.5 px-2 py-0.5 rounded-lg text-purple-light hover:text-cyan hover:bg-surface-2 transition-colors {showSessionPanel ? 'bg-surface-2 text-cyan' : ''}"
+          title="Sessions ({sessionList.length})"
         >
-          <svg viewBox="0 0 16 16" class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M3 14V2h8l2 2v10H3z" />
-            <path d="M5 2v4h5V2" />
-            <path d="M5 14v-4h6v4" />
+          <svg viewBox="0 0 16 16" class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M4 2v12M8 2v12M12 2v12" />
+            <path d="M2 5h12M2 11h12" />
+          </svg>
+          <span class="text-[10px] font-semibold truncate max-w-[90px]">{sessionStore.sessions[activeSessionId]?.name ?? ''}</span>
+          <svg viewBox="0 0 10 6" class="w-2 h-2 shrink-0 opacity-50">
+            <path d="M1 1l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
           </svg>
         </button>
+        {#if showSessionPanel}
+          <div class="absolute top-full left-0 mt-2 w-56 bg-surface-1 border-2 border-black rounded-lg shadow-[4px_4px_0_black] p-2.5 z-50">
+            <div class="flex items-center justify-between mb-2">
+              <span class="text-[10px] uppercase tracking-wider text-accent font-bold">Sessions</span>
+              <button
+                onclick={newSession}
+                class="text-[10px] px-2 py-0.5 rounded-md bg-accent hover:bg-accent-light text-white font-bold border border-black shadow-[1px_1px_0_black] transition-all"
+              >+ New</button>
+            </div>
+            <div class="space-y-1 max-h-48 overflow-y-auto">
+              {#each sessionList as session}
+                <div class="flex items-center gap-1 text-[10px] group">
+                  <button
+                    onclick={() => switchSession(session.id)}
+                    class="flex-1 text-left px-2 py-1.5 rounded-lg truncate transition-colors
+                      {session.id === activeSessionId
+                        ? 'bg-accent/10 text-cyan-light border border-accent'
+                        : 'bg-surface-2 hover:bg-surface-3 text-cyan-light border border-transparent hover:border-purple-light/20'}"
+                  >
+                    {session.name}
+                  </button>
+                  {#if Object.keys(sessionStore.sessions).length > 1}
+                    <button
+                      onclick={() => deleteSession(session.id)}
+                      class="text-purple-light/30 hover:text-red-400 px-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                    >&times;</button>
+                  {/if}
+                </div>
+              {/each}
+            </div>
+          </div>
+        {/if}
+      </div>
+
+      <!-- Separator -->
+      <div class="w-px h-4 bg-purple-light/20 ml-1.5"></div>
+
+      <!-- File actions -->
+      <div class="flex items-center gap-0.5 ml-1.5">
         <label
           class="p-1 rounded-lg text-purple-light hover:text-cyan hover:bg-surface-2 transition-colors cursor-pointer"
           title="Open file"
@@ -885,41 +1016,6 @@
             <path d="M3 12v2h10v-2" />
           </svg>
         </button>
-        <button
-          onclick={() => (showSavePanel = !showSavePanel)}
-          class="p-1 rounded-lg text-purple-light hover:text-cyan hover:bg-surface-2 transition-colors {showSavePanel ? 'bg-surface-2 text-cyan' : ''}"
-          title="Saved projects ({getSaves().length})"
-        >
-          <svg viewBox="0 0 16 16" class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M4 2v12M8 2v12M12 2v12" />
-            <path d="M2 5h12M2 11h12" />
-          </svg>
-        </button>
-        {#if showSavePanel}
-          <div class="absolute top-full right-0 mt-2 w-52 bg-surface-1 border-2 border-black rounded-lg shadow-[4px_4px_0_black] p-2.5 z-50">
-            <div class="text-[10px] uppercase tracking-wider text-accent font-bold mb-2">Saved Projects</div>
-            {#if getSaves().length === 0}
-              <div class="text-[10px] text-purple-light/40 italic py-1">No saves yet</div>
-            {:else}
-              <div class="space-y-1 max-h-48 overflow-y-auto">
-                {#each getSaves() as save}
-                  <div class="flex items-center gap-1 text-[10px] group">
-                    <button
-                      onclick={() => loadFromSlot(save)}
-                      class="flex-1 text-left px-2 py-1.5 rounded-lg bg-surface-2 hover:bg-surface-3 text-cyan-light truncate border border-transparent hover:border-purple-light/20 transition-colors"
-                    >
-                      {save.name}
-                    </button>
-                    <button
-                      onclick={() => deleteSlot(save.name)}
-                      class="text-purple-light/30 hover:text-red-400 px-1 opacity-0 group-hover:opacity-100 transition-opacity"
-                    >&times;</button>
-                  </div>
-                {/each}
-              </div>
-            {/if}
-          </div>
-        {/if}
       </div>
     </div>
     <div class="ml-auto flex items-center gap-3">
@@ -1206,62 +1302,6 @@
         <p class="text-purple-light/40 text-[10px] mt-4">
           Bauhouse Consorxium
         </p>
-      </div>
-    </div>
-  {/if}
-
-  <!-- Unsaved changes confirmation modal -->
-  {#if pendingLoadAction}
-    <!-- svelte-ignore a11y_no_static_element_interactions -->
-    <div
-      class="fixed inset-0 z-[200] flex items-center justify-center bg-black/60"
-      onclick={() => (pendingLoadAction = null)}
-    >
-      <!-- svelte-ignore a11y_no_static_element_interactions -->
-      <div
-        class="bg-surface-1 border-3 border-black rounded-xl shadow-[6px_6px_0_black] max-w-sm w-full mx-4 p-6"
-        onclick={(e) => e.stopPropagation()}
-      >
-        <div class="flex items-center gap-3 mb-4">
-          <svg viewBox="0 0 20 20" class="w-6 h-6 text-amber-400 shrink-0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M10 3L2 17h16L10 3z" />
-            <path d="M10 9v4" />
-            <circle cx="10" cy="15" r="0.5" fill="currentColor" />
-          </svg>
-          <h3 class="text-sm font-bold text-cyan-light">Unsaved Changes</h3>
-        </div>
-        <p class="text-xs text-purple-light leading-relaxed mb-5">
-          You have unsaved changes that will be lost. Do you want to save first, or discard and continue?
-        </p>
-        <div class="flex gap-2">
-          <button
-            onclick={() => {
-              saveToSlot();
-              const action = pendingLoadAction;
-              pendingLoadAction = null;
-              action();
-            }}
-            class="flex-1 px-3 py-2 text-xs font-bold rounded-lg bg-accent hover:bg-accent-light text-white border-2 border-black shadow-[3px_3px_0_black] transition-all hover:shadow-[4px_4px_0_black] hover:-translate-x-px hover:-translate-y-px"
-          >
-            Save & Load
-          </button>
-          <button
-            onclick={() => {
-              const action = pendingLoadAction;
-              pendingLoadAction = null;
-              action();
-            }}
-            class="flex-1 px-3 py-2 text-xs font-bold rounded-lg bg-surface-2 hover:bg-surface-3 text-cyan-light border-2 border-black shadow-[3px_3px_0_black] transition-all hover:shadow-[4px_4px_0_black] hover:-translate-x-px hover:-translate-y-px"
-          >
-            Discard
-          </button>
-          <button
-            onclick={() => (pendingLoadAction = null)}
-            class="px-3 py-2 text-xs font-bold rounded-lg text-purple-light/60 hover:text-purple-light hover:bg-surface-2 transition-colors"
-          >
-            Cancel
-          </button>
-        </div>
       </div>
     </div>
   {/if}
