@@ -2,7 +2,7 @@ name: Deploy to GitHub Pages
 
 on:
   push:
-    branches: [main]
+    branches: [main, feat/perfboard-editor]
   workflow_dispatch:
 
 permissions:
@@ -18,16 +18,30 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
+      # Build main branch
       - uses: actions/checkout@v4
+        with:
+          ref: main
       - uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: npm
       - run: npm ci
       - run: npm run build
+      - run: mkdir -p /tmp/site && cp -r dist/* /tmp/site/
+
+      # Build feature branch into /preview/
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/perfboard-editor
+          clean: false
+      - run: npm ci
+      - run: npx vite build --base /PCB3DPrintTools/preview/
+      - run: mkdir -p /tmp/site/preview && cp -r dist/* /tmp/site/preview/
+
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: dist
+          path: /tmp/site
 
   deploy:
     needs: build
