@@ -760,6 +760,107 @@ function buildComponentBodies(doc) {
   return bodies
 }
 
+function buildTubeAlongPath(pathPts, wireR, nRing = 8) {
+  const pos = [], nrm = [], idx = []
+  let v = 0
+  const frames = []
+  for (let i = 0; i < pathPts.length; i++) {
+    const prev = pathPts[Math.max(0, i - 1)]
+    const next = pathPts[Math.min(pathPts.length - 1, i + 1)]
+    let tx = next[0] - prev[0], ty = next[1] - prev[1], tz = next[2] - prev[2]
+    const tLen = Math.hypot(tx, ty, tz) || 1
+    tx /= tLen; ty /= tLen; tz /= tLen
+    let ux, uy, uz
+    if (Math.abs(tx) < 0.9) { ux = 0; uy = -tz; uz = ty }
+    else { ux = tz; uy = 0; uz = -tx }
+    const uLen = Math.hypot(ux, uy, uz) || 1
+    ux /= uLen; uy /= uLen; uz /= uLen
+    const vx = ty * uz - tz * uy, vy = tz * ux - tx * uz, vz = tx * uy - ty * ux
+    frames.push({ p: pathPts[i], u: [ux, uy, uz], v: [vx, vy, vz] })
+  }
+  for (let i = 0; i < frames.length; i++) {
+    const f = frames[i]
+    for (let j = 0; j < nRing; j++) {
+      const a = (j / nRing) * 2 * Math.PI
+      const ca = Math.cos(a), sa = Math.sin(a)
+      const nx2 = f.u[0] * ca + f.v[0] * sa
+      const ny2 = f.u[1] * ca + f.v[1] * sa
+      const nz2 = f.u[2] * ca + f.v[2] * sa
+      pos.push(f.p[0] + nx2 * wireR, f.p[1] + ny2 * wireR, f.p[2] + nz2 * wireR)
+      nrm.push(nx2, ny2, nz2)
+    }
+  }
+  for (let i = 0; i < frames.length - 1; i++) {
+    for (let j = 0; j < nRing; j++) {
+      const j1 = (j + 1) % nRing
+      const a = i * nRing + j, b = i * nRing + j1
+      const c = (i + 1) * nRing + j1, d = (i + 1) * nRing + j
+      idx.push(a, b, c, a, c, d)
+    }
+  }
+  const fc = frames.length * nRing
+  const f0 = frames[0]
+  pos.push(f0.p[0], f0.p[1], f0.p[2])
+  nrm.push(-(frames[0].p[0] - frames[1].p[0]), -(frames[0].p[1] - frames[1].p[1]), -(frames[0].p[2] - frames[1].p[2]))
+  for (let j = 0; j < nRing; j++) {
+    const j1 = (j + 1) % nRing
+    idx.push(fc, j1, j)
+  }
+  const fc2 = fc + 1
+  const fL = frames[frames.length - 1]
+  pos.push(fL.p[0], fL.p[1], fL.p[2])
+  nrm.push(0, 0, 1)
+  const base = (frames.length - 1) * nRing
+  for (let j = 0; j < nRing; j++) {
+    const j1 = (j + 1) % nRing
+    idx.push(fc2, base + j, base + j1)
+  }
+  return { pos, nrm, idx }
+}
+
+function buildJumperBodies(doc) {
+  const jumpers = doc.jumpers || []
+  if (!jumpers.length) return []
+  const { pitch } = doc.grid
+  const boardThickness = doc.boardThickness
+  const wireR = 0.25
+  const pinR = 0.2
+  const bodies = []
+
+  for (let ji = 0; ji < jumpers.length; ji++) {
+    const j = jumpers[ji]
+    const x1 = j.col1 * pitch, y1 = -(j.row1 * pitch)
+    const x2 = j.col2 * pitch, y2 = -(j.row2 * pitch)
+    const dx = x2 - x1, dy = y2 - y1
+    const dist = Math.hypot(dx, dy)
+    const arc = dist * 0.3
+    const mx = (x1 + x2) / 2, my = (y1 + y2) / 2
+    const nx = -dy / (dist || 1), ny = dx / (dist || 1)
+    const cpx = mx + nx * arc, cpy = my + ny * arc
+    const wireHeight = Math.max(2, dist * 0.3)
+
+    const N = 16
+    const pathPts = []
+    for (let i = 0; i <= N; i++) {
+      const t = i / N
+      const s = 1 - t
+      const px = s * s * x1 + 2 * s * t * cpx + t * t * x2
+      const py = s * s * y1 + 2 * s * t * cpy + t * t * y2
+      const pz = boardThickness + wireHeight * 4 * t * (1 - t)
+      pathPts.push([px, py, pz])
+    }
+
+    const geoms = []
+    geoms.push(buildTubeAlongPath(pathPts, wireR))
+    geoms.push(cylGeom(x1, y1, pinR, -1.5, boardThickness))
+    geoms.push(cylGeom(x2, y2, pinR, -1.5, boardThickness))
+
+    const colorHex = (j.color || '#67e8f9').replace('#', '')
+    bodies.push(mergeGeoms(`Jumper_j${ji}_${colorHex}`, geoms))
+  }
+  return bodies
+}
+
 function buildTeardropGeometry(doc, padPositions, drills, zBot, zTop) {
   const { pitch } = doc.grid
   const padR = doc.padDiameter / 2
@@ -806,7 +907,8 @@ export function buildPerfboardBodies(doc) {
   const teardropBody = buildTeardropGeometry(doc, padPositions, drills, zBot, zTop)
 
   const componentBodies = buildComponentBodies(doc)
-  return [boardBody, padsBody, tracesBody, curveTracesBody, teardropBody, ...componentBodies].filter(Boolean)
+  const jumperBodies = buildJumperBodies(doc)
+  return [boardBody, padsBody, tracesBody, curveTracesBody, teardropBody, ...componentBodies, ...jumperBodies].filter(Boolean)
 }
 
 export function createDefaultDocument() {

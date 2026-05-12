@@ -21,11 +21,16 @@ export function isEnclosure(name) {
   return name.toLowerCase() === "enclosure";
 }
 
+export function isJumper(name) {
+  return name.startsWith('Jumper_');
+}
+
 export function isComponent(name) {
   return (
     !isCopper(name) &&
     !isPcbBoard(name) &&
     !isEnclosure(name) &&
-    !isSilkscreen(name)
+    !isSilkscreen(name) &&
+    !isJumper(name)
   );
 }

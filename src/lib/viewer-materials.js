@@ -3,6 +3,7 @@ import {
   isCopper,
   isSilkscreen,
   isEnclosure,
+  isJumper,
   isComponent,
 } from "./viewer-predicates.js";
 
@@ -69,6 +70,16 @@ export function makeMaterial(name) {
       transparent: true,
       opacity: 0.7,
       depthWrite: false,
+    });
+  }
+  if (isJumper(name)) {
+    const hexMatch = name.match(/_([0-9a-fA-F]{6})$/);
+    const color = hexMatch ? parseInt(hexMatch[1], 16) : 0x67e8f9;
+    return new THREE.MeshPhongMaterial({
+      color,
+      specular: 0xffffff,
+      shininess: 100,
+      side: THREE.DoubleSide,
     });
   }
   if (isComponent(name)) {
