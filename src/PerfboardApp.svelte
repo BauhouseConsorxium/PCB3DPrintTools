@@ -1,5 +1,5 @@
 <script>
-  import { untrack } from "svelte";
+  import { untrack, tick } from "svelte";
   import Viewer3D from "./components/Viewer3D.svelte";
   import Toolbar from "./components/perfboard/Toolbar.svelte";
   import BoardSettings from "./components/perfboard/BoardSettings.svelte";
@@ -84,6 +84,12 @@
   const bodyVisibility = $derived(
     Object.fromEntries(perfboardBodies.map((b) => [b.name, true])),
   );
+  let isRebuild = $state(false);
+  $effect(() => {
+    if (perfboardBodies.length > 0 && !isRebuild) {
+      tick().then(() => { isRebuild = true; });
+    }
+  });
 
   function setGridCols(v) {
     doc.grid.cols = Math.max(2, Math.min(40, Number(v) || 2));
@@ -634,6 +640,7 @@
     parsed.roundTraceTdVPercent = parsed.roundTraceTdVPercent ?? 90;
     doc = parsed;
     selectedIds = [];
+    isRebuild = false;
     lastSavedDoc = JSON.stringify(doc);
     saveMessage = `Loaded "${parsed.name}"`;
     setTimeout(() => (saveMessage = ""), 2500);
@@ -1102,7 +1109,7 @@
             traceMode="raise"
             previewFilter={null}
             drcViolations={[]}
-            isRebuild={false}
+            {isRebuild}
             encSideBySide={false}
             rawSegments={null}
             silkPolylines={null}
