@@ -244,4 +244,73 @@ describe('computeNets', () => {
     const nets = computeNets(doc)
     expect(padFillFor(nets, 0, 0, true, 'VCC')).toBe('#fbbf24')
   })
+
+  test('joint on a roundtrace path unions traces passing through it', () => {
+    const doc = mkDoc({
+      pads: [{ id: 'p1', col: 0, row: 0 }],
+      traces: [
+        {
+          id: 'tR',
+          type: 'roundtrace',
+          points: [
+            { col: 0, row: 0 },
+            { col: 5, row: 0 },
+            { col: 10, row: 0 },
+          ],
+          width: 0.5,
+          radius: 1.0,
+          mode: 'arc',
+          passes: 2,
+        },
+        {
+          id: 'tS',
+          points: [{ col: 3, row: 5 }, { col: 3, row: 0 }],
+          width: 0.5,
+        },
+      ],
+      joints: [{ id: 'jt1', col: 3, row: 0 }],
+    })
+    const nets = computeNets(doc)
+    expect(sameNet(nets, 'tR', 'tS', '0,0')).toBe(true)
+  })
+
+  test('joint sitting nowhere near any trace does NOT union with it', () => {
+    const doc = mkDoc({
+      pads: [
+        { id: 'p1', col: 0, row: 0 },
+        { id: 'p2', col: 5, row: 0 },
+      ],
+      traces: [
+        {
+          id: 't1',
+          points: [{ col: 0, row: 0 }, { col: 5, row: 0 }],
+          width: 0.5,
+        },
+      ],
+      joints: [{ id: 'jt1', col: 8, row: 8 }],
+    })
+    const nets = computeNets(doc)
+    const traceNetId = nets.padNetId.get('0,0')
+    const jointNetId = nets.padNetId.get('8,8')
+    expect(traceNetId).not.toBeUndefined()
+    expect(jointNetId).not.toBeUndefined()
+    expect(traceNetId).not.toBe(jointNetId)
+  })
+
+  test('joint coincident with a labeled pad inherits the pad net name', () => {
+    const doc = mkDoc({
+      pads: [{ id: 'p1', col: 0, row: 0, label: 'VCC' }],
+      traces: [
+        {
+          id: 't1',
+          points: [{ col: 0, row: 0 }, { col: 5, row: 0 }],
+          width: 0.5,
+        },
+      ],
+      joints: [{ id: 'jt1', col: 5, row: 0 }],
+    })
+    const nets = computeNets(doc)
+    const jointNetId = nets.padNetId.get('5,0')
+    expect(nets.netName.get(jointNetId)).toBe('VCC')
+  })
 })

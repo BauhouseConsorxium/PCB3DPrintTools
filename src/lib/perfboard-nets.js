@@ -166,6 +166,10 @@ export function computeNets(doc) {
     const r = dsu.find(tk)
     if (!rootMembers.has(r)) rootMembers.set(r, [])
   }
+  for (const k of jointSet) {
+    const r = dsu.find(k)
+    if (!rootMembers.has(r)) rootMembers.set(r, [])
+  }
 
   const rootIds = [...rootMembers.keys()].sort()
   const netIdByRoot = new Map()
