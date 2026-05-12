@@ -15,6 +15,7 @@
     { id: 'cap', label: 'Cap', icon: 'cap', key: '0' },
     { id: 'joint', label: 'Joint', icon: 'joint', key: 'J' },
     { id: 'freetrace', label: 'Free', icon: 'freetrace', key: 'F' },
+    { id: 'resistor', label: 'Res', icon: 'resistor', key: 'R' },
   ]
 </script>
 
@@ -76,6 +77,12 @@
             <circle cx="10" cy="10" r="2.5" fill="currentColor" stroke="none" />
           {:else if tool.icon === 'freetrace'}
             <path d="M3 15C5 9 8 13 10 7S15 11 17 5" stroke-linecap="round" fill="none" />
+          {:else if tool.icon === 'resistor'}
+            <circle cx="3" cy="10" r="2" fill="currentColor" stroke="none" />
+            <line x1="5" y1="10" x2="7" y2="10" stroke-linecap="round" />
+            <path d="M7 10L8 6L9.5 14L11 6L12.5 14L13 10" stroke-linejoin="round" />
+            <line x1="13" y1="10" x2="15" y2="10" stroke-linecap="round" />
+            <circle cx="17" cy="10" r="2" fill="currentColor" stroke="none" />
           {/if}
         </svg>
         <span>{tool.label}</span>

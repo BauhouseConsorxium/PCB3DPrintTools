@@ -757,6 +757,33 @@ function buildComponentBodies(doc) {
     bodies.push(mergeGeoms(`Component_cap${ci}`, geoms))
   }
 
+  const RES_SOLDER = 1.5
+  const RES_PIN_HW = 0.2
+
+  for (let ri = 0; ri < (doc.resistors || []).length; ri++) {
+    const res = (doc.resistors || [])[ri]
+    const spacing = res.spacing ?? 4
+    const isH = res.orientation === 'h'
+    const p1x = res.col * pitch
+    const p1y = -(res.row * pitch)
+    const p2x = isH ? (res.col + spacing) * pitch : res.col * pitch
+    const p2y = isH ? p1y : -((res.row + spacing) * pitch)
+    const midX = (p1x + p2x) / 2
+    const midY = (p1y + p2y) / 2
+
+    const bodyR = 1.0
+    const pinDist = Math.abs(isH ? p2x - p1x : p2y - p1y)
+    const bodyHL = Math.max(1.5, pinDist * 0.35)
+    const bodyCZ = boardThickness + 0.4 + bodyR
+
+    const geoms = []
+    geoms.push(cylGeomDisc(midX, midY, bodyCZ, bodyR, bodyHL, isH, 16))
+    geoms.push(boxGeomRaw(p1x, p1y, RES_PIN_HW, RES_PIN_HW, -RES_SOLDER, boardThickness + 0.4))
+    geoms.push(boxGeomRaw(p2x, p2y, RES_PIN_HW, RES_PIN_HW, -RES_SOLDER, boardThickness + 0.4))
+
+    bodies.push(mergeGeoms(`Component_res${ri}`, geoms))
+  }
+
   return bodies
 }
 
@@ -934,6 +961,7 @@ export function createDefaultDocument() {
     headers: [],
     dips: [],
     capacitors: [],
+    resistors: [],
     traces: [],
     jumpers: [],
     joints: [],

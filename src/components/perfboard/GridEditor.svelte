@@ -48,6 +48,8 @@
     onToolChange = () => {},
     onAddCapacitor = () => {},
     onUpdateCapacitor = () => {},
+    onAddResistor = () => {},
+    onUpdateResistor = () => {},
     svgRef = $bindable(null),
   } = $props();
 
@@ -111,6 +113,11 @@
   let capStart = $state(null);
   let capPreview = $state(null);
   let editingCapacitor = $state(null);
+
+  // Resistor drawing state
+  let resStart = $state(null);
+  let resPreview = $state(null);
+  let editingResistor = $state(null);
 
   // Freetrace drawing state
   let freetraceDrawing = $state(false);
@@ -273,6 +280,12 @@
       const c2row = cap.orientation === 'h' ? cap.row : cap.row + 1
       if ((cap.col === col && cap.row === row) || (c2col === col && c2row === row)) return cap
     }
+    for (const res of doc.resistors || []) {
+      const spacing = res.spacing ?? 4
+      const r2col = res.orientation === 'h' ? res.col + spacing : res.col
+      const r2row = res.orientation === 'h' ? res.row : res.row + spacing
+      if ((res.col === col && res.row === row) || (r2col === col && r2row === row)) return res
+    }
     for (const jt of doc.joints || []) {
       if (jt.col === col && jt.row === row) return jt;
     }
@@ -386,6 +399,9 @@
     if (editingCapacitor) {
       editingCapacitor = null;
     }
+    if (editingResistor) {
+      editingResistor = null;
+    }
     if (editingPad) {
       editingPad = null;
     }
@@ -480,6 +496,18 @@
         onAddCapacitor(capStart.col, capStart.row, orientation);
         capStart = null;
         capPreview = null;
+      }
+    } else if (activeTool === "resistor") {
+      if (!resStart) {
+        resStart = { col, row };
+      } else {
+        const dc = col - resStart.col;
+        const dr = row - resStart.row;
+        const orientation = Math.abs(dc) >= Math.abs(dr) ? "h" : "v";
+        const spacing = Math.max(2, orientation === "h" ? Math.abs(dc) : Math.abs(dr));
+        onAddResistor(resStart.col, resStart.row, orientation, spacing);
+        resStart = null;
+        resPreview = null;
       }
     } else if (activeTool === "trace") {
       if (tracePoints.length === 0) {
@@ -686,6 +714,14 @@
       const orientation = Math.abs(dc) >= Math.abs(dr) ? "h" : "v";
       capPreview = { col: capStart.col, row: capStart.row, orientation };
     }
+
+    if (activeTool === "resistor" && resStart) {
+      const dc = col - resStart.col;
+      const dr = row - resStart.row;
+      const orientation = Math.abs(dc) >= Math.abs(dr) ? "h" : "v";
+      const spacing = Math.max(2, orientation === "h" ? Math.abs(dc) : Math.abs(dr));
+      resPreview = { col: resStart.col, row: resStart.row, orientation, spacing };
+    }
   }
 
   function findElementsInRect(x1, y1, x2, y2) {
@@ -734,6 +770,13 @@
       const c2row = cap.orientation === 'h' ? cap.row : cap.row + 1;
       if (inRect(cap.col * pitch, cap.row * pitch) || inRect(c2col * pitch, c2row * pitch))
         ids.push(cap.id);
+    }
+    for (const res of doc.resistors || []) {
+      const spacing = res.spacing ?? 4;
+      const r2col = res.orientation === 'h' ? res.col + spacing : res.col;
+      const r2row = res.orientation === 'h' ? res.row : res.row + spacing;
+      if (inRect(res.col * pitch, res.row * pitch) || inRect(r2col * pitch, r2row * pitch))
+        ids.push(res.id);
     }
     for (const t of doc.traces) {
       for (const pt of t.points) {
@@ -939,6 +982,16 @@
           left: e.clientX - rect.left,
           top: e.clientY - rect.top - 20,
         };
+      } else if (el && (doc.resistors || []).find((r) => r.id === el.id)) {
+        const res = (doc.resistors || []).find((r) => r.id === el.id);
+        const rect = containerEl.getBoundingClientRect();
+        editingResistor = {
+          id: el.id,
+          spacing: res.spacing ?? 4,
+          label: res.label ?? "",
+          left: e.clientX - rect.left,
+          top: e.clientY - rect.top - 20,
+        };
       } else if (el && doc.headers.find((h) => h.id === el.id)) {
         const header = doc.headers.find((h) => h.id === el.id);
         const rect = containerEl.getBoundingClientRect();
@@ -1093,6 +1146,21 @@
     if (e.key === "Enter" || e.key === "Escape") closeCapEdit();
   }
 
+  function applyResEdit() {
+    if (!editingResistor) return;
+    onUpdateResistor(editingResistor.id, editingResistor.spacing, editingResistor.label);
+  }
+
+  function closeResEdit() {
+    applyResEdit();
+    editingResistor = null;
+  }
+
+  function handleResEditKeydown(e) {
+    e.stopPropagation();
+    if (e.key === "Enter" || e.key === "Escape") closeResEdit();
+  }
+
   function applyCurveEdit() {
     if (!editingCurve) return;
     onUpdateCurve(
@@ -1192,6 +1260,11 @@
       capPreview = null;
       return true;
     }
+    if (activeTool === "resistor" && resStart) {
+      resStart = null;
+      resPreview = null;
+      return true;
+    }
     if (freetraceDrawing) {
       freetraceDrawing = false;
       freetracePoints = [];
@@ -1233,6 +1306,8 @@
     "J": "joint",
     "f": "freetrace",
     "F": "freetrace",
+    "r": "resistor",
+    "R": "resistor",
   };
 
   function handleKeydown(e) {
@@ -1262,6 +1337,10 @@
       }
       if (editingCapacitor) {
         editingCapacitor = null;
+        return;
+      }
+      if (editingResistor) {
+        editingResistor = null;
         return;
       }
       if (editingJumper) {
@@ -1377,6 +1456,12 @@
       positions.push({ x: cap.col * pitch, y: cap.row * pitch });
       if (cap.orientation === 'h') positions.push({ x: (cap.col + 1) * pitch, y: cap.row * pitch });
       else positions.push({ x: cap.col * pitch, y: (cap.row + 1) * pitch });
+    }
+    for (const res of doc.resistors || []) {
+      const spacing = res.spacing ?? 4;
+      positions.push({ x: res.col * pitch, y: res.row * pitch });
+      if (res.orientation === 'h') positions.push({ x: (res.col + spacing) * pitch, y: res.row * pitch });
+      else positions.push({ x: res.col * pitch, y: (res.row + spacing) * pitch });
     }
     return positions;
   });
@@ -2536,6 +2621,87 @@
       <circle cx={p2x} cy={p2y} r={drillR} fill="#1a1a2e" opacity="0.4"/>
     {/if}
 
+    <!-- Resistors -->
+    {#each doc.resistors || [] as res}
+      {@const isSelected = selectedIds.includes(res.id)}
+      {@const spacing = res.spacing ?? 4}
+      {@const p1x = res.col * pitch}
+      {@const p1y = res.row * pitch}
+      {@const p2x = res.orientation === 'h' ? (res.col + spacing) * pitch : res.col * pitch}
+      {@const p2y = res.orientation === 'h' ? res.row * pitch : (res.row + spacing) * pitch}
+      {@const midX = (p1x + p2x) / 2}
+      {@const midY = (p1y + p2y) / 2}
+      {@const bodyColor = isSelected ? "rgba(251,191,36,0.15)" : "rgba(40,40,60,0.8)"}
+      {@const strokeColor = isSelected ? "#fbbf24" : "rgba(255,255,255,0.3)"}
+      {@const lineColor = isSelected ? "#fbbf24" : "rgba(180,220,255,0.85)"}
+      {#if res.orientation === 'h'}
+        {@const bodyHW = Math.abs(p2x - p1x) * 0.35}
+        <line x1={p1x} y1={p1y} x2={midX - bodyHW} y2={p1y} stroke={lineColor} stroke-width="0.12" stroke-linecap="round"/>
+        <line x1={midX + bodyHW} y1={p1y} x2={p2x} y2={p1y} stroke={lineColor} stroke-width="0.12" stroke-linecap="round"/>
+        <rect x={midX - bodyHW} y={midY - pitch * 0.28} width={bodyHW * 2} height={pitch * 0.56} rx={pitch * 0.08} fill={bodyColor} stroke={strokeColor} stroke-width="0.12"/>
+      {:else}
+        {@const bodyHW = Math.abs(p2y - p1y) * 0.35}
+        <line x1={p1x} y1={p1y} x2={p1x} y2={midY - bodyHW} stroke={lineColor} stroke-width="0.12" stroke-linecap="round"/>
+        <line x1={p1x} y1={midY + bodyHW} x2={p2x} y2={p2y} stroke={lineColor} stroke-width="0.12" stroke-linecap="round"/>
+        <rect x={midX - pitch * 0.28} y={midY - bodyHW} width={pitch * 0.56} height={bodyHW * 2} rx={pitch * 0.08} fill={bodyColor} stroke={strokeColor} stroke-width="0.12"/>
+      {/if}
+      {@const rp2col = res.orientation === 'h' ? res.col + spacing : res.col}
+      {@const rp2row = res.orientation === 'h' ? res.row : res.row + spacing}
+      {@const rp1Fill = padFillFor(nets, res.col, res.row, isSelected, null)}
+      {@const rp2Fill = padFillFor(nets, rp2col, rp2row, isSelected, null)}
+      <g opacity={padDim(res.col, res.row)}>
+        {#if isSelected}
+          <circle cx={p1x} cy={p1y} r={padR + pitch * 0.04} fill="rgba(255,255,255,0.45)"/>
+        {/if}
+        <circle cx={p1x} cy={p1y} r={padR} fill={rp1Fill}/>
+        <circle cx={p1x} cy={p1y} r={drillR} fill="#1a1a2e"/>
+      </g>
+      <g opacity={padDim(rp2col, rp2row)}>
+        {#if isSelected}
+          <circle cx={p2x} cy={p2y} r={padR + pitch * 0.04} fill="rgba(255,255,255,0.45)"/>
+        {/if}
+        <circle cx={p2x} cy={p2y} r={padR} fill={rp2Fill}/>
+        <circle cx={p2x} cy={p2y} r={drillR} fill="#1a1a2e"/>
+      </g>
+      {#if res.label}
+        <text
+          x={midX}
+          y={res.orientation === 'h' ? midY - padR - pitch * 0.08 : midX + padR + pitch * 0.05}
+          text-anchor="middle"
+          dominant-baseline="auto"
+          fill="rgba(255,255,255,0.7)"
+          font-size={pitch * 0.32}
+          font-family="monospace"
+          font-weight="bold">{res.label}</text>
+      {/if}
+    {/each}
+
+    <!-- Resistor preview -->
+    {#if resPreview}
+      {@const spacing = resPreview.spacing}
+      {@const p1x = resPreview.col * pitch}
+      {@const p1y = resPreview.row * pitch}
+      {@const p2x = resPreview.orientation === 'h' ? (resPreview.col + spacing) * pitch : resPreview.col * pitch}
+      {@const p2y = resPreview.orientation === 'h' ? resPreview.row * pitch : (resPreview.row + spacing) * pitch}
+      {@const midX = (p1x + p2x) / 2}
+      {@const midY = (p1y + p2y) / 2}
+      {#if resPreview.orientation === 'h'}
+        {@const bodyHW = Math.abs(p2x - p1x) * 0.35}
+        <line x1={p1x} y1={p1y} x2={midX - bodyHW} y2={p1y} stroke="rgba(180,220,255,0.4)" stroke-width="0.12"/>
+        <line x1={midX + bodyHW} y1={p1y} x2={p2x} y2={p1y} stroke="rgba(180,220,255,0.4)" stroke-width="0.12"/>
+        <rect x={midX - bodyHW} y={midY - pitch * 0.28} width={bodyHW * 2} height={pitch * 0.56} rx={pitch * 0.08} fill="rgba(40,40,60,0.4)" stroke="rgba(255,255,255,0.2)" stroke-width="0.12"/>
+      {:else}
+        {@const bodyHW = Math.abs(p2y - p1y) * 0.35}
+        <line x1={p1x} y1={p1y} x2={p1x} y2={midY - bodyHW} stroke="rgba(180,220,255,0.4)" stroke-width="0.12"/>
+        <line x1={p1x} y1={midY + bodyHW} x2={p2x} y2={p2y} stroke="rgba(180,220,255,0.4)" stroke-width="0.12"/>
+        <rect x={midX - pitch * 0.28} y={midY - bodyHW} width={pitch * 0.56} height={bodyHW * 2} rx={pitch * 0.08} fill="rgba(40,40,60,0.4)" stroke="rgba(255,255,255,0.2)" stroke-width="0.12"/>
+      {/if}
+      <circle cx={p1x} cy={p1y} r={padR} fill="#d4a534" opacity="0.4"/>
+      <circle cx={p1x} cy={p1y} r={drillR} fill="#1a1a2e" opacity="0.4"/>
+      <circle cx={p2x} cy={p2y} r={padR} fill="#d4a534" opacity="0.4"/>
+      <circle cx={p2x} cy={p2y} r={drillR} fill="#1a1a2e" opacity="0.4"/>
+    {/if}
+
     <!-- Pads -->
     {#each doc.pads as pad}
       {@const isSelected = selectedIds.includes(pad.id)}
@@ -2606,7 +2772,7 @@
     <!-- Interactive editor overlays (not exported) -->
     <g class="editor-interactive">
     <!-- Ghost cursor -->
-    {#if ghostPos && (activeTool === "pad" || activeTool === "header" || (activeTool === "dip" && !dipStart) || (activeTool === "cap" && !capStart))}
+    {#if ghostPos && (activeTool === "pad" || activeTool === "header" || (activeTool === "dip" && !dipStart) || (activeTool === "cap" && !capStart) || (activeTool === "resistor" && !resStart))}
       <circle
         cx={ghostPos.col * pitch}
         cy={ghostPos.row * pitch}
@@ -2976,6 +3142,15 @@
           <circle cx={(c2col + dc) * pitch} cy={(c2row + dr) * pitch} r={padR} fill="#fbbf24" opacity="0.4"/>
           <circle cx={(c2col + dc) * pitch} cy={(c2row + dr) * pitch} r={drillR} fill="#1a1a2e" opacity="0.4"/>
         {/each}
+        {#each (doc.resistors || []).filter((r) => selectedIds.includes(r.id)) as res}
+          {@const rSpacing = res.spacing ?? 4}
+          {@const r2col = res.orientation === 'h' ? res.col + rSpacing : res.col}
+          {@const r2row = res.orientation === 'h' ? res.row : res.row + rSpacing}
+          <circle cx={(res.col + dc) * pitch} cy={(res.row + dr) * pitch} r={padR} fill="#fbbf24" opacity="0.4"/>
+          <circle cx={(res.col + dc) * pitch} cy={(res.row + dr) * pitch} r={drillR} fill="#1a1a2e" opacity="0.4"/>
+          <circle cx={(r2col + dc) * pitch} cy={(r2row + dr) * pitch} r={padR} fill="#fbbf24" opacity="0.4"/>
+          <circle cx={(r2col + dc) * pitch} cy={(r2row + dr) * pitch} r={drillR} fill="#1a1a2e" opacity="0.4"/>
+        {/each}
         {#each doc.traces.filter((t) => selectedIds.includes(t.id)) as trace}
           {#if trace.type === "curve"}
             {@const pts = trace.points.map((p) => ({
@@ -3186,6 +3361,37 @@
           class="flex-1 text-[10px] px-1.5 py-1 rounded-lg border-2 border-black {editingCapacitor.type === 'electrolytic' ? 'bg-accent text-white shadow-[2px_2px_0_black]' : 'bg-surface-2 text-purple-light'}"
           onmousedown={(e) => e.preventDefault()}
           onclick={() => { editingCapacitor = { ...editingCapacitor, type: 'electrolytic' }; applyCapEdit() }}>Electrolytic</button>
+      </div>
+    </div>
+  {/if}
+
+  {#if editingResistor}
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
+    <div
+      class="absolute bg-surface-1 rounded-lg border-2 border-black shadow-[4px_4px_0_black] z-10 p-1.5 flex flex-col gap-1.5"
+      style="left: {editingResistor.left}px; top: {editingResistor.top}px"
+      onfocusout={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) closeResEdit() }}
+    >
+      <input
+        type="text"
+        value={editingResistor.label}
+        placeholder="Value (e.g. 10K)"
+        class="bg-surface-2 text-xs text-cyan-light rounded-lg px-2 py-1 border-2 border-black outline-none shadow-[2px_2px_0_black] w-36"
+        onkeydown={handleResEditKeydown}
+        oninput={(e) => { editingResistor = { ...editingResistor, label: e.target.value }; applyResEdit() }}
+      />
+      <div>
+        <label class="text-[10px] text-purple-light block mb-0.5">Pin spacing</label>
+        <input
+          type="number"
+          value={editingResistor.spacing}
+          min="2"
+          max="20"
+          step="1"
+          class="bg-surface-2 text-xs text-cyan-light rounded-lg px-2 py-1 border-2 border-black outline-none shadow-[2px_2px_0_black] w-20"
+          onkeydown={handleResEditKeydown}
+          oninput={(e) => { editingResistor = { ...editingResistor, spacing: parseInt(e.target.value) || 4 }; applyResEdit() }}
+        />
       </div>
     </div>
   {/if}

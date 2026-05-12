@@ -55,6 +55,12 @@ export function enumerateConductorNodes(doc) {
     if (cap.orientation === 'h') add(cap.col + 1, cap.row, 'cap', cap.id, '')
     else add(cap.col, cap.row + 1, 'cap', cap.id, '')
   }
+  for (const res of doc.resistors ?? []) {
+    const spacing = res.spacing ?? 4
+    add(res.col, res.row, 'resistor', res.id, '')
+    if (res.orientation === 'h') add(res.col + spacing, res.row, 'resistor', res.id, '')
+    else add(res.col, res.row + spacing, 'resistor', res.id, '')
+  }
 
   return nodes
 }

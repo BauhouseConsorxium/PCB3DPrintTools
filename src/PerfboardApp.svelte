@@ -142,6 +142,24 @@
     }
   }
 
+  function addResistor(col, row, orientation, spacing) {
+    pushUndo();
+    doc.resistors = [
+      ...(doc.resistors || []),
+      { id: crypto.randomUUID(), col, row, orientation, spacing: spacing ?? 4 },
+    ];
+  }
+
+  function updateResistor(id, spacing, label) {
+    pushUndo();
+    const res = (doc.resistors || []).find((r) => r.id === id);
+    if (res) {
+      res.spacing = spacing;
+      res.label = label;
+      doc.resistors = [...(doc.resistors || [])];
+    }
+  }
+
   function addTrace(points, type) {
     if (points.length < 2) return;
     pushUndo();
@@ -445,6 +463,12 @@
         cap.row += dr;
         continue;
       }
+      const res = (doc.resistors || []).find((r) => r.id === id);
+      if (res) {
+        res.col += dc;
+        res.row += dr;
+        continue;
+      }
       const jumper = doc.jumpers.find((j) => j.id === id);
       if (jumper) {
         jumper.col1 += dc;
@@ -470,6 +494,7 @@
     doc.headers = [...doc.headers];
     doc.dips = [...(doc.dips || [])];
     doc.capacitors = [...(doc.capacitors || [])];
+    doc.resistors = [...(doc.resistors || [])];
     doc.traces = [...doc.traces];
     doc.jumpers = [...doc.jumpers];
     doc.joints = [...(doc.joints || [])];
@@ -493,6 +518,11 @@
       const cap = (doc.capacitors || []).find((c) => c.id === id);
       if (cap) {
         cap.orientation = cap.orientation === "h" ? "v" : "h";
+        continue;
+      }
+      const res = (doc.resistors || []).find((r) => r.id === id);
+      if (res) {
+        res.orientation = res.orientation === "h" ? "v" : "h";
         continue;
       }
       const trace = doc.traces.find((t) => t.id === id);
@@ -524,6 +554,7 @@
     doc.headers = [...doc.headers];
     doc.dips = [...(doc.dips || [])];
     doc.capacitors = [...(doc.capacitors || [])];
+    doc.resistors = [...(doc.resistors || [])];
     doc.traces = [...doc.traces];
     doc.jumpers = [...doc.jumpers];
   }
@@ -534,6 +565,7 @@
     doc.headers = doc.headers.filter((h) => h.id !== id);
     doc.dips = (doc.dips || []).filter((d) => d.id !== id);
     doc.capacitors = (doc.capacitors || []).filter((c) => c.id !== id);
+    doc.resistors = (doc.resistors || []).filter((r) => r.id !== id);
     doc.traces = doc.traces.filter((t) => t.id !== id);
     doc.jumpers = doc.jumpers.filter((j) => j.id !== id);
     doc.joints = (doc.joints || []).filter((j) => j.id !== id);
@@ -626,6 +658,7 @@
     pushUndo();
     parsed.dips = parsed.dips ?? [];
     parsed.capacitors = parsed.capacitors ?? [];
+    parsed.resistors = parsed.resistors ?? [];
     parsed.jumpers = parsed.jumpers ?? [];
     parsed.joints = parsed.joints ?? [];
     parsed.annotations = parsed.annotations ?? [];
@@ -721,6 +754,7 @@
         doc.headers = doc.headers.filter((h) => !idSet.has(h.id));
         doc.dips = (doc.dips || []).filter((d) => !idSet.has(d.id));
         doc.capacitors = (doc.capacitors || []).filter((c) => !idSet.has(c.id));
+        doc.resistors = (doc.resistors || []).filter((r) => !idSet.has(r.id));
         doc.traces = doc.traces.filter((t) => !idSet.has(t.id));
         doc.jumpers = doc.jumpers.filter((j) => !idSet.has(j.id));
         doc.joints = (doc.joints || []).filter((j) => !idSet.has(j.id));
@@ -1028,7 +1062,7 @@
           ).toFixed(1)} mm
         </div>
         <div>
-          Pads: {doc.pads.length} | Headers: {doc.headers.length} | DIPs: {(doc.dips || []).length} | Caps: {(doc.capacitors || []).length} | Traces: {doc.traces.length} | Jumpers: {doc.jumpers.length} | Labels: {doc.annotations.length}
+          Pads: {doc.pads.length} | Headers: {doc.headers.length} | DIPs: {(doc.dips || []).length} | Caps: {(doc.capacitors || []).length} | Res: {(doc.resistors || []).length} | Traces: {doc.traces.length} | Jumpers: {doc.jumpers.length} | Labels: {doc.annotations.length}
         </div>
       </div>
     </div>
@@ -1069,6 +1103,8 @@
             onAddDip={addDip}
             onAddCapacitor={addCapacitor}
             onUpdateCapacitor={updateCapacitor}
+            onAddResistor={addResistor}
+            onUpdateResistor={updateResistor}
             onAddJumper={addJumper}
             onAddJoint={addJoint}
             onAddAnnotation={addAnnotation}
