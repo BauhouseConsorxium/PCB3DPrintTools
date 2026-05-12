@@ -3,6 +3,7 @@
     zScale = $bindable(8),
     boardZScale = $bindable(1),
     onExport = () => {},
+    onExport2D = () => {},
   } = $props()
 
   const copperMM = $derived((zScale * 0.035).toFixed(2))
@@ -34,5 +35,12 @@
     onclick={onExport}
   >
     Export STL
+  </button>
+
+  <button
+    class="w-full px-3 py-2 text-xs font-bold rounded-lg bg-cyan hover:bg-cyan-light text-surface-0 border-2 border-black shadow-[4px_4px_0_black] transition-all hover:shadow-[5px_5px_0_black] hover:-translate-x-px hover:-translate-y-px active:translate-x-0.5 active:translate-y-0.5 active:shadow-[1px_1px_0_black] mt-2"
+    onclick={onExport2D}
+  >
+    Export 2D
   </button>
 </div>

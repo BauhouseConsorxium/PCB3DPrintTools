@@ -5,12 +5,15 @@
   import BoardSettings from "./components/perfboard/BoardSettings.svelte";
   import PerfboardExportPanel from "./components/perfboard/PerfboardExportPanel.svelte";
   import GridEditor from "./components/perfboard/GridEditor.svelte";
+  import ExportImageModal from "./components/perfboard/ExportImageModal.svelte";
   import {
     buildPerfboardBodies,
     createDefaultDocument,
   } from "./lib/perfboard-geometry.js";
 
   let viewer;
+  let gridSvgEl = $state(null);
+  let showExportModal = $state(false);
   let showIntro = $state(!localStorage.getItem("perfboard-intro-seen"));
   let activeTab = $state("editor");
   let activeTool = $state("select");
@@ -961,6 +964,7 @@
         bind:zScale
         bind:boardZScale
         onExport={handleExport}
+        onExport2D={() => showExportModal = true}
       />
 
 
@@ -1051,6 +1055,7 @@
             {doc}
             {activeTool}
             {selectedIds}
+            bind:svgRef={gridSvgEl}
             onAddPad={addPad}
             onAddHeader={addHeader}
             onAddTrace={addTrace}
@@ -1236,6 +1241,8 @@
     </div>
   {/if}
 </div>
+
+<ExportImageModal bind:open={showExportModal} svgEl={gridSvgEl} {doc} />
 
 <style>
   @keyframes slideIn {

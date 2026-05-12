@@ -48,6 +48,7 @@
     onToolChange = () => {},
     onAddCapacitor = () => {},
     onUpdateCapacitor = () => {},
+    svgRef = $bindable(null),
   } = $props();
 
   let svgEl;
@@ -168,6 +169,8 @@
     const pad = Math.max(w, h) * 0.15 + pitch * 2;
     vb = { x: -margin - pad, y: -margin - pad, w: w + 2 * pad, h: h + 2 * pad };
   });
+
+  $effect(() => { svgRef = svgEl });
 
   function svgPoint(e) {
     if (!svgEl) return null;
@@ -1532,6 +1535,7 @@
     </g>
 
     <!-- Grid lines -->
+    <g class="grid-lines">
     {#each Array(cols) as _, c}
       <line
         x1={c * pitch}
@@ -1552,8 +1556,10 @@
         stroke-width={pitch * 0.02}
       />
     {/each}
+    </g>
 
     <!-- Grid dots (full + half grid) -->
+    <g class="grid-dots">
     {#each Array(cols * 2 - 1) as _, ci}
       {#each Array(rows * 2 - 1) as _, ri}
         {@const isFull = ci % 2 === 0 && ri % 2 === 0}
@@ -1565,6 +1571,7 @@
         />
       {/each}
     {/each}
+    </g>
 
     <!-- Traces -->
     {#each doc.traces as trace}
@@ -1968,6 +1975,8 @@
       </g>
     {/each}
 
+    <!-- In-progress drawings (editor-only) -->
+    <g class="editor-interactive">
     <!-- In-progress trace -->
     {#each tracePoints as pt, i}
       {#if i > 0}
@@ -2129,6 +2138,7 @@
         opacity="0.7"
       />
     {/each}
+    </g>
 
     <!-- Header bodies -->
     {#each doc.headers as header}
@@ -2567,6 +2577,7 @@
     {/each}
 
     <!-- Annotations -->
+    <g class="annotations">
     {#each doc.annotations as ann}
       {@const isSelected = selectedIds.includes(ann.id)}
       {@const ax = ann.col * pitch}
@@ -2590,7 +2601,10 @@
         fill={ann.color}>{ann.text}</text
       >
     {/each}
+    </g>
 
+    <!-- Interactive editor overlays (not exported) -->
+    <g class="editor-interactive">
     <!-- Ghost cursor -->
     {#if ghostPos && (activeTool === "pad" || activeTool === "header" || (activeTool === "dip" && !dipStart) || (activeTool === "cap" && !capStart))}
       <circle
@@ -3044,6 +3058,7 @@
         {/each}
       {/if}
     {/if}
+    </g>
   </svg>
 
   {#if editingAnnotation}
