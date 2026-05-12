@@ -286,3 +286,18 @@ export function traceColor(nets, traceId) {
 export function padNetIdAt(nets, col, row) {
   return nets.padNetId.get(`${col},${row}`)
 }
+
+const SELECTED_FILL = '#fbbf24'
+const PAD_DEFAULT_FILL = '#d4a534'
+
+export function padFillFor(nets, col, row, isSelected, hasLabel, defaultFill = PAD_DEFAULT_FILL) {
+  if (isSelected) return SELECTED_FILL
+  const netId = nets.padNetId.get(`${col},${row}`)
+  if (netId == null) return defaultFill
+  const netSize =
+    (nets.netPadKeys.get(netId)?.size ?? 0) +
+    (nets.netTraceIds.get(netId)?.size ?? 0)
+  const showNet = netSize > 1 || (!!hasLabel && String(hasLabel).trim().length > 0)
+  if (!showNet) return defaultFill
+  return nets.netColor.get(netId) ?? defaultFill
+}

@@ -11,7 +11,7 @@
     roundedPathToSVG,
     computeTeardrops,
   } from "../../lib/round-trace.js";
-  import { computeNets, traceColor } from "../../lib/perfboard-nets.js";
+  import { computeNets, traceColor, padFillFor } from "../../lib/perfboard-nets.js";
 
   let {
     doc,
@@ -2031,17 +2031,7 @@
         />
       {/if}
       {#each hpads as hp, i}
-        {@const hpNetId = nets.padNetId.get(`${hp.col},${hp.row}`)}
-        {@const hpNetSize = hpNetId == null
-          ? 0
-          : (nets.netPadKeys.get(hpNetId)?.size ?? 0) +
-            (nets.netTraceIds.get(hpNetId)?.size ?? 0)}
-        {@const hpShowNet = hpNetId != null && (hpNetSize > 1 || (header.labels?.[i] && header.labels[i].trim()))}
-        {@const hpFill = isSelected
-          ? "#fbbf24"
-          : hpShowNet
-            ? nets.netColor.get(hpNetId)
-            : "#d4a534"}
+        {@const hpFill = padFillFor(nets, hp.col, hp.row, isSelected, header.labels?.[i])}
         <g opacity={padDim(hp.col, hp.row)}>
         {#if isSelected}
           <circle
@@ -2193,6 +2183,8 @@
         >
       {/if}
       {#each dpads as dp}
+        {@const dpFill = padFillFor(nets, dp.col, dp.row, isSelected, null)}
+        <g opacity={padDim(dp.col, dp.row)}>
         {#if isSelected}
           <circle
             cx={dp.col * pitch}
@@ -2205,7 +2197,7 @@
           cx={dp.col * pitch}
           cy={dp.row * pitch}
           r={padR}
-          fill={isSelected ? "#fbbf24" : "#d4a534"}
+          fill={dpFill}
         />
         <circle
           cx={dp.col * pitch}
@@ -2213,6 +2205,7 @@
           r={drillR}
           fill="#1a1a2e"
         />
+        </g>
       {/each}
     {/each}
 
@@ -2357,14 +2350,24 @@
         {/if}
       {/if}
       <!-- Pads -->
-      {#if isSelected}
-        <circle cx={p1x} cy={p1y} r={padR + pitch * 0.04} fill="rgba(255,255,255,0.45)"/>
-        <circle cx={p2x} cy={p2y} r={padR + pitch * 0.04} fill="rgba(255,255,255,0.45)"/>
-      {/if}
-      <circle cx={p1x} cy={p1y} r={padR} fill={isSelected ? "#fbbf24" : "#d4a534"}/>
-      <circle cx={p1x} cy={p1y} r={drillR} fill="#1a1a2e"/>
-      <circle cx={p2x} cy={p2y} r={padR} fill={isSelected ? "#fbbf24" : "#d4a534"}/>
-      <circle cx={p2x} cy={p2y} r={drillR} fill="#1a1a2e"/>
+      {@const p2col = cap.orientation === 'h' ? cap.col + 1 : cap.col}
+      {@const p2row = cap.orientation === 'h' ? cap.row : cap.row + 1}
+      {@const cp1Fill = padFillFor(nets, cap.col, cap.row, isSelected, null)}
+      {@const cp2Fill = padFillFor(nets, p2col, p2row, isSelected, null)}
+      <g opacity={padDim(cap.col, cap.row)}>
+        {#if isSelected}
+          <circle cx={p1x} cy={p1y} r={padR + pitch * 0.04} fill="rgba(255,255,255,0.45)"/>
+        {/if}
+        <circle cx={p1x} cy={p1y} r={padR} fill={cp1Fill}/>
+        <circle cx={p1x} cy={p1y} r={drillR} fill="#1a1a2e"/>
+      </g>
+      <g opacity={padDim(p2col, p2row)}>
+        {#if isSelected}
+          <circle cx={p2x} cy={p2y} r={padR + pitch * 0.04} fill="rgba(255,255,255,0.45)"/>
+        {/if}
+        <circle cx={p2x} cy={p2y} r={padR} fill={cp2Fill}/>
+        <circle cx={p2x} cy={p2y} r={drillR} fill="#1a1a2e"/>
+      </g>
       {#if cap.label}
         <text
           x={midX}
@@ -2406,17 +2409,7 @@
     <!-- Pads -->
     {#each doc.pads as pad}
       {@const isSelected = selectedIds.includes(pad.id)}
-      {@const padNetId = nets.padNetId.get(`${pad.col},${pad.row}`)}
-      {@const netSize = padNetId == null
-        ? 0
-        : (nets.netPadKeys.get(padNetId)?.size ?? 0) +
-          (nets.netTraceIds.get(padNetId)?.size ?? 0)}
-      {@const showNet = padNetId != null && (netSize > 1 || (pad.label && pad.label.trim()))}
-      {@const padFill = isSelected
-        ? "#fbbf24"
-        : showNet
-          ? nets.netColor.get(padNetId)
-          : "#d4a534"}
+      {@const padFill = padFillFor(nets, pad.col, pad.row, isSelected, pad.label)}
       <g opacity={padDim(pad.col, pad.row)}>
       {#if isSelected}
         <circle
@@ -2519,12 +2512,7 @@
     <!-- Joints (junction dots) -->
     {#each doc.joints || [] as joint}
       {@const isSelected = selectedIds.includes(joint.id)}
-      {@const jtNetId = nets.padNetId.get(`${joint.col},${joint.row}`)}
-      {@const jtFill = isSelected
-        ? "#fbbf24"
-        : jtNetId != null && (nets.netPadCount.get(jtNetId) ?? 0) > 0
-          ? nets.netColor.get(jtNetId)
-          : "#f5c842"}
+      {@const jtFill = padFillFor(nets, joint.col, joint.row, isSelected, null, "#f5c842")}
       <g opacity={padDim(joint.col, joint.row)}>
         {#if isSelected}
           <circle
