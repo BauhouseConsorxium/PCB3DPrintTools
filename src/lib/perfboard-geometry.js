@@ -877,6 +877,7 @@ export function createDefaultDocument() {
     capacitors: [],
     traces: [],
     jumpers: [],
+    joints: [],
     annotations: []
   }
 }

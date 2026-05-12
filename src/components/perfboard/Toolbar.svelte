@@ -13,6 +13,7 @@
     { id: 'curve', label: 'Curve', icon: 'curve', key: '8' },
     { id: 'roundtrace', label: 'Round', icon: 'roundtrace', key: '9' },
     { id: 'cap', label: 'Cap', icon: 'cap', key: '0' },
+    { id: 'joint', label: 'Joint', icon: 'joint', key: 'J' },
   ]
 </script>
 
@@ -68,6 +69,10 @@
             <line x1="12" y1="6" x2="12" y2="14" stroke-linecap="round" stroke-width="2" />
             <line x1="12" y1="10" x2="15" y2="10" stroke-linecap="round" />
             <circle cx="17" cy="10" r="2" fill="currentColor" stroke="none" />
+          {:else if tool.icon === 'joint'}
+            <line x1="4" y1="10" x2="16" y2="10" stroke-linecap="round" />
+            <line x1="10" y1="4" x2="10" y2="16" stroke-linecap="round" />
+            <circle cx="10" cy="10" r="2.5" fill="currentColor" stroke="none" />
           {/if}
         </svg>
         <span>{tool.label}</span>

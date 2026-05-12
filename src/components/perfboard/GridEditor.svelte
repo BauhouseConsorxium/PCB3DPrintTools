@@ -11,6 +11,7 @@
     roundedPathToSVG,
     computeTeardrops,
   } from "../../lib/round-trace.js";
+  import { computeNets, traceColor } from "../../lib/perfboard-nets.js";
 
   let {
     doc,
@@ -21,6 +22,7 @@
     onAddDip = () => {},
     onAddTrace = () => {},
     onAddJumper = () => {},
+    onAddJoint = () => {},
     onAddAnnotation = () => {},
     onUpdateAnnotation = () => {},
     onUpdateJumperColor = () => {},
@@ -55,6 +57,32 @@
   const margin = $derived(pitch / 2);
   const boardW = $derived((cols - 1) * pitch + 2 * margin);
   const boardH = $derived((rows - 1) * pitch + 2 * margin);
+
+  const nets = $derived(computeNets(doc));
+
+  const highlightedNetId = $derived.by(() => {
+    if (selectedIds.length !== 1) return null;
+    const id = selectedIds[0];
+    const trace = doc.traces.find((t) => t.id === id);
+    if (trace) return nets.traceNetId.get(trace.id) ?? null;
+    const pad = doc.pads.find((p) => p.id === id);
+    if (pad) return nets.padNetId.get(`${pad.col},${pad.row}`) ?? null;
+    const jumper = doc.jumpers.find((j) => j.id === id);
+    if (jumper) return nets.padNetId.get(`${jumper.col1},${jumper.row1}`) ?? null;
+    const joint = (doc.joints || []).find((j) => j.id === id);
+    if (joint) return nets.padNetId.get(`${joint.col},${joint.row}`) ?? null;
+    return null;
+  });
+
+  function traceDim(traceId) {
+    if (highlightedNetId == null) return 1;
+    return nets.traceNetId.get(traceId) === highlightedNetId ? 1 : 0.2;
+  }
+
+  function padDim(col, row) {
+    if (highlightedNetId == null) return 1;
+    return nets.padNetId.get(`${col},${row}`) === highlightedNetId ? 1 : 0.2;
+  }
 
   let vb = $state({ x: 0, y: 0, w: 100, h: 80 });
   let isPanning = $state(false);
@@ -235,6 +263,9 @@
       const c2col = cap.orientation === 'h' ? cap.col + 1 : cap.col
       const c2row = cap.orientation === 'h' ? cap.row : cap.row + 1
       if ((cap.col === col && cap.row === row) || (c2col === col && c2row === row)) return cap
+    }
+    for (const jt of doc.joints || []) {
+      if (jt.col === col && jt.row === row) return jt;
     }
     for (const t of doc.traces) {
       for (const pt of t.points) {
@@ -504,6 +535,8 @@
       }
     } else if (activeTool === "label") {
       onAddAnnotation(col, row);
+    } else if (activeTool === "joint") {
+      onAddJoint(col, row);
     } else if (activeTool === "select") {
       // Check for jumper endpoint click on selected jumpers
       const jpHit = findJumperEndpointAt(sp.x, sp.y);
@@ -685,6 +718,9 @@
         inRect(j.col2 * pitch, j.row2 * pitch)
       )
         ids.push(j.id);
+    }
+    for (const jt of doc.joints || []) {
+      if (inRect(jt.col * pitch, jt.row * pitch)) ids.push(jt.id);
     }
     for (const a of doc.annotations) {
       if (inRect(a.col * pitch, a.row * pitch)) ids.push(a.id);
@@ -1145,6 +1181,8 @@
     "8": "curve",
     "9": "roundtrace",
     "0": "cap",
+    "j": "joint",
+    "J": "joint",
   };
 
   function handleKeydown(e) {
@@ -1484,6 +1522,8 @@
     <!-- Traces -->
     {#each doc.traces as trace}
       {@const isSelected = selectedIds.includes(trace.id)}
+      {@const netCol = traceColor(nets, trace.id)}
+      <g opacity={traceDim(trace.id)}>
       {#if trace.type === "curve"}
         {@const pts = trace.points.map((p) => ({
           x: p.col * pitch,
@@ -1514,8 +1554,8 @@
           {/if}
           <path
             d={outline}
-            fill={isSelected ? "#fbbf24" : "#f5c842"}
-            stroke={isSelected ? "#fbbf24" : "#b8941f"}
+            fill={isSelected ? "#fbbf24" : netCol}
+            stroke={isSelected ? "#fbbf24" : netCol}
             stroke-width={pitch * 0.02}
             opacity={isSelected ? 1 : 0.85}
           />
@@ -1533,7 +1573,7 @@
           {/if}
           <path
             {d}
-            stroke={isSelected ? "#fbbf24" : "#f5c842"}
+            stroke={isSelected ? "#fbbf24" : netCol}
             stroke-width={trace.width}
             stroke-linecap="round"
             stroke-linejoin="round"
@@ -1647,7 +1687,7 @@
           {/if}
           <path
             {d}
-            stroke={isSelected ? "#fbbf24" : "#f5c842"}
+            stroke={isSelected ? "#fbbf24" : netCol}
             stroke-width={trace.width}
             stroke-linecap="round"
             stroke-linejoin="round"
@@ -1657,7 +1697,7 @@
           {#each teardrops as td}
             <path
               d={td.svgPath}
-              fill={isSelected ? "#fbbf24" : "#f5c842"}
+              fill={isSelected ? "#fbbf24" : netCol}
               opacity={isSelected ? 0.9 : 0.75}
               stroke="none"
             />
@@ -1754,7 +1794,7 @@
             y1={seg.y1}
             x2={seg.x2}
             y2={seg.y2}
-            stroke={isSelected ? "#fbbf24" : "#f5c842"}
+            stroke={isSelected ? "#fbbf24" : netCol}
             stroke-width={trace.width}
             stroke-linecap="round"
             opacity={isSelected ? 1 : 0.85}
@@ -1818,6 +1858,7 @@
           {/each}
         {/if}
       {/if}
+      </g>
     {/each}
 
     <!-- In-progress trace -->
@@ -1990,6 +2031,18 @@
         />
       {/if}
       {#each hpads as hp, i}
+        {@const hpNetId = nets.padNetId.get(`${hp.col},${hp.row}`)}
+        {@const hpNetSize = hpNetId == null
+          ? 0
+          : (nets.netPadKeys.get(hpNetId)?.size ?? 0) +
+            (nets.netTraceIds.get(hpNetId)?.size ?? 0)}
+        {@const hpShowNet = hpNetId != null && (hpNetSize > 1 || (header.labels?.[i] && header.labels[i].trim()))}
+        {@const hpFill = isSelected
+          ? "#fbbf24"
+          : hpShowNet
+            ? nets.netColor.get(hpNetId)
+            : "#d4a534"}
+        <g opacity={padDim(hp.col, hp.row)}>
         {#if isSelected}
           <circle
             cx={hp.col * pitch}
@@ -2002,7 +2055,7 @@
           cx={hp.col * pitch}
           cy={hp.row * pitch}
           r={padR}
-          fill={isSelected ? "#fbbf24" : "#d4a534"}
+          fill={hpFill}
         />
         <circle
           cx={hp.col * pitch}
@@ -2022,6 +2075,7 @@
             font-weight="bold">{header.labels[i]}</text
           >
         {/if}
+        </g>
       {/each}
     {/each}
 
@@ -2352,6 +2406,18 @@
     <!-- Pads -->
     {#each doc.pads as pad}
       {@const isSelected = selectedIds.includes(pad.id)}
+      {@const padNetId = nets.padNetId.get(`${pad.col},${pad.row}`)}
+      {@const netSize = padNetId == null
+        ? 0
+        : (nets.netPadKeys.get(padNetId)?.size ?? 0) +
+          (nets.netTraceIds.get(padNetId)?.size ?? 0)}
+      {@const showNet = padNetId != null && (netSize > 1 || (pad.label && pad.label.trim()))}
+      {@const padFill = isSelected
+        ? "#fbbf24"
+        : showNet
+          ? nets.netColor.get(padNetId)
+          : "#d4a534"}
+      <g opacity={padDim(pad.col, pad.row)}>
       {#if isSelected}
         <circle
           cx={pad.col * pitch}
@@ -2364,7 +2430,7 @@
         cx={pad.col * pitch}
         cy={pad.row * pitch}
         r={padR}
-        fill={isSelected ? "#fbbf24" : "#d4a534"}
+        fill={padFill}
       />
       <circle
         cx={pad.col * pitch}
@@ -2384,6 +2450,7 @@
           font-weight="bold">{pad.label}</text
         >
       {/if}
+      </g>
     {/each}
 
     <!-- Annotations -->
@@ -2446,6 +2513,48 @@
         r={pitch * 0.15}
         fill="#f5c842"
         opacity="0.3"
+      />
+    {/if}
+
+    <!-- Joints (junction dots) -->
+    {#each doc.joints || [] as joint}
+      {@const isSelected = selectedIds.includes(joint.id)}
+      {@const jtNetId = nets.padNetId.get(`${joint.col},${joint.row}`)}
+      {@const jtFill = isSelected
+        ? "#fbbf24"
+        : jtNetId != null && (nets.netPadCount.get(jtNetId) ?? 0) > 0
+          ? nets.netColor.get(jtNetId)
+          : "#f5c842"}
+      <g opacity={padDim(joint.col, joint.row)}>
+        {#if isSelected}
+          <circle
+            cx={joint.col * pitch}
+            cy={joint.row * pitch}
+            r={pitch * 0.28}
+            fill="rgba(255,255,255,0.45)"
+          />
+        {/if}
+        <circle
+          cx={joint.col * pitch}
+          cy={joint.row * pitch}
+          r={pitch * 0.18}
+          fill={jtFill}
+          stroke="rgba(0,0,0,0.5)"
+          stroke-width={pitch * 0.03}
+        />
+      </g>
+    {/each}
+
+    <!-- Joint ghost cursor -->
+    {#if ghostPos && activeTool === "joint"}
+      <circle
+        cx={ghostPos.col * pitch}
+        cy={ghostPos.row * pitch}
+        r={pitch * 0.18}
+        fill="#f5c842"
+        opacity="0.35"
+        stroke="rgba(0,0,0,0.5)"
+        stroke-width={pitch * 0.03}
       />
     {/if}
 

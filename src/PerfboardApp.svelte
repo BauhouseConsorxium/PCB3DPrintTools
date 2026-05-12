@@ -177,6 +177,18 @@
     ];
   }
 
+  function addJoint(col, row) {
+    const existing = (doc.joints || []).find(
+      (j) => j.col === col && j.row === row,
+    );
+    if (existing) return;
+    pushUndo();
+    doc.joints = [
+      ...(doc.joints || []),
+      { id: crypto.randomUUID(), col, row },
+    ];
+  }
+
   function updateJumperColor(id, color) {
     pushUndo();
     const j = doc.jumpers.find((j) => j.id === id);
@@ -426,6 +438,12 @@
         jumper.row2 += dr;
         continue;
       }
+      const joint = (doc.joints || []).find((j) => j.id === id);
+      if (joint) {
+        joint.col += dc;
+        joint.row += dr;
+        continue;
+      }
       const ann = doc.annotations.find((a) => a.id === id);
       if (ann) {
         ann.col += dc;
@@ -439,6 +457,7 @@
     doc.capacitors = [...(doc.capacitors || [])];
     doc.traces = [...doc.traces];
     doc.jumpers = [...doc.jumpers];
+    doc.joints = [...(doc.joints || [])];
     doc.annotations = [...doc.annotations];
   }
 
@@ -502,6 +521,7 @@
     doc.capacitors = (doc.capacitors || []).filter((c) => c.id !== id);
     doc.traces = doc.traces.filter((t) => t.id !== id);
     doc.jumpers = doc.jumpers.filter((j) => j.id !== id);
+    doc.joints = (doc.joints || []).filter((j) => j.id !== id);
     doc.annotations = doc.annotations.filter((a) => a.id !== id);
     selectedIds = selectedIds.filter((sid) => sid !== id);
   }
@@ -592,6 +612,7 @@
     parsed.dips = parsed.dips ?? [];
     parsed.capacitors = parsed.capacitors ?? [];
     parsed.jumpers = parsed.jumpers ?? [];
+    parsed.joints = parsed.joints ?? [];
     parsed.annotations = parsed.annotations ?? [];
     parsed.curveEndWidth = parsed.curveEndWidth ?? 3.0;
     parsed.curveEndWidth2 = parsed.curveEndWidth2 ?? parsed.curveEndWidth;
@@ -686,6 +707,7 @@
         doc.capacitors = (doc.capacitors || []).filter((c) => !idSet.has(c.id));
         doc.traces = doc.traces.filter((t) => !idSet.has(t.id));
         doc.jumpers = doc.jumpers.filter((j) => !idSet.has(j.id));
+        doc.joints = (doc.joints || []).filter((j) => !idSet.has(j.id));
         doc.annotations = doc.annotations.filter((a) => !idSet.has(a.id));
         selectedIds = [];
       }
@@ -968,6 +990,12 @@
           >
             PCB Art: Jellyfish Bytebeat
           </button>
+          <button
+            onclick={() => loadExample("pcm1808-module.perfboard.json")}
+            class="w-full text-left px-2 py-1.5 text-[10px] rounded-lg bg-surface-2 hover:bg-surface-3 text-cyan-light font-bold border-2 border-black shadow-[2px_2px_0_black] transition-colors"
+          >
+            PCM1808 ADC Module
+          </button>
         </div>
       </div>
 
@@ -1024,6 +1052,7 @@
             onAddCapacitor={addCapacitor}
             onUpdateCapacitor={updateCapacitor}
             onAddJumper={addJumper}
+            onAddJoint={addJoint}
             onAddAnnotation={addAnnotation}
             onUpdateAnnotation={updateAnnotation}
             onUpdateJumperColor={updateJumperColor}
