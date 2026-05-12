@@ -3,52 +3,9 @@ import polygonClipping from 'polygon-clipping'
 import { buildBoardGeometry, buildTracesGeometry, buildPolygonsWithDrills, HOLE_N } from './geometry.js'
 import { sampleCatmullRom, sampleCatmullRomWithWidth } from './catmull-rom.js'
 import { computeRoundedCorners, computeSubdivisionRounding, sampleRoundedPath, computeTeardrops } from './round-trace.js'
+import { enumerateConductorNodes } from './perfboard-topology.js'
 
 const PAD_CIRCLE_N = 32
-
-function collectPadPositions(doc) {
-  const { pitch } = doc.grid
-  const positions = []
-  const seen = new Set()
-
-  function addPad(col, row) {
-    const key = `${col},${row}`
-    if (seen.has(key)) return
-    seen.add(key)
-    positions.push({ x: col * pitch, y: row * pitch })
-  }
-
-  for (const pad of doc.pads) addPad(pad.col, pad.row)
-
-  for (const hdr of doc.headers) {
-    for (let i = 0; i < hdr.count; i++) {
-      const col = hdr.orientation === 'h' ? hdr.col + i : hdr.col
-      const row = hdr.orientation === 'v' ? hdr.row + i : hdr.row
-      addPad(col, row)
-    }
-  }
-
-  for (const dip of (doc.dips || [])) {
-    const spacing = dip.rowSpacing ?? 3
-    for (let i = 0; i < dip.count; i++) {
-      if (dip.orientation === 'v') {
-        addPad(dip.col, dip.row + i)
-        addPad(dip.col + spacing, dip.row + i)
-      } else {
-        addPad(dip.col + i, dip.row)
-        addPad(dip.col + i, dip.row + spacing)
-      }
-    }
-  }
-
-  for (const cap of (doc.capacitors || [])) {
-    addPad(cap.col, cap.row)
-    if (cap.orientation === 'h') addPad(cap.col + 1, cap.row)
-    else addPad(cap.col, cap.row + 1)
-  }
-
-  return positions
-}
 
 function buildBoardPolygon(doc) {
   const { cols, rows, pitch } = doc.grid
@@ -827,7 +784,7 @@ function buildTeardropGeometry(doc, padPositions, drills, zBot, zTop) {
 
 export function buildPerfboardBodies(doc) {
   const boardPoly = buildBoardPolygon(doc)
-  const padPositions = collectPadPositions(doc)
+  const padPositions = enumerateConductorNodes(doc)
   const { boardThickness, copperThickness, drillDiameter, padDiameter } = doc
   const drillR = drillDiameter / 2
   const padR = padDiameter / 2

@@ -4,6 +4,7 @@ import {
   computeSubdivisionRounding,
   sampleRoundedPath,
 } from './round-trace.js'
+import { enumerateConductorNodes, nodeKey } from './perfboard-topology.js'
 
 const NET_COLORS = [
   '#ff6bcb',
@@ -23,10 +24,6 @@ const NET_COLORS = [
 ]
 
 const UNCONNECTED_COLOR = '#f5c842'
-
-function padKey(col, row) {
-  return `${col},${row}`
-}
 
 class DSU {
   constructor() {
@@ -51,48 +48,6 @@ class DSU {
     const ra = this.find(a), rb = this.find(b)
     if (ra !== rb) this.parent.set(ra, rb)
   }
-}
-
-function collectPads(doc) {
-  const pads = []
-  const seen = new Map()
-  function add(col, row, label) {
-    const key = padKey(col, row)
-    const existing = seen.get(key)
-    if (existing) {
-      if (!existing.label && label) existing.label = label
-      return
-    }
-    const p = { key, col, row, label: label ?? '' }
-    pads.push(p)
-    seen.set(key, p)
-  }
-  for (const pad of doc.pads ?? []) add(pad.col, pad.row, pad.label)
-  for (const hdr of doc.headers ?? []) {
-    for (let i = 0; i < hdr.count; i++) {
-      const c = hdr.orientation === 'h' ? hdr.col + i : hdr.col
-      const r = hdr.orientation === 'v' ? hdr.row + i : hdr.row
-      add(c, r, hdr.labels?.[i] ?? '')
-    }
-  }
-  for (const dip of doc.dips ?? []) {
-    const spacing = dip.rowSpacing ?? 3
-    for (let i = 0; i < dip.count; i++) {
-      if (dip.orientation === 'v') {
-        add(dip.col, dip.row + i, '')
-        add(dip.col + spacing, dip.row + i, '')
-      } else {
-        add(dip.col + i, dip.row, '')
-        add(dip.col + i, dip.row + spacing, '')
-      }
-    }
-  }
-  for (const cap of doc.capacitors ?? []) {
-    add(cap.col, cap.row, '')
-    if (cap.orientation === 'h') add(cap.col + 1, cap.row, '')
-    else add(cap.col, cap.row + 1, '')
-  }
-  return pads
 }
 
 function sampleTraceMM(trace, pitch) {
@@ -131,12 +86,12 @@ function jointHitsCurvePath(samples, jx, jy, tolSq) {
 }
 
 export function computeNets(doc) {
-  const pads = collectPads(doc)
+  const pads = enumerateConductorNodes(doc)
   const padSet = new Set(pads.map(p => p.key))
   const pitch = doc.grid?.pitch ?? 2.54
 
   const jointSet = new Set()
-  for (const jt of doc.joints ?? []) jointSet.add(padKey(jt.col, jt.row))
+  for (const jt of doc.joints ?? []) jointSet.add(nodeKey(jt.col, jt.row))
 
   const dsu = new DSU()
   for (const p of pads) dsu.add(p.key)
@@ -157,10 +112,10 @@ export function computeNets(doc) {
 
   for (const trace of doc.traces ?? []) {
     if (!trace.points || trace.points.length === 0) continue
-    const tk0 = padKey(trace.points[0].col, trace.points[0].row)
+    const tk0 = nodeKey(trace.points[0].col, trace.points[0].row)
     dsu.add(tk0)
     for (let i = 1; i < trace.points.length; i++) {
-      const tk = padKey(trace.points[i].col, trace.points[i].row)
+      const tk = nodeKey(trace.points[i].col, trace.points[i].row)
       dsu.add(tk)
       dsu.union(tk0, tk)
     }
@@ -192,8 +147,8 @@ export function computeNets(doc) {
   }
 
   for (const j of doc.jumpers ?? []) {
-    const k1 = padKey(j.col1, j.row1)
-    const k2 = padKey(j.col2, j.row2)
+    const k1 = nodeKey(j.col1, j.row1)
+    const k2 = nodeKey(j.col2, j.row2)
     dsu.add(k1)
     dsu.add(k2)
     dsu.union(k1, k2)
@@ -207,7 +162,7 @@ export function computeNets(doc) {
   }
   for (const trace of doc.traces ?? []) {
     if (!trace.points || trace.points.length === 0) continue
-    const tk = padKey(trace.points[0].col, trace.points[0].row)
+    const tk = nodeKey(trace.points[0].col, trace.points[0].row)
     const r = dsu.find(tk)
     if (!rootMembers.has(r)) rootMembers.set(r, [])
   }
@@ -243,7 +198,7 @@ export function computeNets(doc) {
   const traceNetId = new Map()
   for (const trace of doc.traces ?? []) {
     if (!trace.points || trace.points.length === 0) continue
-    const tk = padKey(trace.points[0].col, trace.points[0].row)
+    const tk = nodeKey(trace.points[0].col, trace.points[0].row)
     traceNetId.set(trace.id, netIdByRoot.get(dsu.find(tk)))
   }
 
