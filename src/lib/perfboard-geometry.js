@@ -112,8 +112,8 @@ function collectTraceSegments(doc, padPositions) {
   const TOL = 0.01
   const segments = []
   for (const trace of doc.traces) {
-    if (trace.type === 'roundtrace') {
-      const pathSegs = (trace.mode === 'subdivision')
+    if (trace.type === 'roundtrace' || trace.type === 'freetrace') {
+      const pathSegs = (trace.type === 'freetrace' || trace.mode === 'subdivision')
         ? computeSubdivisionRounding(trace.points, trace.radius ?? 1.0, trace.passes ?? 2, pitch)
         : computeRoundedCorners(trace.points, trace.radius ?? 1.0, pitch)
       const samples = sampleRoundedPath(pathSegs, 12)

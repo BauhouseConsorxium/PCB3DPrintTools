@@ -152,6 +152,12 @@
       trace.tdHPercent = doc.roundTraceTdHPercent ?? 50;
       trace.tdVPercent = doc.roundTraceTdVPercent ?? 90;
     }
+    if (type === "freetrace") {
+      trace.radius = doc.roundTraceRadius ?? 1.0;
+      trace.mode = "subdivision";
+      trace.passes = doc.roundTracePasses ?? 2;
+      trace.freeform = true;
+    }
     doc.traces = [...doc.traces, trace];
   }
 

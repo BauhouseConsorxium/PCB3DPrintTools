@@ -14,6 +14,7 @@
     { id: 'roundtrace', label: 'Round', icon: 'roundtrace', key: '9' },
     { id: 'cap', label: 'Cap', icon: 'cap', key: '0' },
     { id: 'joint', label: 'Joint', icon: 'joint', key: 'J' },
+    { id: 'freetrace', label: 'Free', icon: 'freetrace', key: 'F' },
   ]
 </script>
 
@@ -73,6 +74,8 @@
             <line x1="4" y1="10" x2="16" y2="10" stroke-linecap="round" />
             <line x1="10" y1="4" x2="10" y2="16" stroke-linecap="round" />
             <circle cx="10" cy="10" r="2.5" fill="currentColor" stroke="none" />
+          {:else if tool.icon === 'freetrace'}
+            <path d="M3 15C5 9 8 13 10 7S15 11 17 5" stroke-linecap="round" fill="none" />
           {/if}
         </svg>
         <span>{tool.label}</span>

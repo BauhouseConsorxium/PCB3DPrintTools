@@ -426,3 +426,41 @@ function outlineToSVG(outline) {
   d += 'Z'
   return d
 }
+
+export function simplifyPath(points, epsilon) {
+  if (points.length <= 2) return points
+  let maxDist = 0, maxIdx = 0
+  const a = points[0], b = points[points.length - 1]
+  const dx = b.col - a.col, dy = b.row - a.row
+  const lenSq = dx * dx + dy * dy
+  for (let i = 1; i < points.length - 1; i++) {
+    const p = points[i]
+    let d
+    if (lenSq < 1e-12) {
+      d = hypot(p.col - a.col, p.row - a.row)
+    } else {
+      const t = max(0, min(1, ((p.col - a.col) * dx + (p.row - a.row) * dy) / lenSq))
+      d = hypot(p.col - (a.col + t * dx), p.row - (a.row + t * dy))
+    }
+    if (d > maxDist) { maxDist = d; maxIdx = i }
+  }
+  if (maxDist > epsilon) {
+    const left = simplifyPath(points.slice(0, maxIdx + 1), epsilon)
+    const right = simplifyPath(points.slice(maxIdx), epsilon)
+    return [...left.slice(0, -1), ...right]
+  }
+  return [points[0], points[points.length - 1]]
+}
+
+export function enforceMinDistance(points, minDist) {
+  if (points.length <= 2) return points
+  const result = [points[0]]
+  for (let i = 1; i < points.length - 1; i++) {
+    const prev = result[result.length - 1]
+    if (hypot(points[i].col - prev.col, points[i].row - prev.row) >= minDist) {
+      result.push(points[i])
+    }
+  }
+  result.push(points[points.length - 1])
+  return result
+}

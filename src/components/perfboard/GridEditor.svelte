@@ -10,6 +10,8 @@
     computeSubdivisionRounding,
     roundedPathToSVG,
     computeTeardrops,
+    simplifyPath,
+    enforceMinDistance,
   } from "../../lib/round-trace.js";
   import { computeNets, traceColor, padFillFor } from "../../lib/perfboard-nets.js";
 
@@ -108,6 +110,10 @@
   let capStart = $state(null);
   let capPreview = $state(null);
   let editingCapacitor = $state(null);
+
+  // Freetrace drawing state
+  let freetraceDrawing = $state(false);
+  let freetracePoints = $state([]);
 
   // Jumper drawing state
   let jumperStart = $state(null);
@@ -322,6 +328,14 @@
             )
               return t;
           }
+        } else if (t.type === "freetrace") {
+          const pathSegs = computeSubdivisionRounding(
+            t.points, t.radius ?? 1.0, t.passes ?? 2, pitch,
+          );
+          for (const seg of pathSegs) {
+            if (distToSegment(rawX, rawY, seg.x1, seg.y1, seg.x2, seg.y2) < hitR)
+              return t;
+          }
         } else {
           for (let i = 0; i < t.points.length - 1; i++) {
             const d = distToSegment(
@@ -508,6 +522,11 @@
           }
         }
       }
+    } else if (activeTool === "freetrace") {
+      const free = freePosition(sp.x, sp.y);
+      freetraceDrawing = true;
+      freetracePoints = [{ col: free.col, row: free.row }];
+      e.target.setPointerCapture(e.pointerId);
     } else if (activeTool === "curve") {
       if (curvePoints.length === 0) {
         curvePoints = [{ col, row }];
@@ -603,6 +622,15 @@
     const { col, row } = snapToGrid(sp.x, sp.y);
     ghostPos = { col, row };
     freeGhostPos = freePosition(sp.x, sp.y);
+
+    if (freetraceDrawing) {
+      const free = freePosition(sp.x, sp.y);
+      const last = freetracePoints[freetracePoints.length - 1];
+      if (Math.hypot(free.col - last.col, free.row - last.row) > 0.02) {
+        freetracePoints = [...freetracePoints, { col: free.col, row: free.row }];
+      }
+      return;
+    }
 
     if (selectionBox) {
       selectionBox = { ...selectionBox, x2: sp.x, y2: sp.y };
@@ -731,6 +759,18 @@
   function handlePointerUp(e) {
     if (isPanning) {
       isPanning = false;
+      return;
+    }
+    if (freetraceDrawing) {
+      freetraceDrawing = false;
+      if (freetracePoints.length >= 2) {
+        let pts = enforceMinDistance(freetracePoints, 0.05);
+        pts = simplifyPath(pts, 0.15);
+        if (pts.length >= 2) {
+          onAddTrace(pts, "freetrace");
+        }
+      }
+      freetracePoints = [];
       return;
     }
     if (selectionBox) {
@@ -951,7 +991,7 @@
         };
       } else if (
         el &&
-        doc.traces.find((t) => t.id === el.id && t.type === "roundtrace")
+        doc.traces.find((t) => t.id === el.id && (t.type === "roundtrace" || t.type === "freetrace"))
       ) {
         const trace = doc.traces.find((t) => t.id === el.id);
         const rect = containerEl.getBoundingClientRect();
@@ -959,7 +999,7 @@
           id: el.id,
           width: trace.width,
           radius: trace.radius ?? 1.0,
-          mode: trace.mode ?? "arc",
+          mode: trace.type === "freetrace" ? "subdivision" : (trace.mode ?? "arc"),
           passes: trace.passes ?? 2,
           teardrop: trace.teardrop ?? false,
           tdHPercent: trace.tdHPercent ?? 50,
@@ -971,7 +1011,7 @@
         el &&
         doc.traces.find(
           (t) =>
-            t.id === el.id && t.type !== "curve" && t.type !== "roundtrace",
+            t.id === el.id && t.type !== "curve" && t.type !== "roundtrace" && t.type !== "freetrace",
         )
       ) {
         const trace = doc.traces.find((t) => t.id === el.id);
@@ -1149,6 +1189,11 @@
       capPreview = null;
       return true;
     }
+    if (freetraceDrawing) {
+      freetraceDrawing = false;
+      freetracePoints = [];
+      return true;
+    }
     if (activeTool === "jumper" && jumperStart) {
       jumperStart = null;
       jumperPreview = null;
@@ -1183,6 +1228,8 @@
     "0": "cap",
     "j": "joint",
     "J": "joint",
+    "f": "freetrace",
+    "F": "freetrace",
   };
 
   function handleKeydown(e) {
@@ -1774,6 +1821,66 @@
             {/if}
           {/each}
         {/if}
+      {:else if trace.type === "freetrace"}
+        {@const pathSegs = computeSubdivisionRounding(
+          trace.points,
+          trace.radius ?? 1.0,
+          trace.passes ?? 2,
+          pitch,
+        )}
+        {@const d = roundedPathToSVG(pathSegs)}
+        {#if d}
+          {#if isSelected}
+            <path
+              {d}
+              stroke="rgba(255,255,255,0.45)"
+              stroke-width={trace.width + pitch * 0.08}
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              fill="none"
+            />
+          {/if}
+          <path
+            {d}
+            stroke={isSelected ? "#fbbf24" : netCol}
+            stroke-width={trace.width}
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            fill="none"
+            opacity={isSelected ? 1 : 0.85}
+          />
+        {/if}
+        {#if isSelected}
+          {#each trace.points as pt, i}
+            {#if i > 0}
+              <line
+                x1={trace.points[i - 1].col * pitch}
+                y1={trace.points[i - 1].row * pitch}
+                x2={pt.col * pitch}
+                y2={pt.row * pitch}
+                stroke="rgba(34,197,94,0.5)"
+                stroke-width={pitch * 0.03}
+                stroke-dasharray={pitch * 0.08}
+              />
+            {/if}
+          {/each}
+          {#each trace.points as pt, i}
+            {@const isActiveCP =
+              activeCP &&
+              activeCP.traceId === trace.id &&
+              activeCP.pointIndex === i}
+            <circle
+              cx={pt.col * pitch}
+              cy={pt.row * pitch}
+              r={isActiveCP ? pitch * 0.18 : pitch * 0.14}
+              fill={isActiveCP ? "#fbbf24" : "#22c55e"}
+              stroke="white"
+              stroke-width={pitch * 0.02}
+              opacity="0.9"
+              style="cursor: pointer"
+            />
+          {/each}
+        {/if}
       {:else}
         {#if isSelected}
           {#each getTraceSegments(trace) as seg}
@@ -1901,6 +2008,19 @@
         stroke-linecap="round"
         opacity="0.3"
         stroke-dasharray={pitch * 0.15}
+      />
+    {/if}
+
+    <!-- In-progress freetrace -->
+    {#if freetraceDrawing && freetracePoints.length >= 2}
+      <polyline
+        points={freetracePoints.map(p => `${p.col * pitch},${p.row * pitch}`).join(' ')}
+        stroke="#f5c842"
+        stroke-width={doc.traceWidth}
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        fill="none"
+        opacity="0.6"
       />
     {/if}
 
@@ -2503,6 +2623,15 @@
       <circle
         cx={ghostPos.col * pitch}
         cy={ghostPos.row * pitch}
+        r={pitch * 0.15}
+        fill="#f5c842"
+        opacity="0.3"
+      />
+    {/if}
+    {#if freeGhostPos && activeTool === "freetrace" && !freetraceDrawing}
+      <circle
+        cx={freeGhostPos.col * pitch}
+        cy={freeGhostPos.row * pitch}
         r={pitch * 0.15}
         fill="#f5c842"
         opacity="0.3"
