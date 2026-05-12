@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { STLExporter } from "three/examples/jsm/exporters/STLExporter.js";
 import earcut from "earcut";
-import { isCopper, isPcbBoard, isCopperText, isSilkscreen } from "./viewer-predicates.js";
+import { isCopper, isPcbBoard, isCopperText, isSilkscreen, isComponent, isJumper, isPinHousing, isPinHousingBase } from "./viewer-predicates.js";
 
 export const SILK_ENGRAVE_DEPTH = 0.15;
 
@@ -344,6 +344,7 @@ export async function doRaiseExport({
     if (!mesh.visible) continue;
     if (filter && !filter(name)) continue;
     if (isSilkscreen(name)) continue;
+    if (isComponent(name) || isJumper(name)) continue;
     if (engravedBoardGeo && isPcbBoard(name)) {
       group.add(new THREE.Mesh(engravedBoardGeo));
       continue;
