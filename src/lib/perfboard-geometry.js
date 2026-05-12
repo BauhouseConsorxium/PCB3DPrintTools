@@ -819,12 +819,14 @@ function buildComponentBodies(doc) {
     bodies.push(mergeGeoms(`Component_res${ri}`, geoms))
   }
 
-  const PH_HW = pitch / 2 - 0.2
-  const PH_ABOVE_COPPER = 2.5
-  const BORE_HW = 0.4
+  const PH_FACE = (doc.pinHousingWidth ?? (pitch - 0.4)) / 2
+  const PH_DEPTH = (doc.pinHousingDepth ?? (pitch - 0.4)) / 2
+  const PH_ABOVE_COPPER = doc.pinHousingHeight ?? 2.5
+  const BORE_HW = (doc.pinHousingBoreWidth ?? 0.8) / 2
   const phTop = -copperThickness
   const phBot = -(copperThickness + PH_ABOVE_COPPER)
-  const boreCenter = -copperThickness - PH_ABOVE_COPPER / 2
+  const boreOffset = doc.pinHousingBoreOffset ?? 0
+  const boreCenter = -copperThickness - PH_ABOVE_COPPER / 2 + boreOffset
   const boreBotZ = boreCenter + BORE_HW
   const boreTopZ = boreCenter - BORE_HW
 
@@ -833,26 +835,32 @@ function buildComponentBodies(doc) {
     const isH = ph.orientation === 'h'
     const count = ph.count ?? 2
     const boreAlongX = (ph.facing === 'E' || ph.facing === 'W')
+    const hw = boreAlongX ? PH_DEPTH : PH_FACE
+    const hd = boreAlongX ? PH_FACE : PH_DEPTH
+    const wallFace = boreAlongX ? PH_FACE : PH_FACE
+    const faceOfs = doc.pinHousingFaceOffset ?? 0
+    const faceDx = boreAlongX ? faceOfs : 0
+    const faceDy = boreAlongX ? 0 : -faceOfs
 
     const geoms = []
     const baseGeoms = []
 
     for (let i = 0; i < count; i++) {
-      const px = isH ? (ph.col + i) * pitch : ph.col * pitch
-      const py = isH ? -(ph.row * pitch) : -((ph.row + i) * pitch)
+      const px = (isH ? (ph.col + i) * pitch : ph.col * pitch) + faceDx
+      const py = (isH ? -(ph.row * pitch) : -((ph.row + i) * pitch)) + faceDy
 
-      baseGeoms.push(boxGeomRaw(px, py, PH_HW, PH_HW, phTop, 0))
-      geoms.push(boxGeomRaw(px, py, PH_HW, PH_HW, boreBotZ, phTop))
-      geoms.push(boxGeomRaw(px, py, PH_HW, PH_HW, phBot, boreTopZ))
+      baseGeoms.push(boxGeomRaw(px, py, hw, hd, phTop, 0))
+      geoms.push(boxGeomRaw(px, py, hw, hd, boreBotZ, phTop))
+      geoms.push(boxGeomRaw(px, py, hw, hd, phBot, boreTopZ))
 
-      const wallHD = (PH_HW - BORE_HW) / 2
-      const wallOff = (PH_HW + BORE_HW) / 2
+      const wallHD = (wallFace - BORE_HW) / 2
+      const wallOff = (wallFace + BORE_HW) / 2
       if (boreAlongX) {
-        geoms.push(boxGeomRaw(px, py - wallOff, PH_HW, wallHD, boreTopZ, boreBotZ))
-        geoms.push(boxGeomRaw(px, py + wallOff, PH_HW, wallHD, boreTopZ, boreBotZ))
+        geoms.push(boxGeomRaw(px, py - wallOff, hw, wallHD, boreTopZ, boreBotZ))
+        geoms.push(boxGeomRaw(px, py + wallOff, hw, wallHD, boreTopZ, boreBotZ))
       } else {
-        geoms.push(boxGeomRaw(px - wallOff, py, wallHD, PH_HW, boreTopZ, boreBotZ))
-        geoms.push(boxGeomRaw(px + wallOff, py, wallHD, PH_HW, boreTopZ, boreBotZ))
+        geoms.push(boxGeomRaw(px - wallOff, py, wallHD, hd, boreTopZ, boreBotZ))
+        geoms.push(boxGeomRaw(px + wallOff, py, wallHD, hd, boreTopZ, boreBotZ))
       }
     }
 
@@ -1034,6 +1042,12 @@ export function createDefaultDocument() {
     roundTraceTeardrop: false,
     roundTraceTdHPercent: 50,
     roundTraceTdVPercent: 90,
+    pinHousingHeight: 2.5,
+    pinHousingBoreWidth: 0.8,
+    pinHousingBoreOffset: 0,
+    pinHousingWidth: 2.14,
+    pinHousingDepth: 2.14,
+    pinHousingFaceOffset: 0,
     pads: [],
     headers: [],
     dips: [],

@@ -15,12 +15,19 @@
     roundTraceTdHPercent = $bindable(50),
     roundTraceTdVPercent = $bindable(90),
     boardThickness = $bindable(1.6),
+    pinHousingHeight = $bindable(2.5),
+    pinHousingBoreWidth = $bindable(0.8),
+    pinHousingBoreOffset = $bindable(0),
+    pinHousingWidth = $bindable(2.14),
+    pinHousingDepth = $bindable(2.14),
+    pinHousingFaceOffset = $bindable(0),
     shape = $bindable('rect'),
     onBeforeChange = () => {},
   } = $props()
 
   let showCurve = $state(false)
   let showRound = $state(false)
+  let showPinHousing = $state(false)
 
   const inputClass = "w-full bg-surface-2 text-cyan-light text-xs rounded-lg px-2 py-1 border-2 border-black focus:border-accent outline-none shadow-[2px_2px_0_black]"
 </script>
@@ -128,6 +135,35 @@
             <input type="number" bind:value={roundTraceTdVPercent} min="10" max="100" step="5" onfocus={onBeforeChange} class={inputClass} />
           </div>
         {/if}
+      </div>
+    {/if}
+  </div>
+
+  <!-- Pin housing settings — collapsible -->
+  <div>
+    <button
+      onclick={() => (showPinHousing = !showPinHousing)}
+      class="flex items-center gap-1 text-[10px] uppercase tracking-wider font-bold text-purple-light/60 hover:text-accent transition-colors w-full"
+    >
+      <svg viewBox="0 0 10 10" class="w-2.5 h-2.5 transition-transform {showPinHousing ? 'rotate-90' : ''}" fill="currentColor">
+        <path d="M3 1l5 4-5 4z" />
+      </svg>
+      Pin Housing
+    </button>
+    {#if showPinHousing}
+      <div class="grid grid-cols-[auto_1fr_auto_1fr] gap-x-2 gap-y-1 items-center mt-1.5">
+        <span class="text-[10px] text-purple-light">Width</span>
+        <input type="number" bind:value={pinHousingWidth} min="1" max="5" step="0.1" onfocus={onBeforeChange} class={inputClass} />
+        <span class="text-[10px] text-purple-light">Depth</span>
+        <input type="number" bind:value={pinHousingDepth} min="1" max="5" step="0.1" onfocus={onBeforeChange} class={inputClass} />
+        <span class="text-[10px] text-purple-light">Height</span>
+        <input type="number" bind:value={pinHousingHeight} min="1" max="10" step="0.5" onfocus={onBeforeChange} class={inputClass} />
+        <span class="text-[10px] text-purple-light">Bore</span>
+        <input type="number" bind:value={pinHousingBoreWidth} min="0.3" max="2" step="0.1" onfocus={onBeforeChange} class={inputClass} />
+        <span class="text-[10px] text-purple-light">B.Ofs</span>
+        <input type="number" bind:value={pinHousingBoreOffset} min="-2" max="2" step="0.1" onfocus={onBeforeChange} class={inputClass} />
+        <span class="text-[10px] text-purple-light">F.Ofs</span>
+        <input type="number" bind:value={pinHousingFaceOffset} min="-3" max="3" step="0.1" onfocus={onBeforeChange} class={inputClass} />
       </div>
     {/if}
   </div>

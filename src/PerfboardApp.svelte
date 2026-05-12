@@ -727,6 +727,12 @@
     parsed.roundTraceTeardrop = parsed.roundTraceTeardrop ?? false;
     parsed.roundTraceTdHPercent = parsed.roundTraceTdHPercent ?? 50;
     parsed.roundTraceTdVPercent = parsed.roundTraceTdVPercent ?? 90;
+    parsed.pinHousingHeight = parsed.pinHousingHeight ?? 2.5;
+    parsed.pinHousingBoreWidth = parsed.pinHousingBoreWidth ?? 0.8;
+    parsed.pinHousingBoreOffset = parsed.pinHousingBoreOffset ?? 0;
+    parsed.pinHousingWidth = parsed.pinHousingWidth ?? parsed.pinHousingSize ?? 2.14;
+    parsed.pinHousingDepth = parsed.pinHousingDepth ?? parsed.pinHousingSize ?? 2.14;
+    parsed.pinHousingFaceOffset = parsed.pinHousingFaceOffset ?? 0;
     doc = parsed;
     selectedIds = [];
     isRebuild = false;
@@ -1100,6 +1106,12 @@
         bind:roundTraceTdHPercent={doc.roundTraceTdHPercent}
         bind:roundTraceTdVPercent={doc.roundTraceTdVPercent}
         bind:boardThickness={doc.boardThickness}
+        bind:pinHousingHeight={doc.pinHousingHeight}
+        bind:pinHousingBoreWidth={doc.pinHousingBoreWidth}
+        bind:pinHousingBoreOffset={doc.pinHousingBoreOffset}
+        bind:pinHousingWidth={doc.pinHousingWidth}
+        bind:pinHousingDepth={doc.pinHousingDepth}
+        bind:pinHousingFaceOffset={doc.pinHousingFaceOffset}
         bind:shape={doc.grid.shape}
         onBeforeChange={pushUndo}
       />
