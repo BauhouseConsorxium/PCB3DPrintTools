@@ -15,6 +15,26 @@
   let gridSvgEl = $state(null);
   let showExportModal = $state(false);
   let showIntro = $state(!localStorage.getItem("perfboard-intro-seen"));
+  let theme = $state(localStorage.getItem("perfboard-theme") || 'default');
+  let showThemePicker = $state(false);
+
+  const schemes = [
+    { id: 'default', label: 'Cyber', color: '#ff2d95' },
+    { id: 'forest', label: 'Forest', color: '#4ade80' },
+    { id: 'ocean', label: 'Ocean', color: '#60a5fa' },
+    { id: 'sunset', label: 'Sunset', color: '#fb923c' },
+    { id: 'mono', label: 'Mono', color: '#e0e0e0' },
+  ]
+
+  function setTheme(t) {
+    theme = t;
+    localStorage.setItem("perfboard-theme", t);
+  }
+
+  $effect(() => {
+    document.documentElement.className = theme === 'default' ? '' : `theme-${theme}`;
+  });
+
   let activeTab = $state("editor");
   let activeTool = $state("select");
   let selectedIds = $state([]);
@@ -915,7 +935,7 @@
 >
   <!-- Header -->
   <div
-    class="h-11 flex items-center px-4 bg-gradient-to-b from-[#1e1e3a] to-surface-1 border-b-3 border-black shrink-0 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]"
+    class="h-11 flex items-center px-4 bg-gradient-to-b from-[var(--grad-from-1)] to-surface-1 border-b-3 border-black shrink-0 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]"
   >
     <div class="flex items-center gap-2">
       <svg
@@ -1013,7 +1033,7 @@
               <span class="text-[10px] uppercase tracking-wider text-accent font-bold">Sessions</span>
               <button
                 onclick={newSession}
-                class="text-[10px] px-2 py-0.5 rounded-md bg-accent hover:bg-accent-light text-white font-bold border border-black shadow-[1px_1px_0_black] transition-all"
+                class="text-[10px] px-2 py-0.5 rounded-md bg-accent hover:bg-accent-light text-[var(--text-on-accent)] font-bold border border-black shadow-[1px_1px_0_black] transition-all"
               >+ New</button>
             </div>
             <div class="space-y-1 max-h-48 overflow-y-auto">
@@ -1075,8 +1095,7 @@
       <!-- Examples dropdown (Arduino IDE style) -->
       <div class="flex items-center gap-0.5 ml-1.5 relative">
         <button
-          onclick={() => (showExamples = !showExamples)}
-          onblur={() => setTimeout(() => (showExamples = false), 150)}
+          onmousedown={() => (showExamples = !showExamples)}
           class="flex items-center gap-1 px-2 py-0.5 rounded-lg text-purple-light hover:text-cyan hover:bg-surface-2 transition-colors text-[11px] font-semibold"
           title="Load example project"
         >
@@ -1098,7 +1117,7 @@
                 { file: "pcm1808-module.perfboard.json", label: "PCM1808 ADC Module" },
               ] as ex}
                 <button
-                  onclick={() => { loadExample(ex.file); showExamples = false }}
+                  onmousedown={() => { loadExample(ex.file); showExamples = false }}
                   class="w-full text-left px-2.5 py-1.5 text-[10px] rounded-lg bg-surface-2 hover:bg-surface-3 text-cyan-light border border-black/50 transition-colors"
                 >
                   {ex.label}
@@ -1109,7 +1128,40 @@
         {/if}
       </div>
     </div>
-    <div class="ml-auto flex items-center gap-3">
+    <div class="ml-auto flex items-center gap-2">
+      <!-- Theme picker -->
+      <div class="relative">
+        <button
+          onmousedown={() => showThemePicker = !showThemePicker}
+          class="flex items-center gap-1.5 px-1.5 py-1 rounded-lg text-purple-light/50 hover:text-purple-light hover:bg-white/5 transition-colors"
+        >
+          {#each schemes as s}
+            {#if s.id === theme}
+              <span class="w-3 h-3 rounded-full border border-black/30" style="background:{s.color}"></span>
+            {/if}
+          {/each}
+        </button>
+        {#if showThemePicker}
+          <div class="absolute top-full right-0 mt-2 w-36 bg-surface-1 border-2 border-black rounded-lg shadow-[4px_4px_0_black] p-1.5 z-50">
+            {#each schemes as s}
+              <button
+                onmousedown={() => { setTheme(s.id); showThemePicker = false }}
+                class="w-full flex items-center gap-2 px-2 py-1.5 text-[10px] rounded-lg transition-colors
+                  {s.id === theme ? 'bg-accent/10 text-cyan-light' : 'text-purple-light/60 hover:text-cyan hover:bg-surface-2'}"
+              >
+                <span class="w-3 h-3 rounded-full border border-black/30 shrink-0" style="background:{s.color}"></span>
+                {s.label}
+                {#if s.id === theme}
+                  <svg viewBox="0 0 12 12" class="w-2.5 h-2.5 ml-auto text-accent" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M2 6l3 3 5-5" />
+                  </svg>
+                {/if}
+              </button>
+            {/each}
+          </div>
+        {/if}
+      </div>
+
       <button
         onclick={() => (showIntro = true)}
         class="text-[10px] text-purple-light/60 hover:text-accent transition-colors"
@@ -1129,7 +1181,7 @@
   <div class="flex flex-1 min-h-0">
     <!-- Sidebar -->
     <div
-      class="w-56 bg-gradient-to-b from-[#181833] to-surface-1 border-r-3 border-black overflow-y-auto p-3 shrink-0 shadow-[inset_-2px_0_8px_rgba(0,0,0,0.3)]"
+      class="w-56 bg-gradient-to-b from-[var(--grad-from-1)] to-surface-1 border-r-3 border-black overflow-y-auto p-3 shrink-0 shadow-[inset_-2px_0_8px_rgba(0,0,0,0.3)]"
     >
       <BoardSettings
         bind:cols={doc.grid.cols}
@@ -1324,7 +1376,7 @@
       onclick={() => { showIntro = false; localStorage.setItem("perfboard-intro-seen", "1") }}
     >
       <div
-        class="relative bg-gradient-to-b from-[#1c1c3a] to-surface-1 border-3 border-black rounded-2xl shadow-[10px_10px_0_rgba(0,0,0,0.5),inset_0_1px_0_rgba(255,255,255,0.08)] max-w-md w-full mx-4 overflow-hidden"
+        class="relative bg-gradient-to-b from-[var(--grad-from-1)] to-surface-1 border-3 border-black rounded-2xl shadow-[10px_10px_0_rgba(0,0,0,0.5),inset_0_1px_0_rgba(255,255,255,0.08)] max-w-md w-full mx-4 overflow-hidden"
         onclick={(e) => e.stopPropagation()}
       >
         <div class="relative bg-gradient-to-b from-accent/25 via-accent/8 to-transparent px-6 pt-10 pb-6 text-center overflow-hidden shadow-[inset_0_-2px_4px_rgba(0,0,0,0.2)]">
@@ -1333,7 +1385,7 @@
           <div class="absolute -bottom-8 -left-10 w-28 h-28 rounded-full bg-cyan/10 blur-2xl"></div>
           <div class="relative">
             <div class="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-accent via-accent/90 to-accent/70 border-2 border-black/80 shadow-[4px_4px_0_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.2)] flex items-center justify-center rotate-[-3deg] hover:rotate-0 transition-transform duration-300">
-              <svg viewBox="0 0 20 20" class="w-8 h-8 text-white drop-shadow-[1px_1px_0_rgba(0,0,0,0.3)]" fill="none" stroke="currentColor" stroke-width="1.5">
+              <svg viewBox="0 0 20 20" class="w-8 h-8 text-[var(--text-on-accent)] drop-shadow-[1px_1px_0_rgba(0,0,0,0.3)]" fill="none" stroke="currentColor" stroke-width="1.5">
                 <rect x="2" y="2" width="16" height="16" rx="1" />
                 <circle cx="6" cy="6" r="1.5" /><circle cx="10" cy="6" r="1.5" /><circle cx="14" cy="6" r="1.5" />
                 <circle cx="6" cy="10" r="1.5" /><circle cx="14" cy="10" r="1.5" />
@@ -1389,7 +1441,7 @@
 
         <div class="px-6 pb-5 pt-2">
           <button
-            class="w-full px-5 py-2.5 text-xs font-bold rounded-xl bg-gradient-to-b from-accent to-accent/80 hover:from-accent-light hover:to-accent text-white border-2 border-black/80 shadow-[4px_4px_0_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.25)] transition-all hover:shadow-[5px_5px_0_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.3)] hover:-translate-x-px hover:-translate-y-px active:translate-x-0.5 active:translate-y-0.5 active:shadow-[2px_2px_0_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.1)]"
+            class="w-full px-5 py-2.5 text-xs font-bold rounded-xl bg-gradient-to-b from-accent to-accent/80 hover:from-accent-light hover:to-accent text-[var(--text-on-accent)] border-2 border-black/80 shadow-[4px_4px_0_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.25)] transition-all hover:shadow-[5px_5px_0_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.3)] hover:-translate-x-px hover:-translate-y-px active:translate-x-0.5 active:translate-y-0.5 active:shadow-[2px_2px_0_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.1)]"
             onclick={() => { showIntro = false; localStorage.setItem("perfboard-intro-seen", "1") }}
           >
             Start Building

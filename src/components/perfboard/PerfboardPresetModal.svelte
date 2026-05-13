@@ -325,7 +325,7 @@
                 class="flex-1 w-0 min-w-0 bg-[#0d0d1a] text-xs text-slate-300 rounded px-2.5 py-1.5 border border-[#2a2a48]
                   placeholder:text-slate-600 focus:outline-none focus:border-accent/50" />
               <button onclick={handleSave} disabled={!newName.trim()}
-                class="px-3 py-1.5 text-xs font-medium rounded bg-accent hover:bg-accent-light text-white
+class="px-3 py-1.5 text-xs font-medium rounded bg-accent hover:bg-accent-light text-[var(--text-on-accent)]
                   disabled:opacity-40 disabled:cursor-not-allowed transition-colors">Save</button>
             </div>
           </div>
@@ -336,7 +336,7 @@
     <div class="flex items-center justify-between px-4 py-2.5 border-t border-[#2a2a48] bg-[#0d0d1a] shrink-0">
       <div class="flex items-center gap-2">
         <button onclick={handleApply} disabled={!selectedPreset}
-          class="px-3 py-1.5 text-xs font-medium rounded bg-accent hover:bg-accent-light text-white
+          class="px-3 py-1.5 text-xs font-medium rounded bg-accent hover:bg-accent-light text-[var(--text-on-accent)]
             disabled:opacity-40 disabled:cursor-not-allowed transition-colors">Load</button>
         {#if tab === 'print' && selectedPreset && isUserPreset(selectedPreset.name)}
           <button onclick={() => handleDelete(selectedPreset.name)}

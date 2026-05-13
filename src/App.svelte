@@ -44,17 +44,10 @@
     let drcViolations = $state([]);
     let isRebuild = $state(false);
     let presetModalOpen = $state(false);
-    let sidebarCollapsed = $state(false);
 
-    function toggleSidebar() {
-        sidebarCollapsed = !sidebarCollapsed;
-    }
-
-    function handleKeydown(e) {
-        if (e.key === 'f' && !e.ctrlKey && !e.metaKey && !e.altKey && e.target.tagName !== 'INPUT' && e.target.tagName !== 'TEXTAREA' && !e.target.isContentEditable) {
-            e.preventDefault();
-            toggleSidebar();
-        }
+    {
+        const t = localStorage.getItem("perfboard-theme") || 'default';
+        document.documentElement.className = t === 'default' ? '' : `theme-${t}`;
     }
 
     const currentSettings = $derived({

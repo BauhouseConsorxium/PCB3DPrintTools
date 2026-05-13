@@ -26,7 +26,7 @@
     {#each tools as tool}
       <button
         class="relative flex flex-col items-center gap-0.5 px-1 py-1.5 rounded-lg text-[10px] transition-all
-          {activeTool === tool.id ? 'bg-gradient-to-b from-accent to-accent/80 text-white border-2 border-black shadow-[1px_1px_0_rgba(0,0,0,0.5),inset_0_1px_0_rgba(255,255,255,0.15)] translate-y-0.5' : 'bg-gradient-to-b from-[#222248] to-surface-2 text-purple-light hover:text-cyan border-2 border-black/60 hover:border-black shadow-[2px_2px_0_rgba(0,0,0,0.3),inset_0_1px_0_rgba(255,255,255,0.06)] active:shadow-[0px_0px_0_rgba(0,0,0,0.3)] active:translate-y-0.5'}"
+          {activeTool === tool.id ? 'bg-gradient-to-b from-accent to-accent/80 text-[var(--text-on-accent)] border-2 border-black shadow-[1px_1px_0_rgba(0,0,0,0.5),inset_0_1px_0_rgba(255,255,255,0.15)] translate-y-0.5' : 'bg-gradient-to-b from-[var(--grad-from-2)] to-surface-2 text-purple-light hover:text-cyan border-2 border-black/60 hover:border-black shadow-[2px_2px_0_rgba(0,0,0,0.3),inset_0_1px_0_rgba(255,255,255,0.06)] active:shadow-[0px_0px_0_rgba(0,0,0,0.3)] active:translate-y-0.5'}"
         onclick={() => onToolChange(tool.id)}
         title={tool.key ? `${tool.label} (${tool.key})` : tool.label}
       >
