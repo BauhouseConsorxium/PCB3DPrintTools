@@ -25,14 +25,69 @@
     onBeforeChange = () => {},
   } = $props()
 
+  import PerfboardPresetModal from "./PerfboardPresetModal.svelte";
+
   let showCurve = $state(false)
   let showRound = $state(false)
   let showPinHousing = $state(false)
 
+  let presetModalOpen = $state(false)
+
   const inputClass = "w-full bg-surface-2 text-cyan-light text-xs rounded-lg px-2 py-1 border-2 border-black focus:border-accent outline-none shadow-[2px_2px_0_black] [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-inner-spin-button]:m-0 [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-outer-spin-button]:m-0"
+
+  function pickSettings() {
+    return {
+      cols, rows, padDiameter, drillDiameter, traceWidth, boardThickness, shape,
+      curveEndWidth, curveEndWidth2, curveTaperDistance,
+      roundTraceRadius, roundTraceMode, roundTracePasses, roundTraceTeardrop,
+      roundTraceTdHPercent, roundTraceTdVPercent,
+      pinHousingHeight, pinHousingBoreWidth, pinHousingBoreOffset,
+      pinHousingWidth, pinHousingDepth, pinHousingFaceOffset
+    }
+  }
+
+  function applyPresetSettings(s) {
+    if (s.type === 'size') {
+      cols = s.cols ?? cols; rows = s.rows ?? rows; shape = s.shape ?? shape
+      onBeforeChange()
+      return
+    }
+    cols = s.cols ?? cols; rows = s.rows ?? rows
+    padDiameter = s.padDiameter ?? padDiameter
+    drillDiameter = s.drillDiameter ?? drillDiameter
+    traceWidth = s.traceWidth ?? traceWidth
+    boardThickness = s.boardThickness ?? boardThickness
+    shape = s.shape ?? shape
+    curveEndWidth = s.curveEndWidth ?? curveEndWidth
+    curveEndWidth2 = s.curveEndWidth2 ?? curveEndWidth2
+    curveTaperDistance = s.curveTaperDistance ?? curveTaperDistance
+    roundTraceRadius = s.roundTraceRadius ?? roundTraceRadius
+    roundTraceMode = s.roundTraceMode ?? roundTraceMode
+    roundTracePasses = s.roundTracePasses ?? roundTracePasses
+    roundTraceTeardrop = s.roundTraceTeardrop ?? roundTraceTeardrop
+    roundTraceTdHPercent = s.roundTraceTdHPercent ?? roundTraceTdHPercent
+    roundTraceTdVPercent = s.roundTraceTdVPercent ?? roundTraceTdVPercent
+    pinHousingHeight = s.pinHousingHeight ?? pinHousingHeight
+    pinHousingBoreWidth = s.pinHousingBoreWidth ?? pinHousingBoreWidth
+    pinHousingBoreOffset = s.pinHousingBoreOffset ?? pinHousingBoreOffset
+    pinHousingWidth = s.pinHousingWidth ?? pinHousingWidth
+    pinHousingDepth = s.pinHousingDepth ?? pinHousingDepth
+    pinHousingFaceOffset = s.pinHousingFaceOffset ?? pinHousingFaceOffset
+    onBeforeChange()
+  }
 </script>
 
 <div class="mb-4 space-y-3">
+  <!-- Presets button -->
+  <button
+    onclick={() => presetModalOpen = true}
+    class="w-full px-3 py-1.5 text-[10px] font-bold rounded-lg border-2 border-black bg-surface-2 text-cyan-light hover:bg-surface-3 active:bg-surface-2 shadow-[2px_2px_0_black] transition-colors mb-1"
+  >
+    Presets
+  </button>
+
+  <PerfboardPresetModal bind:open={presetModalOpen} pickSettings={pickSettings} onApply={applyPresetSettings} />
+
   <!-- Grid size — always visible -->
   <div>
     <div class="text-[10px] uppercase tracking-wider text-accent font-bold mb-1.5">Board</div>

@@ -20,6 +20,7 @@
   let selectedIds = $state([]);
   let zScale = $state(8);
   let boardZScale = $state(1);
+  let showExamples = $state(false);
   let annotationText = $state("VCC");
   let annotationColor = $state("#ff2d95");
 
@@ -1069,6 +1070,43 @@
           </svg>
         </button>
       </div>
+
+      <!-- Examples dropdown (Arduino IDE style) -->
+      <div class="flex items-center gap-0.5 ml-1.5 relative">
+        <button
+          onclick={() => (showExamples = !showExamples)}
+          onblur={() => setTimeout(() => (showExamples = false), 150)}
+          class="flex items-center gap-1 px-2 py-0.5 rounded-lg text-purple-light hover:text-cyan hover:bg-surface-2 transition-colors text-[11px] font-semibold"
+          title="Load example project"
+        >
+          <svg viewBox="0 0 16 16" class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M8 3v10M3 8h10" />
+            <circle cx="8" cy="8" r="6" />
+          </svg>
+          Examples
+        </button>
+        {#if showExamples}
+          <div class="absolute top-full left-0 mt-2 w-60 bg-surface-1 border-2 border-black rounded-lg shadow-[4px_4px_0_black] p-2 z-50">
+            <div class="text-[9px] uppercase tracking-wider text-accent font-bold mb-1.5 px-1">Load Example</div>
+            <div class="space-y-0.5">
+              {#each [
+                { file: "cd4093-noise-gen.perfboard.json", label: "CD4093 Noise Generator" },
+                { file: "attiny85-synth.perfboard.json", label: "ATtiny85 Synthesizer" },
+                { file: "pt2399-chaos-looper.perfboard.json", label: "PT2399 Chaos Looper" },
+                { file: "jellyfish-bytebeat.perfboard.json", label: "PCB Art: Jellyfish Bytebeat" },
+                { file: "pcm1808-module.perfboard.json", label: "PCM1808 ADC Module" },
+              ] as ex}
+                <button
+                  onclick={() => { loadExample(ex.file); showExamples = false }}
+                  class="w-full text-left px-2.5 py-1.5 text-[10px] rounded-lg bg-surface-2 hover:bg-surface-3 text-cyan-light border border-black/50 transition-colors"
+                >
+                  {ex.label}
+                </button>
+              {/each}
+            </div>
+          </div>
+        {/if}
+      </div>
     </div>
     <div class="ml-auto flex items-center gap-3">
       <button
@@ -1165,46 +1203,7 @@
       />
 
 
-      <!-- Examples -->
-      <div class="mb-4">
-        <div
-          class="text-[10px] uppercase tracking-wider text-accent font-bold mb-2"
-        >
-          Examples
-        </div>
-        <div class="space-y-1">
-          <button
-            onclick={() => loadExample("cd4093-noise-gen.perfboard.json")}
-            class="w-full text-left px-2 py-1.5 text-[10px] rounded-lg bg-surface-2 hover:bg-surface-3 text-cyan-light font-bold border-2 border-black shadow-[2px_2px_0_black] transition-colors"
-          >
-            CD4093 Noise Generator
-          </button>
-          <button
-            onclick={() => loadExample("attiny85-synth.perfboard.json")}
-            class="w-full text-left px-2 py-1.5 text-[10px] rounded-lg bg-surface-2 hover:bg-surface-3 text-cyan-light font-bold border-2 border-black shadow-[2px_2px_0_black] transition-colors"
-          >
-            ATtiny85 Synthesizer
-          </button>
-          <button
-            onclick={() => loadExample("pt2399-chaos-looper.perfboard.json")}
-            class="w-full text-left px-2 py-1.5 text-[10px] rounded-lg bg-surface-2 hover:bg-surface-3 text-cyan-light font-bold border-2 border-black shadow-[2px_2px_0_black] transition-colors"
-          >
-            PT2399 Chaos Looper
-          </button>
-          <button
-            onclick={() => loadExample("jellyfish-bytebeat.perfboard.json")}
-            class="w-full text-left px-2 py-1.5 text-[10px] rounded-lg bg-surface-2 hover:bg-surface-3 text-cyan-light font-bold border-2 border-black shadow-[2px_2px_0_black] transition-colors"
-          >
-            PCB Art: Jellyfish Bytebeat
-          </button>
-          <button
-            onclick={() => loadExample("pcm1808-module.perfboard.json")}
-            class="w-full text-left px-2 py-1.5 text-[10px] rounded-lg bg-surface-2 hover:bg-surface-3 text-cyan-light font-bold border-2 border-black shadow-[2px_2px_0_black] transition-colors"
-          >
-            PCM1808 ADC Module
-          </button>
-        </div>
-      </div>
+
 
       <!-- Board info -->
       <div class="text-[10px] text-purple-light/50 space-y-0.5">
