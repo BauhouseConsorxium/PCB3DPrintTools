@@ -49,15 +49,18 @@ export function buildDimensions(dimGroup, meshMap) {
   const box = new THREE.Box3().setFromObject(boardMesh);
   const minX = box.min.x,
     maxX = box.max.x;
+  const minY = box.min.y,
+    maxY = box.max.y;
   const minZ = box.min.z,
     maxZ = box.max.z;
   const bY = box.min.y;
 
   const widthMM = maxX - minX;
-  const heightMM = maxZ - minZ;
-  if (widthMM < 0.1 || heightMM < 0.1) return;
+  const depthMM = maxZ - minZ;
+  const thickMM = maxY - minY;
+  if (widthMM < 0.1 || depthMM < 0.1) return;
 
-  const span = Math.max(widthMM, heightMM);
+  const span = Math.max(widthMM, depthMM, thickMM);
   const gap = span * 0.08;
   const ext = span * 0.03;
   const arrowLen = span * 0.04;
@@ -134,7 +137,42 @@ export function buildDimensions(dimGroup, meshMap) {
   hArrowB.rotation.x = Math.PI / 2;
   dimGroup.add(hArrowB);
 
-  const hText = makeTextSprite(`${heightMM.toFixed(2)} mm`, textScale);
+  const hText = makeTextSprite(`${depthMM.toFixed(2)} mm`, textScale);
   hText.position.set(hX + textScale * 0.6, wY, (minZ + maxZ) / 2);
   dimGroup.add(hText);
+
+  // --- Thickness dimension (left side, along Y) ---
+  const tX = minX - gap;
+  const tExtX = tX - ext;
+
+  const tPts = [];
+  tPts.push(tX, wY, maxZ + gap * 0.3, tExtX, wY, maxZ + gap * 0.3);
+  tPts.push(tX, maxY, maxZ + gap * 0.3, tExtX, maxY, maxZ + gap * 0.3);
+  tPts.push(tX, wY, maxZ + gap * 0.3, tX, maxY, maxZ + gap * 0.3);
+
+  const tYoff = (minY + maxY) / 2;
+
+  const tGeo = new THREE.BufferGeometry();
+  tGeo.setAttribute("position", new THREE.Float32BufferAttribute(tPts, 3));
+  const tLines = new THREE.LineSegments(tGeo, lineMat);
+  dimGroup.add(tLines);
+
+  const tArrowB = new THREE.Mesh(
+    new THREE.ConeGeometry(arrowR, arrowLen, 6),
+    new THREE.MeshBasicMaterial({ color: dimColor, depthTest: false }),
+  );
+  tArrowB.position.set(tX, wY - arrowLen / 2, maxZ + gap * 0.3);
+  dimGroup.add(tArrowB);
+
+  const tArrowT = new THREE.Mesh(
+    new THREE.ConeGeometry(arrowR, arrowLen, 6),
+    new THREE.MeshBasicMaterial({ color: dimColor, depthTest: false }),
+  );
+  tArrowT.position.set(tX, maxY + arrowLen / 2, maxZ + gap * 0.3);
+  tArrowT.rotation.z = Math.PI;
+  dimGroup.add(tArrowT);
+
+  const tText = makeTextSprite(`${thickMM.toFixed(2)} mm`, textScale);
+  tText.position.set(tExtX, tYoff, maxZ + gap * 0.3 + textScale * 0.5);
+  dimGroup.add(tText);
 }
