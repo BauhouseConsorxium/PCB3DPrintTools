@@ -22,6 +22,8 @@
     pinHousingDepth = $bindable(2.14),
     pinHousingFaceOffset = $bindable(0),
     shape = $bindable('rect'),
+    zScale = $bindable(8),
+    boardZScale = $bindable(1),
     onBeforeChange = () => {},
   } = $props()
 
@@ -38,6 +40,7 @@
   function pickSettings() {
     return {
       cols, rows, padDiameter, drillDiameter, traceWidth, boardThickness, shape,
+      zScale, boardZScale,
       curveEndWidth, curveEndWidth2, curveTaperDistance,
       roundTraceRadius, roundTraceMode, roundTracePasses, roundTraceTeardrop,
       roundTraceTdHPercent, roundTraceTdVPercent,
@@ -58,6 +61,8 @@
     traceWidth = s.traceWidth ?? traceWidth
     boardThickness = s.boardThickness ?? boardThickness
     shape = s.shape ?? shape
+    zScale = s.zScale ?? zScale
+    boardZScale = s.boardZScale ?? boardZScale
     curveEndWidth = s.curveEndWidth ?? curveEndWidth
     curveEndWidth2 = s.curveEndWidth2 ?? curveEndWidth2
     curveTaperDistance = s.curveTaperDistance ?? curveTaperDistance

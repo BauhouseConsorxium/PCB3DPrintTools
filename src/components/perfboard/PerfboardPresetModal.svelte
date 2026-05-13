@@ -23,9 +23,11 @@
       name: 'Standard', detail: 'Pad 2.0 · Drill 1.0 · Trace 1.0 · 1.6mm',
       s: {
         padDiameter: 2.0, drillDiameter: 1.0, traceWidth: 1.0, boardThickness: 1.6,
+        zScale: 8, boardZScale: 1,
         curveEndWidth: 3.0, curveEndWidth2: 3.0, curveTaperDistance: 0,
         roundTraceRadius: 1.0, roundTraceMode: 'arc', roundTracePasses: 2,
         roundTraceTeardrop: false, roundTraceTdHPercent: 50, roundTraceTdVPercent: 90,
+        zScale: 8, boardZScale: 1,
         pinHousingHeight: 2.5, pinHousingBoreWidth: 0.8, pinHousingBoreOffset: 0,
         pinHousingWidth: 2.14, pinHousingDepth: 2.14, pinHousingFaceOffset: 0
       }
@@ -34,6 +36,7 @@
       name: 'Fine Pitch', detail: 'Pad 1.2 · Drill 0.6 · Trace 0.6 · 1.6mm',
       s: {
         padDiameter: 1.2, drillDiameter: 0.6, traceWidth: 0.6, boardThickness: 1.6,
+        zScale: 10, boardZScale: 1,
         curveEndWidth: 2.0, curveEndWidth2: 2.0, curveTaperDistance: 0,
         roundTraceRadius: 0.8, roundTraceMode: 'arc', roundTracePasses: 2,
         roundTraceTeardrop: false, roundTraceTdHPercent: 50, roundTraceTdVPercent: 90,
@@ -45,6 +48,7 @@
       name: 'Heavy Duty', detail: 'Pad 2.5 · Drill 1.2 · Trace 1.5 · 2.0mm',
       s: {
         padDiameter: 2.5, drillDiameter: 1.2, traceWidth: 1.5, boardThickness: 2.0,
+        zScale: 6, boardZScale: 1.5,
         curveEndWidth: 4.0, curveEndWidth2: 4.0, curveTaperDistance: 0,
         roundTraceRadius: 1.5, roundTraceMode: 'arc', roundTracePasses: 2,
         roundTraceTeardrop: false, roundTraceTdHPercent: 50, roundTraceTdVPercent: 90,
@@ -104,6 +108,7 @@
       s: {
         padDiameter: s.padDiameter, drillDiameter: s.drillDiameter,
         traceWidth: s.traceWidth, boardThickness: s.boardThickness,
+        zScale: s.zScale, boardZScale: s.boardZScale,
         curveEndWidth: s.curveEndWidth, curveEndWidth2: s.curveEndWidth2,
         curveTaperDistance: s.curveTaperDistance,
         roundTraceRadius: s.roundTraceRadius, roundTraceMode: s.roundTraceMode,
@@ -173,7 +178,9 @@
         { label: 'Pad', value: `${s.padDiameter}mm` },
         { label: 'Drill', value: `${s.drillDiameter}mm` },
         { label: 'Trace', value: `${s.traceWidth}mm` },
-        { label: 'Board', value: `${s.boardThickness}mm` }
+        { label: 'Board', value: `${s.boardThickness}mm` },
+        { label: 'Cu Z', value: `${s.zScale}x` },
+        { label: 'Brd Z', value: `${s.boardZScale}x` }
       ]},
       { group: 'Curve', items: [
         { label: 'Start W', value: `${s.curveEndWidth}mm` },

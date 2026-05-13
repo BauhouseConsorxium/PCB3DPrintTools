@@ -1206,6 +1206,8 @@
         bind:pinHousingDepth={doc.pinHousingDepth}
         bind:pinHousingFaceOffset={doc.pinHousingFaceOffset}
         bind:shape={doc.grid.shape}
+        bind:zScale
+        bind:boardZScale
         onBeforeChange={pushUndo}
       />
 
