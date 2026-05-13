@@ -2,6 +2,7 @@
   let {
     zScale = $bindable(8),
     boardZScale = $bindable(1),
+    includeBoard = $bindable(true),
     onExport = () => {},
     onExport2D = () => {},
   } = $props()
@@ -29,6 +30,11 @@
     <input type="range" bind:value={boardZScale} min="0.25" max="10" step="0.25"
       class="w-full h-1 accent-[#a3e635] cursor-pointer" />
   </div>
+
+  <label class="flex items-center gap-2 mb-3 cursor-pointer">
+    <input type="checkbox" bind:checked={includeBoard} class="accent-[#a3e635] w-3.5 h-3.5" />
+    <span class="text-xs text-purple-light">Include board</span>
+  </label>
 
   <button
     class="w-full px-3 py-2 text-xs font-bold rounded-lg bg-accent hover:bg-accent-light text-white border-2 border-black shadow-[4px_4px_0_black] transition-all hover:shadow-[5px_5px_0_black] hover:-translate-x-px hover:-translate-y-px active:translate-x-0.5 active:translate-y-0.5 active:shadow-[1px_1px_0_black]"

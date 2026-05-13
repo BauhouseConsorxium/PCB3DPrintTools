@@ -553,7 +553,7 @@
 
   // ------- public API -------
 
-  export function exportSTL(filter, filename) {
+  export function exportSTL(filter, filename, includeBoard = true) {
     unflipForAction(async () => {
       if (!scene) return;
       if (traceMode === "subtract" || textMode === "subtract") {
@@ -567,6 +567,7 @@
           copperTextPolylines,
           boardThickness,
           filename,
+          includeBoard,
         });
       } else {
         await doRaiseExport({
@@ -576,6 +577,7 @@
           boardThickness,
           filter,
           filename,
+          includeBoard,
         });
       }
     });

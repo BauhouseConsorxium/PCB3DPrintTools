@@ -640,10 +640,12 @@
     }
   }
 
+  let exportIncludeBoard = $state(true)
+
   function handleExport() {
     if (!viewer) return;
     const ts = new Date().toISOString().replace(/[:-]/g, "").slice(0, 15);
-    viewer.exportSTL(null, `${doc.name}_perfboard_${ts}.stl`);
+    viewer.exportSTL(null, `${doc.name}_perfboard_${ts}.stl`, exportIncludeBoard);
   }
 
   // Session system
@@ -1157,6 +1159,7 @@
       <PerfboardExportPanel
         bind:zScale
         bind:boardZScale
+        bind:includeBoard={exportIncludeBoard}
         onExport={handleExport}
         onExport2D={() => showExportModal = true}
       />

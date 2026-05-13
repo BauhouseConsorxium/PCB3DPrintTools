@@ -300,6 +300,7 @@ export async function doRaiseExport({
   boardThickness,
   filter,
   filename,
+  includeBoard = true,
 }) {
   scene.updateMatrixWorld(true);
   const group = new THREE.Group();
@@ -345,9 +346,12 @@ export async function doRaiseExport({
     if (filter && !filter(name)) continue;
     if (isSilkscreen(name)) continue;
     if (isComponent(name) || isJumper(name)) continue;
-    if (engravedBoardGeo && isPcbBoard(name)) {
-      group.add(new THREE.Mesh(engravedBoardGeo));
-      continue;
+    if (isPcbBoard(name)) {
+      if (!includeBoard) continue;
+      if (engravedBoardGeo) {
+        group.add(new THREE.Mesh(engravedBoardGeo));
+        continue;
+      }
     }
     const clone = mesh.clone();
     clone.applyMatrix4(mesh.matrixWorld);
@@ -373,6 +377,7 @@ export async function doSubtractExport({
   copperTextPolylines,
   boardThickness,
   filename,
+  includeBoard = true,
 }) {
   const [{ Brush, Evaluator, SUBTRACTION }, polygonClipping] =
     await Promise.all([import("three-bvh-csg"), import("polygon-clipping")]);
@@ -504,7 +509,9 @@ export async function doSubtractExport({
   resultGeo.applyMatrix4(base.matrixWorld);
 
   const group = new THREE.Group();
-  group.add(new THREE.Mesh(resultGeo));
+  if (includeBoard) {
+    group.add(new THREE.Mesh(resultGeo));
+  }
 
   for (const [name, mesh] of Object.entries(meshMap)) {
     if (!mesh.visible) continue;
