@@ -834,10 +834,10 @@ function buildComponentBodies(doc) {
     const ph = (doc.pinHousings ?? [])[phi]
     const isH = ph.orientation === 'h'
     const count = ph.count ?? 2
-    const boreAlongX = (ph.facing === 'E' || ph.facing === 'W')
+    const boreAlongX = (ph.facing === 'east' || ph.facing === 'west')
     const hw = boreAlongX ? PH_DEPTH : PH_FACE
     const hd = boreAlongX ? PH_FACE : PH_DEPTH
-    const wallFace = boreAlongX ? PH_FACE : PH_FACE
+    const wallFace = PH_FACE
     const faceOfs = doc.pinHousingFaceOffset ?? 0
     const faceDx = boreAlongX ? faceOfs : 0
     const faceDy = boreAlongX ? 0 : -faceOfs
