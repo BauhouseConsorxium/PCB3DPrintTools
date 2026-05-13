@@ -1249,6 +1249,7 @@
         editingTrace = {
           id: el.id,
           width: trace.width,
+          cornerShape: trace.cornerShape ?? 'round',
           left: e.clientX - rect.left,
           top: e.clientY - rect.top - 20,
         };
@@ -1375,7 +1376,7 @@
 
   function applyTraceEdit() {
     if (!editingTrace) return;
-    onUpdateTraceWidth(editingTrace.id, editingTrace.width);
+    onUpdateTraceWidth(editingTrace.id, editingTrace.width, editingTrace.cornerShape);
   }
 
   function closeTraceEdit() {
@@ -2350,6 +2351,7 @@
           {/each}
         {/if}
       {:else}
+        {@const sqCorners = trace.cornerShape === 'square'}
         {#if isSelected}
           {#each getTraceSegments(trace) as seg}
             <line
@@ -2359,9 +2361,23 @@
               y2={seg.y2}
               stroke="rgba(255,255,255,0.45)"
               stroke-width={trace.width + pitch * 0.08}
-              stroke-linecap="round"
+              stroke-linecap={sqCorners ? 'butt' : 'round'}
             />
           {/each}
+          {#if sqCorners}
+            {#each trace.points as pt, i}
+              {#if i > 0 && i < trace.points.length - 1}
+                {@const hwh = (trace.width + pitch * 0.08) / 2}
+                <rect
+                  x={pt.col * pitch - hwh}
+                  y={pt.row * pitch - hwh}
+                  width={trace.width + pitch * 0.08}
+                  height={trace.width + pitch * 0.08}
+                  fill="rgba(255,255,255,0.45)"
+                />
+              {/if}
+            {/each}
+          {/if}
         {/if}
         {#each getTraceSegments(trace) as seg}
           <line
@@ -2371,10 +2387,34 @@
             y2={seg.y2}
             stroke={isSelected ? "#fbbf24" : netCol}
             stroke-width={trace.width}
-            stroke-linecap="round"
+            stroke-linecap={sqCorners ? 'butt' : 'round'}
             opacity={isSelected ? 1 : 0.85}
           />
         {/each}
+        {#if sqCorners}
+          {#each trace.points as pt, i}
+            {#if i > 0 && i < trace.points.length - 1}
+              {@const hw = trace.width / 2}
+              <rect
+                x={pt.col * pitch - hw}
+                y={pt.row * pitch - hw}
+                width={trace.width}
+                height={trace.width}
+                fill={isSelected ? "#fbbf24" : netCol}
+                opacity={isSelected ? 1 : 0.85}
+              />
+            {/if}
+          {/each}
+          {#each [trace.points[0], trace.points[trace.points.length - 1]] as pt}
+            <circle
+              cx={pt.col * pitch}
+              cy={pt.row * pitch}
+              r={trace.width / 2}
+              fill={isSelected ? "#fbbf24" : netCol}
+              opacity={isSelected ? 1 : 0.85}
+            />
+          {/each}
+        {/if}
         {#if isSelected}
           {#each trace.points as pt, i}
             {@const isActiveCP =
@@ -3660,10 +3700,34 @@
                 y2={seg.y2 + dr * pitch}
                 stroke="#fbbf24"
                 stroke-width={trace.width}
-                stroke-linecap="round"
+                stroke-linecap={trace.cornerShape === 'square' ? 'butt' : 'round'}
                 opacity="0.4"
               />
             {/each}
+            {#if trace.cornerShape === 'square'}
+              {#each trace.points as pt, i}
+                {#if i > 0 && i < trace.points.length - 1}
+                  {@const hw = trace.width / 2}
+                  <rect
+                    x={pt.col * pitch + dc * pitch - hw}
+                    y={pt.row * pitch + dr * pitch - hw}
+                    width={trace.width}
+                    height={trace.width}
+                    fill="#fbbf24"
+                    opacity="0.4"
+                  />
+                {/if}
+              {/each}
+              {#each [trace.points[0], trace.points[trace.points.length - 1]] as pt}
+                <circle
+                  cx={pt.col * pitch + dc * pitch}
+                  cy={pt.row * pitch + dr * pitch}
+                  r={trace.width / 2}
+                  fill="#fbbf24"
+                  opacity="0.4"
+                />
+              {/each}
+            {/if}
           {/if}
         {/each}
         {#each doc.jumpers.filter((j) => selectedIds.includes(j.id)) as jumper}
@@ -4045,7 +4109,7 @@
   {#if editingTrace}
     <!-- svelte-ignore a11y_no_static_element_interactions -->
     <div
-      class="absolute bg-surface-1 rounded-lg border-2 border-black shadow-[4px_4px_0_black] z-10 p-1.5"
+      class="absolute bg-surface-1 rounded-lg border-2 border-black shadow-[4px_4px_0_black] z-10 p-2 space-y-1.5"
       style="left: {editingTrace.left}px; top: {editingTrace.top}px"
       onfocusout={(e) => {
         if (!e.currentTarget.contains(e.relatedTarget)) closeTraceEdit();
@@ -4072,6 +4136,27 @@
           }}
           onfocus={(e) => e.target.select()}
         />
+      </div>
+      <div class="border-t border-black/30 pt-1 mt-1">
+        <label class="text-[10px] text-purple-light block mb-0.5">Corners</label>
+        <div class="flex gap-1">
+          <button
+            class="px-2 py-0.5 text-[10px] rounded border-2 border-black {editingTrace.cornerShape === 'round'
+              ? 'bg-accent text-white'
+              : 'bg-surface-2 text-cyan-light'}"
+            onclick={() => {
+              editingTrace = { ...editingTrace, cornerShape: 'round' };
+              applyTraceEdit();
+            }}>Round</button>
+          <button
+            class="px-2 py-0.5 text-[10px] rounded border-2 border-black {editingTrace.cornerShape === 'square'
+              ? 'bg-accent text-white'
+              : 'bg-surface-2 text-cyan-light'}"
+            onclick={() => {
+              editingTrace = { ...editingTrace, cornerShape: 'square' };
+              applyTraceEdit();
+            }}>Square</button>
+        </div>
       </div>
     </div>
   {/if}

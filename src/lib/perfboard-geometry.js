@@ -134,6 +134,7 @@ function collectTraceSegments(doc, padPositions) {
   const { pitch } = doc.grid
   const TOL = 0.01
   const segments = []
+  const squareCornerPads = []
   for (const trace of doc.traces) {
     if (trace.type === 'roundtrace' || trace.type === 'freetrace') {
       const pathSegs = (trace.type === 'freetrace' || trace.mode === 'subdivision')
@@ -204,13 +205,14 @@ function collectTraceSegments(doc, padPositions) {
       })
     }
 
+    const cs = trace.cornerShape
     for (const pair of rawPairs) {
       const { ax, ay, bx, by } = pair
       const segWidth = trace.width
       const dx = bx - ax, dy = by - ay
       const lenSq = dx * dx + dy * dy
       if (lenSq < TOL * TOL) {
-        segments.push({ x1: ax, y1: ay, x2: bx, y2: by, width: segWidth, layer: 'F.Cu' })
+        segments.push({ x1: ax, y1: ay, x2: bx, y2: by, width: segWidth, layer: 'F.Cu', cornerShape: cs })
         continue
       }
       const hits = []
@@ -222,20 +224,30 @@ function collectTraceSegments(doc, padPositions) {
         if (distSq < TOL * TOL) hits.push(t)
       }
       if (hits.length === 0) {
-        segments.push({ x1: ax, y1: ay, x2: bx, y2: by, width: segWidth, layer: 'F.Cu' })
+        segments.push({ x1: ax, y1: ay, x2: bx, y2: by, width: segWidth, layer: 'F.Cu', cornerShape: cs })
       } else {
         hits.sort((a, b) => a - b)
         let prevX = ax, prevY = ay
         for (const t of hits) {
           const mx = ax + t * dx, my = ay + t * dy
-          segments.push({ x1: prevX, y1: prevY, x2: mx, y2: my, width: segWidth, layer: 'F.Cu' })
+          segments.push({ x1: prevX, y1: prevY, x2: mx, y2: my, width: segWidth, layer: 'F.Cu', cornerShape: cs })
           prevX = mx; prevY = my
         }
-        segments.push({ x1: prevX, y1: prevY, x2: bx, y2: by, width: segWidth, layer: 'F.Cu' })
+        segments.push({ x1: prevX, y1: prevY, x2: bx, y2: by, width: segWidth, layer: 'F.Cu', cornerShape: cs })
+      }
+    }
+
+    if (cs === 'square') {
+      for (let i = 1; i < trace.points.length - 1; i++) {
+        squareCornerPads.push({
+          x: trace.points[i].col * pitch,
+          y: trace.points[i].row * pitch,
+          width: trace.width
+        })
       }
     }
   }
-  return segments
+  return { segments, squareCornerPads }
 }
 
 const ENDPOINT_CIRCLE_N = 32
@@ -1010,9 +1022,9 @@ export function buildPerfboardBodies(doc) {
   const zTop = 0
   const padsBody = buildPadRingsGeometry(padPositions, drillR, padR, zBot, zTop)
 
-  const traceSegments = collectTraceSegments(doc, padPositions)
+  const { segments: traceSegments, squareCornerPads } = collectTraceSegments(doc, padPositions)
   const tracesBody = traceSegments.length
-    ? buildTracesGeometry(traceSegments, drills, 'F.Cu', zBot, zTop, false)
+    ? buildTracesGeometry(traceSegments, drills, 'F.Cu', zBot, zTop, false, squareCornerPads)
     : null
 
   const curveTracesBody = buildCurveTraceGeometry(doc, drills, zBot, zTop)

@@ -254,12 +254,15 @@ export function buildPolygonsWithDrills(shapes, drills, name, zBot, zTop) {
   }
 }
 
-export function buildTracesGeometry(segments, drills, layer, zBot, zTop, squareEnds) {
+export function buildTracesGeometry(segments, drills, layer, zBot, zTop, squareEnds, squareCornerPads) {
   const segs = segments.filter(s => s.layer === layer)
   if (!segs.length) return null
 
+  const hasSquareCorners = segs.some(s => s.cornerShape === 'square')
+  const needConnectivity = squareEnds || hasSquareCorners
+
   const endpointFree = []
-  if (squareEnds) {
+  if (needConnectivity) {
     const CONN_TOL_SQ = 0.05 * 0.05
     for (let si = 0; si < segs.length; si++) {
       const s = segs[si]
@@ -292,8 +295,13 @@ export function buildTracesGeometry(segments, drills, layer, zBot, zTop, squareE
     let dx = p2x - p1x, dy = p2y - p1y
     const theta = Math.atan2(dy, dx)
 
-    const p1Sq = squareEnds && endpointFree[si]?.p1
-    const p2Sq = squareEnds && endpointFree[si]?.p2
+    let p1Sq = squareEnds && endpointFree[si]?.p1
+    let p2Sq = squareEnds && endpointFree[si]?.p2
+
+    if (seg.cornerShape === 'square') {
+      if (!endpointFree[si]?.p1) p1Sq = true
+      if (!endpointFree[si]?.p2) p2Sq = true
+    }
 
     const outline = []
     if (p2Sq) {
@@ -323,6 +331,19 @@ export function buildTracesGeometry(segments, drills, layer, zBot, zTop, squareE
     }
 
     shapes.push(outline)
+  }
+
+  if (squareCornerPads) {
+    for (const pad of squareCornerPads) {
+      const hw = pad.width / 2
+      const cx = pad.x, cy = -pad.y
+      shapes.push([
+        [cx - hw, cy - hw],
+        [cx + hw, cy - hw],
+        [cx + hw, cy + hw],
+        [cx - hw, cy + hw],
+      ])
+    }
   }
 
   return buildPolygonsWithDrills(shapes, drills, layer, zBot, zTop)
