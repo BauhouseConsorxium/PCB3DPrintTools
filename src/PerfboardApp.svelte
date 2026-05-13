@@ -276,12 +276,13 @@
     }
   }
 
-  function updateHeaderLabels(id, labels, female) {
+  function updateHeaderLabels(id, labels, female, copperConnectedOnly) {
     pushUndo();
     const header = doc.headers.find((h) => h.id === id);
     if (header) {
       header.labels = labels;
       header.female = female ?? false;
+      if (copperConnectedOnly !== undefined) header.copperConnectedOnly = copperConnectedOnly;
       doc.headers = [...doc.headers];
     }
   }
@@ -295,12 +296,13 @@
     }
   }
 
-  function updateDip(id, label, socket) {
+  function updateDip(id, label, socket, copperConnectedOnly) {
     pushUndo();
     const dip = (doc.dips || []).find((d) => d.id === id);
     if (dip) {
       dip.label = label;
       dip.socket = socket;
+      if (copperConnectedOnly !== undefined) dip.copperConnectedOnly = copperConnectedOnly;
       doc.dips = [...(doc.dips || [])];
     }
   }

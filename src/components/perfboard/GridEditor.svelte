@@ -1126,6 +1126,7 @@
           id: el.id,
           label: dip.label ?? "",
           socket: dip.socket ?? false,
+          copperConnectedOnly: dip.copperConnectedOnly ?? false,
           left: e.clientX - rect.left,
           top: e.clientY - rect.top - 20,
         };
@@ -1172,6 +1173,7 @@
         editingHeader = {
           id: el.id,
           female: header.female ?? false,
+          copperConnectedOnly: header.copperConnectedOnly ?? false,
           labels:
             labels.length >= header.count
               ? labels.slice(0, header.count)
@@ -1275,7 +1277,7 @@
 
   function commitHeaderEdit() {
     if (!editingHeader) return;
-    onUpdateHeaderLabels(editingHeader.id, editingHeader.labels, editingHeader.female);
+    onUpdateHeaderLabels(editingHeader.id, editingHeader.labels, editingHeader.female, editingHeader.copperConnectedOnly);
     editingHeader = null;
   }
 
@@ -1293,7 +1295,7 @@
 
   function applyDipEdit() {
     if (!editingDip) return;
-    onUpdateDip(editingDip.id, dipEditInput?.value ?? "", editingDip.socket);
+    onUpdateDip(editingDip.id, dipEditInput?.value ?? "", editingDip.socket, editingDip.copperConnectedOnly);
   }
 
   function closeDipEdit() {
@@ -3867,6 +3869,20 @@
           }}>IC Socket</button
         >
       </div>
+      <div class="border-t border-black/30 pt-1">
+        <label class="text-[10px] text-purple-light flex items-center gap-1.5 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={editingDip.copperConnectedOnly}
+            onchange={(e) => {
+              editingDip = { ...editingDip, copperConnectedOnly: e.target.checked };
+              applyDipEdit();
+            }}
+            class="accent-accent"
+          />
+          Copper only on connected pins
+        </label>
+      </div>
     </div>
   {/if}
 
@@ -4373,6 +4389,19 @@
             editingHeader = { ...editingHeader, female: true };
           }}>Female</button
         >
+      </div>
+      <div class="border-t border-black/30 pt-1 mt-1 mb-1">
+        <label class="text-[10px] text-purple-light flex items-center gap-1.5 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={editingHeader.copperConnectedOnly}
+            onchange={(e) => {
+              editingHeader = { ...editingHeader, copperConnectedOnly: e.target.checked };
+            }}
+            class="accent-accent"
+          />
+          Copper only on connected pins
+        </label>
       </div>
       <div class="text-[10px] text-purple-light mb-1">Pin labels</div>
       <div class="flex flex-col gap-0.5">

@@ -1020,9 +1020,62 @@ export function buildPerfboardBodies(doc) {
 
   const zBot = -copperThickness
   const zTop = 0
-  const padsBody = buildPadRingsGeometry(padPositions, drillR, padR, zBot, zTop)
 
   const { segments: traceSegments, squareCornerPads } = collectTraceSegments(doc, padPositions)
+
+  const copperOnlyIds = new Set()
+  for (const h of doc.headers ?? []) {
+    if (h.copperConnectedOnly) copperOnlyIds.add(h.id)
+  }
+  for (const d of doc.dips ?? []) {
+    if (d.copperConnectedOnly) copperOnlyIds.add(d.id)
+  }
+
+  let copperPadPositions = padPositions
+  if (copperOnlyIds.size > 0) {
+    const { pitch } = doc.grid
+    const connectedKeys = new Set()
+    const TOL_SQ = 0.05 * 0.05
+    for (const trace of doc.traces) {
+      if (!trace.points.length) continue
+      const pts = trace.points
+      for (const wp of [pts[0], pts[pts.length - 1]]) {
+        const wx = wp.col * pitch, wy = wp.row * pitch
+        for (const p of padPositions) {
+          if ((p.x - wx) ** 2 + (p.y - wy) ** 2 < TOL_SQ) {
+            connectedKeys.add(p.key)
+          }
+        }
+      }
+      for (const wp of pts) {
+        const wx = wp.col * pitch, wy = wp.row * pitch
+        for (const p of padPositions) {
+          if ((p.x - wx) ** 2 + (p.y - wy) ** 2 < TOL_SQ) {
+            connectedKeys.add(p.key)
+          }
+        }
+      }
+    }
+    for (const j of doc.jumpers ?? []) {
+      const jx1 = j.col1 * pitch, jy1 = j.row1 * pitch
+      const jx2 = j.col2 * pitch, jy2 = j.row2 * pitch
+      for (const p of padPositions) {
+        if ((p.x - jx1) ** 2 + (p.y - jy1) ** 2 < TOL_SQ ||
+            (p.x - jx2) ** 2 + (p.y - jy2) ** 2 < TOL_SQ) {
+          connectedKeys.add(p.key)
+        }
+      }
+    }
+    copperPadPositions = padPositions.filter(p => {
+      if ((p.source === 'header' || p.source === 'dip') && copperOnlyIds.has(p.sourceId)) {
+        return connectedKeys.has(p.key)
+      }
+      return true
+    })
+  }
+
+  const padsBody = buildPadRingsGeometry(copperPadPositions, drillR, padR, zBot, zTop)
+
   const tracesBody = traceSegments.length
     ? buildTracesGeometry(traceSegments, drills, 'F.Cu', zBot, zTop, false, squareCornerPads)
     : null
