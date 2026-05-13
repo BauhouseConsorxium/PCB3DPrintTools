@@ -29,7 +29,7 @@
   let showRound = $state(false)
   let showPinHousing = $state(false)
 
-  const inputClass = "w-full bg-surface-2 text-cyan-light text-xs rounded-lg px-2 py-1 border-2 border-black focus:border-accent outline-none shadow-[2px_2px_0_black]"
+  const inputClass = "w-full bg-surface-2 text-cyan-light text-xs rounded-lg px-2 py-1 border-2 border-black focus:border-accent outline-none shadow-[2px_2px_0_black] [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-inner-spin-button]:m-0 [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-outer-spin-button]:m-0"
 </script>
 
 <div class="mb-4 space-y-3">

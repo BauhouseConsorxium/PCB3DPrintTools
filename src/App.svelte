@@ -44,6 +44,18 @@
     let drcViolations = $state([]);
     let isRebuild = $state(false);
     let presetModalOpen = $state(false);
+    let sidebarCollapsed = $state(false);
+
+    function toggleSidebar() {
+        sidebarCollapsed = !sidebarCollapsed;
+    }
+
+    function handleKeydown(e) {
+        if (e.key === 'f' && !e.ctrlKey && !e.metaKey && !e.altKey && e.target.tagName !== 'INPUT' && e.target.tagName !== 'TEXTAREA' && !e.target.isContentEditable) {
+            e.preventDefault();
+            toggleSidebar();
+        }
+    }
 
     const currentSettings = $derived({
         zScale,
@@ -114,7 +126,11 @@
             status = "error";
         };
 
-        return () => worker.terminate();
+        window.addEventListener('keydown', handleKeydown);
+        return () => {
+            worker.terminate();
+            window.removeEventListener('keydown', handleKeydown);
+        };
     });
 
     function handleFile(file) {
@@ -278,7 +294,7 @@
     <div class="flex-1 flex overflow-hidden">
         <!-- Sidebar -->
         <aside
-            class="w-64 shrink-0 bg-[#111120] border-r border-[#2a2a48] flex flex-col overflow-y-auto"
+            class="{sidebarCollapsed ? 'w-0' : 'w-64'} shrink-0 bg-[#111120] border-r border-[#2a2a48] flex flex-col overflow-y-auto transition-[width] duration-200"
         >
             <FileDropzone onfile={handleFile} disabled={status === "loading"} />
             <LayerPanel
