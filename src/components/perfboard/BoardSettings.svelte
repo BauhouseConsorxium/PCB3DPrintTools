@@ -33,7 +33,7 @@
 
   let presetModalOpen = $state(false)
 
-  const inputClass = "w-full bg-surface-2 text-cyan-light text-xs rounded-lg px-2 py-1 border-2 border-black focus:border-accent outline-none shadow-[2px_2px_0_black] [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-inner-spin-button]:m-0 [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-outer-spin-button]:m-0"
+  const inputClass = "w-full bg-gradient-to-b from-[#12122a] to-surface-2 text-cyan-light text-xs rounded-lg px-2 py-1 border-2 border-black focus:border-accent outline-none shadow-[inset_2px_2px_3px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.04)] focus:shadow-[inset_2px_2px_3px_rgba(0,0,0,0.5),inset_0_1px_0_rgba(255,255,255,0.06)] transition-shadow [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-inner-spin-button]:m-0 [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-outer-spin-button]:m-0"
 
   function pickSettings() {
     return {
@@ -81,7 +81,7 @@
   <!-- Presets button -->
   <button
     onclick={() => presetModalOpen = true}
-    class="w-full px-3 py-1.5 text-[10px] font-bold rounded-lg border-2 border-black bg-surface-2 text-cyan-light hover:bg-surface-3 active:bg-surface-2 shadow-[2px_2px_0_black] transition-colors mb-1"
+    class="w-full px-3 py-1.5 text-[10px] font-bold rounded-lg border-2 border-black bg-gradient-to-b from-[#222248] to-surface-2 text-cyan-light hover:from-[#2a2a58] hover:to-[#222248] active:from-[#181838] active:to-[#181838] shadow-[3px_3px_0_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.08)] active:shadow-[1px_1px_0_rgba(0,0,0,0.4)] transition-all mb-1"
   >
     Presets
   </button>
@@ -93,11 +93,11 @@
     <div class="text-[10px] uppercase tracking-wider text-accent font-bold mb-1.5">Board</div>
     <div class="flex gap-1 mb-1.5">
       <button
-        class="flex-1 px-2 py-1 text-[10px] rounded-lg border-2 border-black transition-colors {shape === 'rect' ? 'bg-accent text-white shadow-[2px_2px_0_black]' : 'bg-surface-2 text-cyan-light hover:bg-surface-3'}"
+        class="flex-1 px-2 py-1 text-[10px] rounded-lg border-2 border-black transition-all {shape === 'rect' ? 'bg-gradient-to-b from-accent to-accent/80 text-white shadow-[1px_1px_0_rgba(0,0,0,0.5),inset_0_1px_0_rgba(255,255,255,0.2)] translate-y-0.5' : 'bg-gradient-to-b from-[#222248] to-surface-2 text-cyan-light hover:from-[#2a2a58] hover:to-[#222248] shadow-[3px_3px_0_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.06)]'}"
         onclick={() => { onBeforeChange(); shape = 'rect' }}
       >Rect</button>
       <button
-        class="flex-1 px-2 py-1 text-[10px] rounded-lg border-2 border-black transition-colors {shape === 'circle' ? 'bg-accent text-white shadow-[2px_2px_0_black]' : 'bg-surface-2 text-cyan-light hover:bg-surface-3'}"
+        class="flex-1 px-2 py-1 text-[10px] rounded-lg border-2 border-black transition-all {shape === 'circle' ? 'bg-gradient-to-b from-accent to-accent/80 text-white shadow-[1px_1px_0_rgba(0,0,0,0.5),inset_0_1px_0_rgba(255,255,255,0.2)] translate-y-0.5' : 'bg-gradient-to-b from-[#222248] to-surface-2 text-cyan-light hover:from-[#2a2a58] hover:to-[#222248] shadow-[3px_3px_0_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.06)]'}"
         onclick={() => { onBeforeChange(); shape = 'circle' }}
       >Circle</button>
     </div>

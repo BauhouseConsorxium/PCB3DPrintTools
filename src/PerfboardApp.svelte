@@ -911,10 +911,11 @@
 
 <div
   class="h-screen flex flex-col bg-surface-0 text-cyan-light overflow-hidden"
+  style="background-image: radial-gradient(circle at 20px 20px, rgba(255,45,149,0.03) 1px, transparent 1px); background-size: 20px 20px;"
 >
   <!-- Header -->
   <div
-    class="h-11 flex items-center px-4 bg-surface-1 border-b-3 border-black shrink-0"
+    class="h-11 flex items-center px-4 bg-gradient-to-b from-[#1e1e3a] to-surface-1 border-b-3 border-black shrink-0 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]"
   >
     <div class="flex items-center gap-2">
       <svg
@@ -1128,7 +1129,7 @@
   <div class="flex flex-1 min-h-0">
     <!-- Sidebar -->
     <div
-      class="w-56 bg-surface-1 border-r-3 border-black overflow-y-auto p-3 shrink-0"
+      class="w-56 bg-gradient-to-b from-[#181833] to-surface-1 border-r-3 border-black overflow-y-auto p-3 shrink-0 shadow-[inset_-2px_0_8px_rgba(0,0,0,0.3)]"
     >
       <BoardSettings
         bind:cols={doc.grid.cols}
@@ -1318,53 +1319,82 @@
   </div>
 
   {#if showIntro}
-    <!-- svelte-ignore a11y_no_static_element_interactions -->
     <div
-      class="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
-      onclick={() => {
-        showIntro = false;
-        localStorage.setItem("perfboard-intro-seen", "1");
-      }}
+      class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-[2px]"
+      onclick={() => { showIntro = false; localStorage.setItem("perfboard-intro-seen", "1") }}
     >
-      <!-- svelte-ignore a11y_no_static_element_interactions -->
       <div
-        class="bg-surface-1 border-3 border-black rounded-2xl shadow-[8px_8px_0_black] max-w-md w-full mx-4 p-8 text-center"
+        class="relative bg-gradient-to-b from-[#1c1c3a] to-surface-1 border-3 border-black rounded-2xl shadow-[10px_10px_0_rgba(0,0,0,0.5),inset_0_1px_0_rgba(255,255,255,0.08)] max-w-md w-full mx-4 overflow-hidden"
         onclick={(e) => e.stopPropagation()}
       >
-        <h2 class="text-lg font-black text-accent mb-3">
-          Perfboard 3D Print Tools
-        </h2>
-
-        <div class="text-left space-y-2.5 mb-5">
-          <p class="text-[11px] text-purple-light leading-relaxed">
-            I used to etch my own PCBs. Ferric chloride, UV exposure, careful timing. Every batch ended the same way &mdash; copper-laced waste down the sink. I knew it was wrong. I kept doing it because the results were good.
-          </p>
-          <p class="text-[11px] text-purple-light leading-relaxed">
-            Eventually I couldn't justify it anymore, so I stopped. No more homemade boards. That lasted years.
-          </p>
-          <p class="text-[11px] text-cyan-light leading-relaxed">
-            3D printing a substrate and laying copper tape by hand got me back in. The traces are rougher. The tolerances are worse. You can't do fine-pitch SMD this way. But nothing toxic leaves the room, and you end up holding something you actually made &mdash; not something a chemical bath revealed.
-          </p>
-          <p class="text-[11px] text-purple-light leading-relaxed">
-            This tool handles the layout. Design, export STL, print, lay copper. It was built with AI assistance &mdash; not casually, but as a deliberate choice to spend less compute, not more. Whether that matters at the scale of one small tool, I'm honestly not sure. But I'd rather ask the question than ignore it.
-          </p>
-          <p class="text-[10px] text-purple-light/50 mt-1">
-            &mdash; Budi Prakosa
-          </p>
+        <div class="relative bg-gradient-to-b from-accent/25 via-accent/8 to-transparent px-6 pt-10 pb-6 text-center overflow-hidden shadow-[inset_0_-2px_4px_rgba(0,0,0,0.2)]">
+          <div class="absolute inset-0 opacity-[0.05]" style="background-image: radial-gradient(circle, currentColor 1px, transparent 1px); background-size: 10px 10px; color: #ff2d95;"></div>
+          <div class="absolute -top-12 -right-12 w-40 h-40 rounded-full bg-accent/15 blur-3xl"></div>
+          <div class="absolute -bottom-8 -left-10 w-28 h-28 rounded-full bg-cyan/10 blur-2xl"></div>
+          <div class="relative">
+            <div class="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-accent via-accent/90 to-accent/70 border-2 border-black/80 shadow-[4px_4px_0_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.2)] flex items-center justify-center rotate-[-3deg] hover:rotate-0 transition-transform duration-300">
+              <svg viewBox="0 0 20 20" class="w-8 h-8 text-white drop-shadow-[1px_1px_0_rgba(0,0,0,0.3)]" fill="none" stroke="currentColor" stroke-width="1.5">
+                <rect x="2" y="2" width="16" height="16" rx="1" />
+                <circle cx="6" cy="6" r="1.5" /><circle cx="10" cy="6" r="1.5" /><circle cx="14" cy="6" r="1.5" />
+                <circle cx="6" cy="10" r="1.5" /><circle cx="14" cy="10" r="1.5" />
+                <circle cx="6" cy="14" r="1.5" /><circle cx="10" cy="14" r="1.5" /><circle cx="14" cy="14" r="1.5" />
+              </svg>
+            </div>
+            <h2 class="text-lg font-black text-cyan-light tracking-tight drop-shadow-[1px_1px_0_rgba(0,0,0,0.3)]">Perfboard 3D Print Tools</h2>
+            <div class="flex items-center justify-center gap-2 mt-2">
+              <span class="px-2.5 py-0.5 text-[9px] font-bold rounded-md bg-gradient-to-b from-accent/30 to-accent/20 text-accent border border-accent/40 shadow-[inset_0_1px_0_rgba(255,255,255,0.15)]">v1.0</span>
+              <span class="text-[10px] text-purple-light/50">Bauhouse Consorxium</span>
+            </div>
+          </div>
         </div>
 
-        <button
-          class="px-5 py-2.5 text-xs font-bold rounded-xl bg-accent hover:bg-accent-light text-white border-2 border-black shadow-[4px_4px_0_black] transition-all hover:shadow-[5px_5px_0_black] hover:-translate-x-px hover:-translate-y-px active:translate-x-0.5 active:translate-y-0.5 active:shadow-[2px_2px_0_black]"
-          onclick={() => {
-            showIntro = false;
-            localStorage.setItem("perfboard-intro-seen", "1");
-          }}
-        >
-          Start Building
-        </button>
-        <p class="text-purple-light/40 text-[10px] mt-4">
-          Bauhouse Consorxium
-        </p>
+        <div class="px-6 py-4 space-y-3 text-left">
+          <p class="text-[11px] text-purple-light leading-relaxed pl-3 border-l-2 border-accent/40 shadow-[inset_1px_0_0_rgba(255,45,149,0.08)]">
+            Design perfboard layouts, export STLs, 3D print the substrate, and lay copper tape by hand &mdash; no etching chemicals needed.
+          </p>
+          <a href="https://github.com/bauhouse/PCB3DPrintTools" target="_blank"
+            class="flex items-center gap-2 text-[10px] text-purple-light/50 hover:text-accent transition-colors group px-2 py-1 rounded-lg hover:bg-white/5"
+          >
+            <svg viewBox="0 0 16 16" class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M8 2v12M2 8h12"/>
+              <circle cx="8" cy="8" r="6"/>
+            </svg>
+            <span class="group-hover:underline">github.com/bauhouse/PCB3DPrintTools</span>
+            <svg viewBox="0 0 12 12" class="w-2.5 h-2.5 opacity-0 -ml-1 group-hover:opacity-100 group-hover:ml-0 transition-all" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M3 9l6-6M5 3h4v4"/>
+            </svg>
+          </a>
+        </div>
+
+        <div class="relative mx-6 my-1">
+          <div class="absolute inset-0 flex items-center"><div class="w-full border-t border-black/30 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]"></div></div>
+          <div class="relative flex justify-center"><span class="bg-surface-1 px-3 text-[9px] text-purple-light/30">behind the tool</span></div>
+        </div>
+
+        <div class="px-6 pb-3 space-y-2.5 text-left max-h-52 overflow-y-auto">
+          <p class="text-[10px] text-purple-light/70 leading-relaxed pl-2 border-l border-purple-light/10">
+            I used to etch my own PCBs. Ferric chloride, UV exposure, careful timing. Every batch ended the same way &mdash; copper-laced waste down the sink. I knew it was wrong. I kept doing it because the results were good.
+          </p>
+          <p class="text-[10px] text-purple-light/70 leading-relaxed pl-2 border-l border-purple-light/10">
+            Eventually I couldn't justify it anymore, so I stopped. No more homemade boards. That lasted years.
+          </p>
+          <p class="text-[10px] text-cyan-light/80 leading-relaxed pl-2 border-l-2 border-cyan/30">
+            3D printing a substrate and laying copper tape by hand got me back in. The traces are rougher. The tolerances are worse. You can't do fine-pitch SMD this way. But nothing toxic leaves the room, and you end up holding something you actually made &mdash; not something a chemical bath revealed.
+          </p>
+          <p class="text-[10px] text-purple-light/70 leading-relaxed pl-2 border-l border-purple-light/10">
+            This tool handles the layout. Design, export STL, print, lay copper. It was built with AI assistance &mdash; not casually, but as a deliberate choice to spend less compute, not more. Whether that matters at the scale of one small tool, I'm honestly not sure. But I'd rather ask the question than ignore it.
+          </p>
+          <p class="text-[9px] text-purple-light/30 mt-1 text-right italic">&mdash; Budi Prakosa</p>
+        </div>
+
+        <div class="px-6 pb-5 pt-2">
+          <button
+            class="w-full px-5 py-2.5 text-xs font-bold rounded-xl bg-gradient-to-b from-accent to-accent/80 hover:from-accent-light hover:to-accent text-white border-2 border-black/80 shadow-[4px_4px_0_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.25)] transition-all hover:shadow-[5px_5px_0_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.3)] hover:-translate-x-px hover:-translate-y-px active:translate-x-0.5 active:translate-y-0.5 active:shadow-[2px_2px_0_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.1)]"
+            onclick={() => { showIntro = false; localStorage.setItem("perfboard-intro-seen", "1") }}
+          >
+            Start Building
+          </button>
+        </div>
       </div>
     </div>
   {/if}
