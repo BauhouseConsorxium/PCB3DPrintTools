@@ -1252,6 +1252,7 @@
           id: el.id,
           width: trace.width,
           cornerShape: trace.cornerShape ?? 'round',
+          endShape: trace.endShape ?? 'round',
           left: e.clientX - rect.left,
           top: e.clientY - rect.top - 20,
         };
@@ -1378,7 +1379,7 @@
 
   function applyTraceEdit() {
     if (!editingTrace) return;
-    onUpdateTraceWidth(editingTrace.id, editingTrace.width, editingTrace.cornerShape);
+    onUpdateTraceWidth(editingTrace.id, editingTrace.width, editingTrace.cornerShape, editingTrace.endShape);
   }
 
   function closeTraceEdit() {
@@ -2354,6 +2355,8 @@
         {/if}
       {:else}
         {@const sqCorners = trace.cornerShape === 'square'}
+        {@const sqEnds = trace.endShape === 'square'}
+        {@const buttCap = sqCorners || sqEnds}
         {#if isSelected}
           {#each getTraceSegments(trace) as seg}
             <line
@@ -2363,7 +2366,7 @@
               y2={seg.y2}
               stroke="rgba(255,255,255,0.45)"
               stroke-width={trace.width + pitch * 0.08}
-              stroke-linecap={sqCorners ? 'butt' : 'round'}
+              stroke-linecap={buttCap ? 'butt' : 'round'}
             />
           {/each}
           {#if sqCorners}
@@ -2389,7 +2392,7 @@
             y2={seg.y2}
             stroke={isSelected ? "#fbbf24" : netCol}
             stroke-width={trace.width}
-            stroke-linecap={sqCorners ? 'butt' : 'round'}
+            stroke-linecap={buttCap ? 'butt' : 'round'}
             opacity={isSelected ? 1 : 0.85}
           />
         {/each}
@@ -2407,14 +2410,28 @@
               />
             {/if}
           {/each}
+        {/if}
+        {#if buttCap}
           {#each [trace.points[0], trace.points[trace.points.length - 1]] as pt}
-            <circle
-              cx={pt.col * pitch}
-              cy={pt.row * pitch}
-              r={trace.width / 2}
-              fill={isSelected ? "#fbbf24" : netCol}
-              opacity={isSelected ? 1 : 0.85}
-            />
+            {#if sqEnds}
+              {@const hw = trace.width / 2}
+              <rect
+                x={pt.col * pitch - hw}
+                y={pt.row * pitch - hw}
+                width={trace.width}
+                height={trace.width}
+                fill={isSelected ? "#fbbf24" : netCol}
+                opacity={isSelected ? 1 : 0.85}
+              />
+            {:else}
+              <circle
+                cx={pt.col * pitch}
+                cy={pt.row * pitch}
+                r={trace.width / 2}
+                fill={isSelected ? "#fbbf24" : netCol}
+                opacity={isSelected ? 1 : 0.85}
+              />
+            {/if}
           {/each}
         {/if}
         {#if isSelected}
@@ -3694,6 +3711,9 @@
               />
             {/if}
           {:else}
+            {@const dSqC = trace.cornerShape === 'square'}
+            {@const dSqE = trace.endShape === 'square'}
+            {@const dButt = dSqC || dSqE}
             {#each getTraceSegments(trace) as seg}
               <line
                 x1={seg.x1 + dc * pitch}
@@ -3702,11 +3722,11 @@
                 y2={seg.y2 + dr * pitch}
                 stroke="#fbbf24"
                 stroke-width={trace.width}
-                stroke-linecap={trace.cornerShape === 'square' ? 'butt' : 'round'}
+                stroke-linecap={dButt ? 'butt' : 'round'}
                 opacity="0.4"
               />
             {/each}
-            {#if trace.cornerShape === 'square'}
+            {#if dSqC}
               {#each trace.points as pt, i}
                 {#if i > 0 && i < trace.points.length - 1}
                   {@const hw = trace.width / 2}
@@ -3720,14 +3740,28 @@
                   />
                 {/if}
               {/each}
+            {/if}
+            {#if dButt}
               {#each [trace.points[0], trace.points[trace.points.length - 1]] as pt}
-                <circle
-                  cx={pt.col * pitch + dc * pitch}
-                  cy={pt.row * pitch + dr * pitch}
-                  r={trace.width / 2}
-                  fill="#fbbf24"
-                  opacity="0.4"
-                />
+                {#if dSqE}
+                  {@const hw = trace.width / 2}
+                  <rect
+                    x={pt.col * pitch + dc * pitch - hw}
+                    y={pt.row * pitch + dr * pitch - hw}
+                    width={trace.width}
+                    height={trace.width}
+                    fill="#fbbf24"
+                    opacity="0.4"
+                  />
+                {:else}
+                  <circle
+                    cx={pt.col * pitch + dc * pitch}
+                    cy={pt.row * pitch + dr * pitch}
+                    r={trace.width / 2}
+                    fill="#fbbf24"
+                    opacity="0.4"
+                  />
+                {/if}
               {/each}
             {/if}
           {/if}
@@ -4170,6 +4204,27 @@
               : 'bg-surface-2 text-cyan-light'}"
             onclick={() => {
               editingTrace = { ...editingTrace, cornerShape: 'square' };
+              applyTraceEdit();
+            }}>Square</button>
+        </div>
+      </div>
+      <div class="border-t border-black/30 pt-1 mt-1">
+        <label class="text-[10px] text-purple-light block mb-0.5">Ends</label>
+        <div class="flex gap-1">
+          <button
+            class="px-2 py-0.5 text-[10px] rounded border-2 border-black {editingTrace.endShape === 'round'
+              ? 'bg-accent text-white'
+              : 'bg-surface-2 text-cyan-light'}"
+            onclick={() => {
+              editingTrace = { ...editingTrace, endShape: 'round' };
+              applyTraceEdit();
+            }}>Round</button>
+          <button
+            class="px-2 py-0.5 text-[10px] rounded border-2 border-black {editingTrace.endShape === 'square'
+              ? 'bg-accent text-white'
+              : 'bg-surface-2 text-cyan-light'}"
+            onclick={() => {
+              editingTrace = { ...editingTrace, endShape: 'square' };
               applyTraceEdit();
             }}>Square</button>
         </div>

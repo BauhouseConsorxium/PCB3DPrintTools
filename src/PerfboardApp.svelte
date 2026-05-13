@@ -307,12 +307,13 @@
     }
   }
 
-  function updateTraceWidth(id, width, cornerShape) {
+  function updateTraceWidth(id, width, cornerShape, endShape) {
     pushUndo();
     const trace = doc.traces.find((t) => t.id === id);
     if (trace) {
       trace.width = width;
       if (cornerShape !== undefined) trace.cornerShape = cornerShape;
+      if (endShape !== undefined) trace.endShape = endShape;
       doc.traces = [...doc.traces];
     }
   }

@@ -206,13 +206,14 @@ function collectTraceSegments(doc, padPositions) {
     }
 
     const cs = trace.cornerShape
+    const es = trace.endShape
     for (const pair of rawPairs) {
       const { ax, ay, bx, by } = pair
       const segWidth = trace.width
       const dx = bx - ax, dy = by - ay
       const lenSq = dx * dx + dy * dy
       if (lenSq < TOL * TOL) {
-        segments.push({ x1: ax, y1: ay, x2: bx, y2: by, width: segWidth, layer: 'F.Cu', cornerShape: cs })
+        segments.push({ x1: ax, y1: ay, x2: bx, y2: by, width: segWidth, layer: 'F.Cu', cornerShape: cs, endShape: es })
         continue
       }
       const hits = []
@@ -224,16 +225,16 @@ function collectTraceSegments(doc, padPositions) {
         if (distSq < TOL * TOL) hits.push(t)
       }
       if (hits.length === 0) {
-        segments.push({ x1: ax, y1: ay, x2: bx, y2: by, width: segWidth, layer: 'F.Cu', cornerShape: cs })
+        segments.push({ x1: ax, y1: ay, x2: bx, y2: by, width: segWidth, layer: 'F.Cu', cornerShape: cs, endShape: es })
       } else {
         hits.sort((a, b) => a - b)
         let prevX = ax, prevY = ay
         for (const t of hits) {
           const mx = ax + t * dx, my = ay + t * dy
-          segments.push({ x1: prevX, y1: prevY, x2: mx, y2: my, width: segWidth, layer: 'F.Cu', cornerShape: cs })
+          segments.push({ x1: prevX, y1: prevY, x2: mx, y2: my, width: segWidth, layer: 'F.Cu', cornerShape: cs, endShape: es })
           prevX = mx; prevY = my
         }
-        segments.push({ x1: prevX, y1: prevY, x2: bx, y2: by, width: segWidth, layer: 'F.Cu', cornerShape: cs })
+        segments.push({ x1: prevX, y1: prevY, x2: bx, y2: by, width: segWidth, layer: 'F.Cu', cornerShape: cs, endShape: es })
       }
     }
 

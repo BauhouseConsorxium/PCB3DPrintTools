@@ -259,7 +259,8 @@ export function buildTracesGeometry(segments, drills, layer, zBot, zTop, squareE
   if (!segs.length) return null
 
   const hasSquareCorners = segs.some(s => s.cornerShape === 'square')
-  const needConnectivity = squareEnds || hasSquareCorners
+  const hasSquareEnds = segs.some(s => s.endShape === 'square')
+  const needConnectivity = squareEnds || hasSquareCorners || hasSquareEnds
 
   const endpointFree = []
   if (needConnectivity) {
@@ -301,6 +302,10 @@ export function buildTracesGeometry(segments, drills, layer, zBot, zTop, squareE
     if (seg.cornerShape === 'square') {
       if (!endpointFree[si]?.p1) p1Sq = true
       if (!endpointFree[si]?.p2) p2Sq = true
+    }
+    if (seg.endShape === 'square') {
+      if (endpointFree[si]?.p1) p1Sq = true
+      if (endpointFree[si]?.p2) p2Sq = true
     }
 
     const outline = []
