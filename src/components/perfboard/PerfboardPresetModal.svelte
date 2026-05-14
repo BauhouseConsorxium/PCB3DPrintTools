@@ -1,4 +1,6 @@
 <script>
+  import Modal from '../Modal.svelte'
+
   let {
     open = $bindable(false),
     onApply = null,
@@ -216,25 +218,7 @@
   $effect(() => { if (open) load() })
 </script>
 
-{#if open}
-<div class="fixed inset-0 z-50 flex items-center justify-center" onkeydown={(e) => e.key === 'Escape' && (open = false)}>
-  <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" onclick={() => open = false} role="presentation"></div>
-
-  <div class="relative bg-[#111120] border border-[#2a2a48] rounded-lg shadow-2xl w-[680px] max-h-[75vh] flex flex-col">
-    <div class="flex items-center justify-between px-5 py-3 border-b border-[#2a2a48] shrink-0">
-      <div class="flex items-center gap-2.5">
-        <svg class="w-4 h-4 text-accent" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 6h9.75M10.5 6a1.5 1.5 0 11-3 0m3 0a1.5 1.5 0 10-3 0M3.75 6H7.5m3 12h9.75m-9.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-3.75 0H7.5m9-6h3.75m-3.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-9.75 0h9.75" />
-        </svg>
-        <span class="text-sm font-semibold text-slate-100">Board Presets</span>
-      </div>
-      <button onclick={() => open = false} class="text-slate-500 hover:text-slate-300 transition-colors" title="Close">
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
-        </svg>
-      </button>
-    </div>
-
+<Modal bind:open title="Board Presets" width="w-[680px]" maxHeight="max-h-[75vh]">
     <div class="flex flex-1 min-h-0">
       <div class="w-[220px] shrink-0 border-r border-[#2a2a48] flex flex-col">
         <div class="flex border-b border-[#2a2a48]">
@@ -375,6 +359,4 @@ class="px-3 py-1.5 text-xs font-medium rounded bg-accent hover:bg-accent-light t
         <input bind:this={importEl} type="file" accept=".json" class="hidden" onchange={importJSON} />
       {/if}
     </div>
-  </div>
-</div>
-{/if}
+</Modal>
