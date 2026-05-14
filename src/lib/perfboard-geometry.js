@@ -1,6 +1,7 @@
 import earcut from 'earcut'
 import polygonClipping from 'polygon-clipping'
 import { buildBoardGeometry, buildTracesGeometry, buildPolygonsWithDrills, HOLE_N } from './geometry.js'
+import { buildEnclosureBody } from './enclosure.js'
 import { sampleCatmullRom, sampleCatmullRomWithWidth } from './catmull-rom.js'
 import { computeRoundedCorners, computeSubdivisionRounding, sampleRoundedPath, computeTeardrops } from './round-trace.js'
 import { enumerateConductorNodes } from './perfboard-topology.js'
@@ -1189,7 +1190,21 @@ export function buildPerfboardBodies(doc) {
 
   const componentBodies = buildComponentBodies(doc)
   const jumperBodies = buildJumperBodies(doc)
-  return [boardBody, padsBody, tracesBody, squareCornerBody, curveTracesBody, teardropBody, ...componentBodies, ...jumperBodies].filter(Boolean)
+
+  let enclosureBody = null
+  if (doc.enclosure?.enabled) {
+    const poly = [...boardPoly]
+    let area = 0
+    for (let i = 0; i < poly.length; i++) {
+      const j = (i + 1) % poly.length
+      area += poly[i][0] * poly[j][1] - poly[j][0] * poly[i][1]
+    }
+    if (area < 0) poly.reverse()
+    poly.push([poly[0][0], poly[0][1]])
+    enclosureBody = buildEnclosureBody(poly, doc.enclosure)
+  }
+
+  return [boardBody, padsBody, tracesBody, squareCornerBody, curveTracesBody, teardropBody, ...componentBodies, ...jumperBodies, enclosureBody].filter(Boolean)
 }
 
 export function createDefaultDocument() {
@@ -1217,6 +1232,16 @@ export function createDefaultDocument() {
     pinHousingWidth: 2.6,
     pinHousingDepth: 2.14,
     pinHousingFaceOffset: 0,
+    enclosure: {
+      enabled: false,
+      sideBySide: false,
+      wallThickness: 2,
+      clearance: 0.5,
+      floorThickness: 1.5,
+      wallHeight: 10,
+      shelfDepth: 1,
+      shelfHeight: 1.6,
+    },
     pads: [],
     headers: [],
     dips: [],

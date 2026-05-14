@@ -6,6 +6,7 @@
   import PerfboardExportPanel from "./components/perfboard/PerfboardExportPanel.svelte";
   import GridEditor from "./components/perfboard/GridEditor.svelte";
   import ExportImageModal from "./components/perfboard/ExportImageModal.svelte";
+  import AboutModal from "./components/perfboard/AboutModal.svelte";
   import {
     buildPerfboardBodies,
     createDefaultDocument,
@@ -760,6 +761,17 @@
     parsed.pinHousingWidth = parsed.pinHousingWidth ?? parsed.pinHousingSize ?? 2.14;
     parsed.pinHousingDepth = parsed.pinHousingDepth ?? parsed.pinHousingSize ?? 2.14;
     parsed.pinHousingFaceOffset = parsed.pinHousingFaceOffset ?? 0;
+    parsed.enclosure = parsed.enclosure ?? {
+      enabled: false,
+      sideBySide: false,
+      wallThickness: 2,
+      clearance: 0.5,
+      floorThickness: 1.5,
+      wallHeight: 10,
+      shelfDepth: 1,
+      shelfHeight: 1.6,
+    };
+    if (parsed.enclosure.sideBySide === undefined) parsed.enclosure.sideBySide = false;
     doc = parsed;
     selectedIds = [];
     isRebuild = false;
@@ -1209,6 +1221,14 @@
         bind:pinHousingWidth={doc.pinHousingWidth}
         bind:pinHousingDepth={doc.pinHousingDepth}
         bind:pinHousingFaceOffset={doc.pinHousingFaceOffset}
+        bind:enclosureEnabled={doc.enclosure.enabled}
+        bind:enclosureSideBySide={doc.enclosure.sideBySide}
+        bind:enclosureWallThickness={doc.enclosure.wallThickness}
+        bind:enclosureClearance={doc.enclosure.clearance}
+        bind:enclosureFloorThickness={doc.enclosure.floorThickness}
+        bind:enclosureWallHeight={doc.enclosure.wallHeight}
+        bind:enclosureShelfDepth={doc.enclosure.shelfDepth}
+        bind:enclosureShelfHeight={doc.enclosure.shelfHeight}
         bind:shape={doc.grid.shape}
         bind:zScale
         bind:boardZScale
@@ -1364,7 +1384,7 @@
             previewFilter={null}
             drcViolations={[]}
             {isRebuild}
-            encSideBySide={false}
+            encSideBySide={doc.enclosure?.enabled && doc.enclosure?.sideBySide}
             rawSegments={null}
             silkPolylines={null}
             copperTextPolylines={null}
@@ -1376,86 +1396,7 @@
     </div>
   </div>
 
-  {#if showIntro}
-    <div
-      class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-[2px]"
-      onclick={() => { showIntro = false; localStorage.setItem("perfboard-intro-seen", "1") }}
-    >
-      <div
-        class="relative bg-gradient-to-b from-[var(--grad-from-1)] to-surface-1 border-3 border-black rounded-2xl shadow-[10px_10px_0_rgba(0,0,0,0.5),inset_0_1px_0_rgba(255,255,255,0.08)] max-w-md w-full mx-4 overflow-hidden"
-        onclick={(e) => e.stopPropagation()}
-      >
-        <div class="relative bg-gradient-to-b from-accent/25 via-accent/8 to-transparent px-6 pt-10 pb-6 text-center overflow-hidden shadow-[inset_0_-2px_4px_rgba(0,0,0,0.2)]">
-          <div class="absolute inset-0 opacity-[0.05]" style="background-image: radial-gradient(circle, currentColor 1px, transparent 1px); background-size: 10px 10px; color: #ff2d95;"></div>
-          <div class="absolute -top-12 -right-12 w-40 h-40 rounded-full bg-accent/15 blur-3xl"></div>
-          <div class="absolute -bottom-8 -left-10 w-28 h-28 rounded-full bg-cyan/10 blur-2xl"></div>
-          <div class="relative">
-            <div class="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-accent via-accent/90 to-accent/70 border-2 border-black/80 shadow-[4px_4px_0_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.2)] flex items-center justify-center rotate-[-3deg] hover:rotate-0 transition-transform duration-300">
-              <svg viewBox="0 0 20 20" class="w-8 h-8 text-[var(--text-on-accent)] drop-shadow-[1px_1px_0_rgba(0,0,0,0.3)]" fill="none" stroke="currentColor" stroke-width="1.5">
-                <rect x="2" y="2" width="16" height="16" rx="1" />
-                <circle cx="6" cy="6" r="1.5" /><circle cx="10" cy="6" r="1.5" /><circle cx="14" cy="6" r="1.5" />
-                <circle cx="6" cy="10" r="1.5" /><circle cx="14" cy="10" r="1.5" />
-                <circle cx="6" cy="14" r="1.5" /><circle cx="10" cy="14" r="1.5" /><circle cx="14" cy="14" r="1.5" />
-              </svg>
-            </div>
-            <h2 class="text-lg font-black text-cyan-light tracking-tight drop-shadow-[1px_1px_0_rgba(0,0,0,0.3)]">Perfboard 3D Print Tools</h2>
-            <div class="flex items-center justify-center gap-2 mt-2">
-              <span class="px-2.5 py-0.5 text-[9px] font-bold rounded-md bg-gradient-to-b from-accent/30 to-accent/20 text-accent border border-accent/40 shadow-[inset_0_1px_0_rgba(255,255,255,0.15)]">v1.0</span>
-              <span class="text-[10px] text-purple-light/50">Bauhouse Consorxium</span>
-            </div>
-          </div>
-        </div>
-
-        <div class="px-6 py-4 space-y-3 text-left">
-          <p class="text-[11px] text-purple-light leading-relaxed pl-3 border-l-2 border-accent/40 shadow-[inset_1px_0_0_rgba(255,45,149,0.08)]">
-            Design perfboard layouts, export STLs, 3D print the substrate, and lay copper tape by hand &mdash; no etching chemicals needed.
-          </p>
-          <a href="https://github.com/bauhouse/PCB3DPrintTools" target="_blank"
-            class="flex items-center gap-2 text-[10px] text-purple-light/50 hover:text-accent transition-colors group px-2 py-1 rounded-lg hover:bg-white/5"
-          >
-            <svg viewBox="0 0 16 16" class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M8 2v12M2 8h12"/>
-              <circle cx="8" cy="8" r="6"/>
-            </svg>
-            <span class="group-hover:underline">github.com/bauhouse/PCB3DPrintTools</span>
-            <svg viewBox="0 0 12 12" class="w-2.5 h-2.5 opacity-0 -ml-1 group-hover:opacity-100 group-hover:ml-0 transition-all" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M3 9l6-6M5 3h4v4"/>
-            </svg>
-          </a>
-        </div>
-
-        <div class="relative mx-6 my-1">
-          <div class="absolute inset-0 flex items-center"><div class="w-full border-t border-black/30 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]"></div></div>
-          <div class="relative flex justify-center"><span class="bg-surface-1 px-3 text-[9px] text-purple-light/30">behind the tool</span></div>
-        </div>
-
-        <div class="px-6 pb-3 space-y-2.5 text-left max-h-52 overflow-y-auto">
-          <p class="text-[10px] text-purple-light/70 leading-relaxed pl-2 border-l border-purple-light/10">
-            I used to etch my own PCBs. Ferric chloride, UV exposure, careful timing. Every batch ended the same way &mdash; copper-laced waste down the sink. I knew it was wrong. I kept doing it because the results were good.
-          </p>
-          <p class="text-[10px] text-purple-light/70 leading-relaxed pl-2 border-l border-purple-light/10">
-            Eventually I couldn't justify it anymore, so I stopped. No more homemade boards. That lasted years.
-          </p>
-          <p class="text-[10px] text-cyan-light/80 leading-relaxed pl-2 border-l-2 border-cyan/30">
-            3D printing a substrate and laying copper tape by hand got me back in. The traces are rougher. The tolerances are worse. You can't do fine-pitch SMD this way. But nothing toxic leaves the room, and you end up holding something you actually made &mdash; not something a chemical bath revealed.
-          </p>
-          <p class="text-[10px] text-purple-light/70 leading-relaxed pl-2 border-l border-purple-light/10">
-            This tool handles the layout. Design, export STL, print, lay copper. It was built with AI assistance &mdash; not casually, but as a deliberate choice to spend less compute, not more. Whether that matters at the scale of one small tool, I'm honestly not sure. But I'd rather ask the question than ignore it.
-          </p>
-          <p class="text-[9px] text-purple-light/30 mt-1 text-right italic">&mdash; Budi Prakosa</p>
-        </div>
-
-        <div class="px-6 pb-5 pt-2">
-          <button
-            class="w-full px-5 py-2.5 text-xs font-bold rounded-xl bg-gradient-to-b from-accent to-accent/80 hover:from-accent-light hover:to-accent text-[var(--text-on-accent)] border-2 border-black/80 shadow-[4px_4px_0_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.25)] transition-all hover:shadow-[5px_5px_0_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.3)] hover:-translate-x-px hover:-translate-y-px active:translate-x-0.5 active:translate-y-0.5 active:shadow-[2px_2px_0_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.1)]"
-            onclick={() => { showIntro = false; localStorage.setItem("perfboard-intro-seen", "1") }}
-          >
-            Start Building
-          </button>
-        </div>
-      </div>
-    </div>
-  {/if}
+  <AboutModal bind:open={showIntro} />
 
   <!-- Save toast -->
   {#if saveMessage}

@@ -21,6 +21,14 @@
     pinHousingWidth = $bindable(2.14),
     pinHousingDepth = $bindable(2.14),
     pinHousingFaceOffset = $bindable(0),
+    enclosureEnabled = $bindable(false),
+    enclosureSideBySide = $bindable(false),
+    enclosureWallThickness = $bindable(2),
+    enclosureClearance = $bindable(0.5),
+    enclosureFloorThickness = $bindable(1.5),
+    enclosureWallHeight = $bindable(10),
+    enclosureShelfDepth = $bindable(1),
+    enclosureShelfHeight = $bindable(1.6),
     shape = $bindable('rect'),
     zScale = $bindable(8),
     boardZScale = $bindable(1),
@@ -32,6 +40,7 @@
   let showCurve = $state(false)
   let showRound = $state(false)
   let showPinHousing = $state(false)
+  let showEnclosure = $state(false)
 
   let presetModalOpen = $state(false)
 
@@ -224,6 +233,49 @@
         <input type="number" bind:value={pinHousingBoreOffset} min="-2" max="2" step="0.1" onfocus={onBeforeChange} class={inputClass} />
         <span class="text-[10px] text-purple-light">F.Ofs</span>
         <input type="number" bind:value={pinHousingFaceOffset} min="-3" max="3" step="0.1" onfocus={onBeforeChange} class={inputClass} />
+      </div>
+    {/if}
+  </div>
+
+  <!-- Enclosure settings — collapsible -->
+  <div>
+    <button
+      onclick={() => (showEnclosure = !showEnclosure)}
+      class="flex items-center gap-1 text-[10px] uppercase tracking-wider font-bold text-purple-light/60 hover:text-accent transition-colors w-full"
+    >
+      <svg viewBox="0 0 10 10" class="w-2.5 h-2.5 transition-transform {showEnclosure ? 'rotate-90' : ''}" fill="currentColor">
+        <path d="M3 1l5 4-5 4z" />
+      </svg>
+      Enclosure
+    </button>
+    {#if showEnclosure}
+      <div class="mt-1.5 space-y-1.5">
+        <label class="text-[10px] text-purple-light flex items-center gap-1.5 cursor-pointer">
+          <input type="checkbox" bind:checked={enclosureEnabled} onclick={onBeforeChange}
+            class="accent-accent" />
+          Enable enclosure
+        </label>
+        {#if enclosureEnabled}
+          <label class="text-[10px] text-purple-light flex items-center gap-1.5 cursor-pointer">
+            <input type="checkbox" bind:checked={enclosureSideBySide}
+              class="accent-accent" />
+            Side-by-side view
+          </label>
+          <div class="grid grid-cols-[auto_1fr_auto_1fr] gap-x-2 gap-y-1 items-center">
+            <span class="text-[10px] text-purple-light">Wall</span>
+            <input type="number" bind:value={enclosureWallThickness} min="0.5" max="10" step="0.5" onfocus={onBeforeChange} class={inputClass} />
+            <span class="text-[10px] text-purple-light">Clear</span>
+            <input type="number" bind:value={enclosureClearance} min="0" max="5" step="0.1" onfocus={onBeforeChange} class={inputClass} />
+            <span class="text-[10px] text-purple-light">Floor</span>
+            <input type="number" bind:value={enclosureFloorThickness} min="0.5" max="5" step="0.5" onfocus={onBeforeChange} class={inputClass} />
+            <span class="text-[10px] text-purple-light">Height</span>
+            <input type="number" bind:value={enclosureWallHeight} min="1" max="50" step="1" onfocus={onBeforeChange} class={inputClass} />
+            <span class="text-[10px] text-purple-light">Shelf</span>
+            <input type="number" bind:value={enclosureShelfDepth} min="0.5" max="5" step="0.5" onfocus={onBeforeChange} class={inputClass} />
+            <span class="text-[10px] text-purple-light">Sh.H</span>
+            <input type="number" bind:value={enclosureShelfHeight} min="0.5" max="5" step="0.1" onfocus={onBeforeChange} class={inputClass} />
+          </div>
+        {/if}
       </div>
     {/if}
   </div>
