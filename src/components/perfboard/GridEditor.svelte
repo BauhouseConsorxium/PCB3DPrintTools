@@ -18,6 +18,7 @@
   import {
     MODULE_VARIANTS, MODULE_VARIANT_LIST, isModuleVariant,
     getVariant as getModuleVariant, getModulePinPositions, getModuleBounds, labelColor as moduleLabelColor,
+    normalizeOrientation as normModuleOrient,
   } from "../../lib/perfboard-modules.js";
 
   let {
@@ -3473,7 +3474,9 @@
       {@const v = getModuleVariant(m)}
       {#if v}
         {@const isSelected = selectedIds.includes(m.id)}
-        {@const isV = m.orientation === 'v'}
+        {@const o = normModuleOrient(m.orientation)}
+        {@const isV = o === 'S' || o === 'N'}
+        {@const isHoriz = o === 'E' || o === 'W'}
         {@const b = getModuleBounds(m)}
         {@const pins = getModulePinPositions(m)}
         {@const bodyFill = isSelected ? "rgba(251,191,36,0.15)" : v.bodyFill}
@@ -3482,22 +3485,31 @@
         <rect x={b.col1 * pitch} y={b.row1 * pitch}
               width={(b.col2 - b.col1) * pitch} height={(b.row2 - b.row1) * pitch}
               rx="0.6" fill={bodyFill} stroke={bodyStroke} stroke-width="0.2"/>
-        <!-- USB connector hint (only for variants that have a usb port) -->
+        <!-- USB connector hint (only for variants that have a usb port).
+             USB sits at the "south" edge of the module's local frame, which
+             rotates with the module: south for 'S', east for 'E', north for
+             'N', west for 'W'. -->
         {#if v.usbSizeMm}
           {@const usbW = pitch * 1.4}
           {@const usbD = pitch * 0.5}
-          {#if isV}
-            <rect x={((b.col1 + b.col2) / 2) * pitch - usbW / 2}
-                  y={(b.row2) * pitch - usbD / 2}
+          {@const cxMid = ((b.col1 + b.col2) / 2) * pitch}
+          {@const cyMid = ((b.row1 + b.row2) / 2) * pitch}
+          {#if o === 'S'}
+            <rect x={cxMid - usbW / 2} y={b.row2 * pitch - usbD / 2}
                   width={usbW} height={usbD}
-                  fill="rgba(255,255,255,0.15)"
-                  stroke="rgba(255,255,255,0.25)" stroke-width="0.08" rx="0.1"/>
-          {:else}
-            <rect x={b.col2 * pitch - usbD / 2}
-                  y={((b.row1 + b.row2) / 2) * pitch - usbW / 2}
+                  fill="rgba(255,255,255,0.15)" stroke="rgba(255,255,255,0.25)" stroke-width="0.08" rx="0.1"/>
+          {:else if o === 'E'}
+            <rect x={b.col2 * pitch - usbD / 2} y={cyMid - usbW / 2}
                   width={usbD} height={usbW}
-                  fill="rgba(255,255,255,0.15)"
-                  stroke="rgba(255,255,255,0.25)" stroke-width="0.08" rx="0.1"/>
+                  fill="rgba(255,255,255,0.15)" stroke="rgba(255,255,255,0.25)" stroke-width="0.08" rx="0.1"/>
+          {:else if o === 'N'}
+            <rect x={cxMid - usbW / 2} y={b.row1 * pitch - usbD / 2}
+                  width={usbW} height={usbD}
+                  fill="rgba(255,255,255,0.15)" stroke="rgba(255,255,255,0.25)" stroke-width="0.08" rx="0.1"/>
+          {:else}
+            <rect x={b.col1 * pitch - usbD / 2} y={cyMid - usbW / 2}
+                  width={usbD} height={usbW}
+                  fill="rgba(255,255,255,0.15)" stroke="rgba(255,255,255,0.25)" stroke-width="0.08" rx="0.1"/>
           {/if}
         {/if}
         <!-- Pin pads -->
@@ -3513,58 +3525,67 @@
             <circle cx={px} cy={py} r={drillR} fill="#1a1a2e"/>
           </g>
         {/each}
-        <!-- Pin labels (rendered outside the module body, per side) -->
+        <!-- Pin labels. Outward direction depends on (orientation, side):
+               S left=west, S right=east, E left=south, E right=north,
+               N left=east, N right=west, W left=north, W right=south.
+             For W/E outward the label is rotated ±90° via SVG transform,
+             keeping text readable when the user tilts to match the module. -->
         {#each pins as pin}
           {@const lblColor = moduleLabelColor(pin.label)}
           {@const tw = pin.label.length * pitch * 0.28 + pitch * 0.2}
           {@const rectH = pitch * 0.5}
-          {#if isV}
-            {@const py = pin.row * pitch}
-            {@const lx = pin.side === 'left'
-              ? pin.col * pitch - padR - 0.2 - tw
-              : pin.col * pitch + padR + 0.2}
-            <rect x={lx} y={py - rectH / 2} width={tw} height={rectH}
+          {@const gap = padR + 0.2}
+          {@const px = pin.col * pitch}
+          {@const py = pin.row * pitch}
+          {@const isL = pin.side === 'left'}
+          {@const outward = (o === 'S' ? (isL ? 'W' : 'E')
+                          : o === 'E' ? (isL ? 'S' : 'N')
+                          : o === 'N' ? (isL ? 'E' : 'W')
+                          : /* W */     (isL ? 'N' : 'S'))}
+          {#if outward === 'E'}
+            <rect x={px + gap} y={py - rectH / 2} width={tw} height={rectH}
                   rx={pitch * 0.08} fill="rgba(0,0,0,0.6)"/>
-            <text x={lx + pitch * 0.1} y={py + pitch * 0.12}
-                  font-size={pitch * 0.35}
-                  font-family="monospace"
-                  font-weight="bold"
+            <text x={px + gap + pitch * 0.1} y={py + pitch * 0.12}
+                  font-size={pitch * 0.35} font-family="monospace" font-weight="bold"
                   fill={lblColor}>{pin.label}</text>
-          {:else}
-            {@const px = pin.col * pitch}
-            <!-- In 'h' orientation each label is a horizontal rect rotated -90°
-                 about its right-middle. The rotated strip extends DOWN from
-                 the pivot for length `tw`. So for the TOP pin row (left side)
-                 the pivot must be at least `tw` above the pin or the strip
-                 will cover the pin pad. For the bottom row a small gap below
-                 the pin is enough. -->
-            {@const ty = pin.side === 'left'
-              ? pin.row * pitch - tw - rectH / 2 - padR - 0.2
-              : pin.row * pitch + padR + 0.2}
-            <g transform="rotate(-90 {px} {ty + rectH / 2})">
-              <rect x={px - tw} y={ty} width={tw} height={rectH}
+          {:else if outward === 'W'}
+            <rect x={px - gap - tw} y={py - rectH / 2} width={tw} height={rectH}
+                  rx={pitch * 0.08} fill="rgba(0,0,0,0.6)"/>
+            <text x={px - gap - tw + pitch * 0.1} y={py + pitch * 0.12}
+                  font-size={pitch * 0.35} font-family="monospace" font-weight="bold"
+                  fill={lblColor}>{pin.label}</text>
+          {:else if outward === 'S'}
+            <!-- Rotate 90° CW: local +X axis points south after the transform. -->
+            <g transform="translate({px} {py}) rotate(90)">
+              <rect x={gap} y={-rectH / 2} width={tw} height={rectH}
                     rx={pitch * 0.08} fill="rgba(0,0,0,0.6)"/>
-              <text x={px - tw + pitch * 0.1} y={ty + pitch * 0.38}
-                    font-size={pitch * 0.35}
-                    font-family="monospace"
-                    font-weight="bold"
+              <text x={gap + pitch * 0.1} y={pitch * 0.12}
+                    font-size={pitch * 0.35} font-family="monospace" font-weight="bold"
+                    fill={lblColor}>{pin.label}</text>
+            </g>
+          {:else}
+            <!-- outward === 'N': rotate -90° CCW so local +X axis points north -->
+            <g transform="translate({px} {py}) rotate(-90)">
+              <rect x={gap} y={-rectH / 2} width={tw} height={rectH}
+                    rx={pitch * 0.08} fill="rgba(0,0,0,0.6)"/>
+              <text x={gap + pitch * 0.1} y={pitch * 0.12}
+                    font-size={pitch * 0.35} font-family="monospace" font-weight="bold"
                     fill={lblColor}>{pin.label}</text>
             </g>
           {/if}
         {/each}
-        <!-- Module title:
-             'v' → above the module (clear space above top pin row)
-             'h' → centered in the body between pin rows (rotated GPIO labels
-                   crowd the area above/below the rows in 'h', so the title
-                   lives inside the body where it can't cover any pin) -->
+        <!-- Module title.
+             For S/N (pin axis vertical): title above bounds — clear space.
+             For E/W (pin axis horizontal): title centered in the body where
+             rotated GPIO labels don't reach. -->
         {#if v.title}
           {@const titleX = ((b.col1 + b.col2) / 2) * pitch}
-          {@const titleY = isV
-            ? b.row1 * pitch - pitch * 0.3
-            : ((b.row1 + b.row2) / 2) * pitch}
+          {@const titleY = isHoriz
+            ? ((b.row1 + b.row2) / 2) * pitch
+            : (o === 'N' ? b.row2 * pitch + pitch * 0.7 : b.row1 * pitch - pitch * 0.3)}
           <text x={titleX} y={titleY}
                 text-anchor="middle"
-                dominant-baseline={isV ? "auto" : "middle"}
+                dominant-baseline={isHoriz ? "middle" : "auto"}
                 fill={v.titleColor}
                 font-size={pitch * 0.55}
                 font-family="monospace"
@@ -3645,7 +3666,7 @@
     <!-- Ghost cursor -->
     {#if ghostPos && isModuleVariant(activeTool)}
       {@const v = MODULE_VARIANTS[activeTool]}
-      {@const ghostMod = { col: ghostPos.col, row: ghostPos.row, orientation: 'v', variant: activeTool }}
+      {@const ghostMod = { col: ghostPos.col, row: ghostPos.row, orientation: 'S', variant: activeTool }}
       {@const b = getModuleBounds(ghostMod)}
       <rect x={b.col1 * pitch} y={b.row1 * pitch}
             width={(b.col2 - b.col1) * pitch} height={(b.row2 - b.row1) * pitch}

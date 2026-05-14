@@ -5,7 +5,12 @@ import { buildEnclosureBody } from './enclosure.js'
 import { sampleCatmullRom, sampleCatmullRomWithWidth } from './catmull-rom.js'
 import { computeRoundedCorners, computeSubdivisionRounding, sampleRoundedPath, computeTeardrops } from './round-trace.js'
 import { enumerateConductorNodes } from './perfboard-topology.js'
-import { getVariant as getModuleVariant, getBodyExtent as getModuleBodyExtent } from './perfboard-modules.js'
+import {
+  getVariant as getModuleVariant,
+  getBodyExtent as getModuleBodyExtent,
+  normalizeOrientation as normModuleOrient,
+  rotateVec2D as rotateModuleVec,
+} from './perfboard-modules.js'
 
 const PAD_CIRCLE_N = 32
 
@@ -924,7 +929,7 @@ function buildComponentBodies(doc, opts = {}) {
     const m = (doc.modules || [])[modi]
     const v = getModuleVariant(m)
     if (!v) continue
-    const isV = m.orientation === 'v'
+    const o = normModuleOrient(m.orientation)
     const N = v.pinsPerRow
     const extent = getModuleBodyExtent(v)
     const rowCount = v.singleRow ? 1 : 2
@@ -937,71 +942,73 @@ function buildComponentBodies(doc, opts = {}) {
     const pcbZ0 = housingZ1
     const pcbZ1 = pcbZ0 + pcbH
     const onlyConnected = copperOnlyIds.has(m.id) && connectedKeys != null
+    // After CCW rotation, pin axis along X for 'E'/'W', along Y for 'S'/'N'.
+    const pinAxisIsX = o === 'E' || o === 'W'
 
     const geoms = []
 
-    // Female header housings + pin wires (1 row for singleRow modules, 2 otherwise)
+    // Female header housings + pin wires
     for (let r = 0; r < rowCount; r++) {
-      const offset = r === 0 ? 0 : extent
-      let hcx, hcy, hw, hd
-      if (isV) {
-        hcx = baseX + offset * pitch
-        hcy = baseY - ((N - 1) * pitch) / 2
-        hw = MOD_HOUSING_HW
-        hd = ((N - 1) * pitch + pitch) / 2
-      } else {
-        hcx = baseX + ((N - 1) * pitch) / 2
-        hcy = baseY - offset * pitch
+      const colOffset = r === 0 ? 0 : extent
+      const [p0c, p0r] = rotateModuleVec(colOffset, 0, o)
+      const [pNc, pNr] = rotateModuleVec(colOffset, N - 1, o)
+      const hcx = baseX + ((p0c + pNc) / 2) * pitch
+      const hcy = baseY - ((p0r + pNr) / 2) * pitch
+      let hw, hd
+      if (pinAxisIsX) {
         hw = ((N - 1) * pitch + pitch) / 2
         hd = MOD_HOUSING_HW
+      } else {
+        hw = MOD_HOUSING_HW
+        hd = ((N - 1) * pitch + pitch) / 2
       }
       geoms.push(boxGeomRaw(hcx, hcy, hw, hd, housingZ0, housingZ1))
+
       for (let i = 0; i < N; i++) {
-        const pinCol = isV ? m.col + offset : m.col + i
-        const pinRow = isV ? m.row + i : m.row + offset
+        const [dc, dr] = rotateModuleVec(colOffset, i, o)
+        const pinCol = m.col + dc
+        const pinRow = m.row + dr
         if (onlyConnected && !connectedKeys.has(`${pinCol},${pinRow}`)) continue
-        const px = isV ? baseX + offset * pitch : baseX + i * pitch
-        const py = isV ? baseY - i * pitch : baseY - offset * pitch
+        const px = baseX + dc * pitch
+        const py = baseY - dr * pitch
         geoms.push(boxGeomRaw(px, py, MOD_PIN_HW, MOD_PIN_HW, -MOD_PIN_BELOW, housingZ1))
       }
     }
 
-    // Module PCB sitting on top of the header(s). For singleRow modules the
-    // PCB still spans from the pin row to `extent` pitches outward.
-    let pcbCx, pcbCy, pcbHw, pcbHd
-    if (isV) {
-      pcbCx = baseX + (extent * pitch) / 2
-      pcbCy = baseY - ((N - 1) * pitch) / 2
-      pcbHw = (extent * pitch + pitch) / 2
-      pcbHd = ((N - 1) * pitch + pitch) / 2
-    } else {
-      pcbCx = baseX + ((N - 1) * pitch) / 2
-      pcbCy = baseY - (extent * pitch) / 2
-      pcbHw = ((N - 1) * pitch + pitch) / 2
-      pcbHd = (extent * pitch + pitch) / 2
-    }
+    // PCB box: rotate default-'S' center offset (extent/2, (N-1)/2) into current frame
+    const [pcbDc, pcbDr] = rotateModuleVec(extent / 2, (N - 1) / 2, o)
+    const pcbCx = baseX + pcbDc * pitch
+    const pcbCy = baseY - pcbDr * pitch
+    const pcbWDefMm = extent * pitch + pitch
+    const pcbDDefMm = (N - 1) * pitch + pitch
+    const pcbHw = pinAxisIsX ? pcbDDefMm / 2 : pcbWDefMm / 2
+    const pcbHd = pinAxisIsX ? pcbWDefMm / 2 : pcbDDefMm / 2
     geoms.push(boxGeomRaw(pcbCx, pcbCy, pcbHw, pcbHd, pcbZ0, pcbZ1))
 
-    // ESP32-WROOM chip can on PCB top (offset along pin-axis toward one end)
-    const chip = v.chipSizeMm
-    if (chip) {
-      const chipOfs = v.chipOffsetMm ?? 0
-      const chipCx = isV ? pcbCx : pcbCx + chipOfs
-      const chipCy = isV ? pcbCy + chipOfs : pcbCy
-      const chipHw = isV ? chip.w / 2 : chip.d / 2
-      const chipHd = isV ? chip.d / 2 : chip.w / 2
-      geoms.push(boxGeomRaw(chipCx, chipCy, chipHw, chipHd, pcbZ1, pcbZ1 + chip.h))
+    // Helper: place a box centered offset along the rotated pin axis (chip / USB).
+    // In default 'S', positive offset = south in 3D (matches existing convention).
+    function placeAlongPinAxis(offsetMm, w, d, hStart, hEnd) {
+      let dx = 0, dy = 0
+      switch (o) {
+        case 'S': dy = offsetMm; break
+        case 'E': dx = offsetMm; break
+        case 'N': dy = -offsetMm; break
+        case 'W': dx = -offsetMm; break
+      }
+      const cx = pcbCx + dx
+      const cy = pcbCy + dy
+      const hw = pinAxisIsX ? d / 2 : w / 2
+      const hd = pinAxisIsX ? w / 2 : d / 2
+      geoms.push(boxGeomRaw(cx, cy, hw, hd, hStart, hEnd))
     }
 
-    // USB connector at opposite end
+    const chip = v.chipSizeMm
+    if (chip) {
+      placeAlongPinAxis(v.chipOffsetMm ?? 0, chip.w, chip.d, pcbZ1, pcbZ1 + chip.h)
+    }
     const usb = v.usbSizeMm
     if (usb) {
-      const usbOfs = v.usbOffsetMm ?? 0
-      const usbCx = isV ? pcbCx : pcbCx + usbOfs
-      const usbCy = isV ? pcbCy + usbOfs : pcbCy
-      const usbHw = isV ? usb.w / 2 : usb.d / 2
-      const usbHd = isV ? usb.d / 2 : usb.w / 2
-      geoms.push(boxGeomRaw(usbCx, usbCy, usbHw, usbHd, pcbZ1, pcbZ1 + usb.h))
+      placeAlongPinAxis(v.usbOffsetMm ?? 0, usb.w, usb.d, pcbZ1, pcbZ1 + usb.h)
     }
 
     bodies.push(mergeGeoms(`Component_mod${modi}`, geoms))

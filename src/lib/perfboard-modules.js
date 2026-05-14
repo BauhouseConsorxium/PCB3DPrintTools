@@ -109,51 +109,85 @@ export function getBodyExtent(v) {
   return v.singleRow ? (v.bodyExtent ?? 6) : v.rowGap
 }
 
-// Pin positions for a placed module instance (anchored at module.col/row,
-// rotated by module.orientation: 'v' = pins run vertically, 'h' = horizontally).
-// Single-row modules emit only the left column.
+// Module orientation is one of 4 axis-aligned directions, named by the
+// direction the pin axis points (from pin 1 toward pin N):
+//   'S' — pins go south  (default; legacy 'v' migrates here)
+//   'E' — pins go east   (legacy 'h' migrates here; right-col flips north)
+//   'N' — pins go north
+//   'W' — pins go west
+// Rotation cycle (R key) is CCW: S → E → N → W → S.
+// The "right column" sits 90° CCW from the pin-axis direction.
+export const ORIENTATION_CYCLE_CCW = { S: 'E', E: 'N', N: 'W', W: 'S' }
+
+export function normalizeOrientation(o) {
+  if (o === 'v' || o == null) return 'S'
+  if (o === 'h') return 'E'
+  if (o === 'S' || o === 'E' || o === 'N' || o === 'W') return o
+  return 'S'
+}
+
+// Rotate a 2D offset (dcol, drow) — given in default 'S' frame — into the
+// frame of the supplied orientation. Returns [dcol, drow].
+export function rotateVec2D(dc, dr, orientation) {
+  switch (normalizeOrientation(orientation)) {
+    case 'E': return [dr, -dc]  // 90° CCW: pins south→east, right east→north
+    case 'N': return [-dc, -dr] // 180°
+    case 'W': return [-dr, dc]  // 270° CCW (= 90° CW)
+    case 'S':
+    default:  return [dc, dr]
+  }
+}
+
+// Pin positions for a placed module instance. Pin 1 always stays at the
+// module's anchor (module.col, module.row); the rest of the layout rotates
+// around it based on module.orientation. Single-row modules emit only the
+// left column.
 export function getModulePinPositions(module) {
   const v = getVariant(module)
   if (!v) return []
   const { pinsPerRow } = v
   const extent = getBodyExtent(v)
+  const o = normalizeOrientation(module.orientation)
   const pins = []
   for (let i = 0; i < pinsPerRow; i++) {
-    if (module.orientation === 'v') {
-      pins.push({ col: module.col, row: module.row + i, label: v.pinLabels.left[i], side: 'left', index: i })
-      if (!v.singleRow) {
-        pins.push({ col: module.col + extent, row: module.row + i, label: v.pinLabels.right[i], side: 'right', index: i })
-      }
-    } else {
-      pins.push({ col: module.col + i, row: module.row, label: v.pinLabels.left[i], side: 'left', index: i })
-      if (!v.singleRow) {
-        pins.push({ col: module.col + i, row: module.row + extent, label: v.pinLabels.right[i], side: 'right', index: i })
-      }
+    // Default 'S' frame: left col pin i at (0, i), right col pin i at (extent, i)
+    const [lc, lr] = rotateVec2D(0, i, o)
+    pins.push({ col: module.col + lc, row: module.row + lr, label: v.pinLabels.left[i], side: 'left', index: i })
+    if (!v.singleRow) {
+      const [rc, rr] = rotateVec2D(extent, i, o)
+      pins.push({ col: module.col + rc, row: module.row + rr, label: v.pinLabels.right[i], side: 'right', index: i })
     }
   }
   return pins
 }
 
-// Body bounding box in grid coords (pitches), oriented per module.orientation.
+// Body bounding box in grid coords (pitches), computed from the rotated
+// corners of the default 'S' rectangle.
 export function getModuleBounds(module) {
   const v = getVariant(module)
   if (!v) return null
   const { pinsPerRow } = v
   const extent = getBodyExtent(v)
+  const o = normalizeOrientation(module.orientation)
   const pad = 0.4
-  if (module.orientation === 'v') {
-    return {
-      col1: module.col - pad,
-      row1: module.row - pad,
-      col2: module.col + extent + pad,
-      row2: module.row + (pinsPerRow - 1) + pad,
-    }
+  const corners = [
+    rotateVec2D(0, 0, o),
+    rotateVec2D(extent, 0, o),
+    rotateVec2D(0, pinsPerRow - 1, o),
+    rotateVec2D(extent, pinsPerRow - 1, o),
+  ]
+  let minDc = Infinity, maxDc = -Infinity, minDr = Infinity, maxDr = -Infinity
+  for (const [dc, dr] of corners) {
+    if (dc < minDc) minDc = dc
+    if (dc > maxDc) maxDc = dc
+    if (dr < minDr) minDr = dr
+    if (dr > maxDr) maxDr = dr
   }
   return {
-    col1: module.col - pad,
-    row1: module.row - pad,
-    col2: module.col + (pinsPerRow - 1) + pad,
-    row2: module.row + extent + pad,
+    col1: module.col + minDc - pad,
+    row1: module.row + minDr - pad,
+    col2: module.col + maxDc + pad,
+    row2: module.row + maxDr + pad,
   }
 }
 

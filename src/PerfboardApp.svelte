@@ -227,7 +227,7 @@
     pushUndo();
     doc.modules = [
       ...(doc.modules || []),
-      { id: crypto.randomUUID(), col, row, orientation: 'v', variant },
+      { id: crypto.randomUUID(), col, row, orientation: 'S', variant },
     ];
   }
 
@@ -646,7 +646,9 @@
       }
       const mod = (doc.modules || []).find((m) => m.id === id);
       if (mod) {
-        mod.orientation = mod.orientation === 'h' ? 'v' : 'h';
+        // Cycle: S → E → N → W → S (CCW visual rotation, 4 states)
+        const cycle = { S: 'E', E: 'N', N: 'W', W: 'S', v: 'E', h: 'N' };
+        mod.orientation = cycle[mod.orientation] ?? 'E';
         continue;
       }
       const trace = doc.traces.find((t) => t.id === id);
@@ -808,6 +810,11 @@
     parsed.pinHousings = parsed.pinHousings ?? [];
     parsed.keyswitches = parsed.keyswitches ?? [];
     parsed.modules = parsed.modules ?? [];
+    // Migrate legacy module orientation 'v' → 'S', 'h' → 'E'
+    for (const m of parsed.modules) {
+      if (m.orientation === 'v') m.orientation = 'S';
+      else if (m.orientation === 'h') m.orientation = 'E';
+    }
     parsed.jumpers = parsed.jumpers ?? [];
     parsed.joints = parsed.joints ?? [];
     parsed.annotations = parsed.annotations ?? [];
