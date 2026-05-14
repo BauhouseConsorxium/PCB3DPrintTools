@@ -641,7 +641,9 @@
       }
       const ksw = (doc.keyswitches || []).find((s) => s.id === id);
       if (ksw) {
-        ksw.orientation = ksw.orientation === 'h' ? 'v' : 'h';
+        // Cycle CW: N → E → S → W → N (preserves legacy h→v direction)
+        const cycle = { N: 'E', E: 'S', S: 'W', W: 'N', h: 'E', v: 'S' };
+        ksw.orientation = cycle[ksw.orientation] ?? 'E';
         continue;
       }
       const mod = (doc.modules || []).find((m) => m.id === id);
@@ -814,6 +816,11 @@
     for (const m of parsed.modules) {
       if (m.orientation === 'v') m.orientation = 'S';
       else if (m.orientation === 'h') m.orientation = 'E';
+    }
+    // Migrate legacy keyswitch orientation 'h' → 'N', 'v' → 'E'
+    for (const sw of parsed.keyswitches) {
+      if (sw.orientation === 'h') sw.orientation = 'N';
+      else if (sw.orientation === 'v') sw.orientation = 'E';
     }
     parsed.jumpers = parsed.jumpers ?? [];
     parsed.joints = parsed.joints ?? [];

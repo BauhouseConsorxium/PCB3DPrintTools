@@ -20,6 +20,7 @@
     getVariant as getModuleVariant, getModulePinPositions, getModuleBounds, labelColor as moduleLabelColor,
     normalizeOrientation as normModuleOrient,
   } from "../../lib/perfboard-modules.js";
+  import { getKswPins, getKswPegs } from "../../lib/perfboard-keyswitch.js";
 
   let {
     doc,
@@ -652,7 +653,9 @@
       } else {
         const dc = col - kswStart.col;
         const dr = row - kswStart.row;
-        const orientation = Math.abs(dc) >= Math.abs(dr) ? 'h' : 'v';
+        // Horizontal drag → pegs east-west → pins point north ('N').
+        // Vertical drag → pegs north-south → pins point east ('E').
+        const orientation = Math.abs(dc) >= Math.abs(dr) ? 'N' : 'E';
         onAddKeyswitch(kswStart.col, kswStart.row, orientation);
         kswStart = null;
         kswPreview = null;
@@ -1752,33 +1755,10 @@
     return pads;
   }
 
-  // Cherry MX electrical pin positions relative to switch center (col, row)
-  function kswPins(sw) {
-    if (sw.orientation === 'h') {
-      return [
-        { col: sw.col - 1.5, row: sw.row - 1 },
-        { col: sw.col + 1, row: sw.row - 2 },
-      ]
-    }
-    return [
-      { col: sw.col + 1, row: sw.row - 1.5 },
-      { col: sw.col + 2, row: sw.row + 1 },
-    ]
-  }
-
-  // Cherry MX alignment peg positions (no electrical, just drill holes)
-  function kswPegs(sw) {
-    if (sw.orientation === 'h') {
-      return [
-        { col: sw.col - 2, row: sw.row },
-        { col: sw.col + 2, row: sw.row },
-      ]
-    }
-    return [
-      { col: sw.col, row: sw.row - 2 },
-      { col: sw.col, row: sw.row + 2 },
-    ]
-  }
+  // Cherry MX pin/peg helpers live in src/lib/perfboard-keyswitch.js so the
+  // topology, 3D geometry, and SVG editor all share one source of truth.
+  const kswPins = getKswPins;
+  const kswPegs = getKswPegs;
 
   function getDipPads(dip) {
     const spacing = dip.rowSpacing ?? 3;

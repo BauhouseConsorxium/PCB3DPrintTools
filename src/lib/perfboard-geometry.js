@@ -11,6 +11,7 @@ import {
   normalizeOrientation as normModuleOrient,
   rotateVec2D as rotateModuleVec,
 } from './perfboard-modules.js'
+import { getKswPins, getKswPegs } from './perfboard-keyswitch.js'
 
 const PAD_CIRCLE_N = 32
 
@@ -861,16 +862,9 @@ function buildComponentBodies(doc, opts = {}) {
     const cx = sw.col * pitch
     const cy = -(sw.row * pitch)
 
-    let p1Col, p1Row, p2Col, p2Row
-    if (sw.orientation === 'h') {
-      p1Col = sw.col - 1.5; p1Row = sw.row - 1
-      p2Col = sw.col + 1; p2Row = sw.row - 2
-    } else {
-      p1Col = sw.col + 1; p1Row = sw.row - 1.5
-      p2Col = sw.col + 2; p2Row = sw.row + 1
-    }
-    const p1x = p1Col * pitch, p1y = -(p1Row * pitch)
-    const p2x = p2Col * pitch, p2y = -(p2Row * pitch)
+    const kswPinPos = getKswPins(sw)
+    const p1x = kswPinPos[0].col * pitch, p1y = -(kswPinPos[0].row * pitch)
+    const p2x = kswPinPos[1].col * pitch, p2y = -(kswPinPos[1].row * pitch)
     const kBot = boardThickness
 
     // Z layers (total 15.6mm above board)
@@ -1384,21 +1378,17 @@ export function buildPerfboardBodies(doc) {
 
   const drills = padPositions.map(p => ({ x: p.x, y: p.y, r: drillR }))
 
-  // Cherry MX mounting holes (center post + 2 alignment pegs)
-  // Note: drills use data-space Y (positive for positive row); buildBoardGeometry flips internally
+  // Cherry MX mounting holes (center post + 2 alignment pegs).
+  // drills use data-space Y (positive for positive row); buildBoardGeometry
+  // flips internally. Peg positions come from getKswPegs which rotates with
+  // the switch orientation.
   const KSW_CENTER_DRILL_R = 2.0
   const KSW_PEG_DRILL_R = 0.85
   const gridPitch = doc.grid.pitch
   for (const sw of doc.keyswitches ?? []) {
-    const cx = sw.col * gridPitch
-    const cy = sw.row * gridPitch
-    drills.push({ x: cx, y: cy, r: KSW_CENTER_DRILL_R })
-    if (sw.orientation === 'h') {
-      drills.push({ x: cx - 2 * gridPitch, y: cy, r: KSW_PEG_DRILL_R })
-      drills.push({ x: cx + 2 * gridPitch, y: cy, r: KSW_PEG_DRILL_R })
-    } else {
-      drills.push({ x: cx, y: cy - 2 * gridPitch, r: KSW_PEG_DRILL_R })
-      drills.push({ x: cx, y: cy + 2 * gridPitch, r: KSW_PEG_DRILL_R })
+    drills.push({ x: sw.col * gridPitch, y: sw.row * gridPitch, r: KSW_CENTER_DRILL_R })
+    for (const peg of getKswPegs(sw)) {
+      drills.push({ x: peg.col * gridPitch, y: peg.row * gridPitch, r: KSW_PEG_DRILL_R })
     }
   }
 

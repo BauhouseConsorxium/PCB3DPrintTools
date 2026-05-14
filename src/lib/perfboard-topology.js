@@ -1,4 +1,5 @@
 import { getModulePinPositions } from './perfboard-modules.js'
+import { getKswPins } from './perfboard-keyswitch.js'
 
 export function nodeKey(col, row) {
   return `${col},${row}`
@@ -72,13 +73,8 @@ export function enumerateConductorNodes(doc) {
     }
   }
   for (const sw of doc.keyswitches ?? []) {
-    // Cherry MX electrical pin positions (relative to switch center)
-    if (sw.orientation === 'h') {
-      add(sw.col - 1.5, sw.row - 1, 'keyswitch', sw.id, '')
-      add(sw.col + 1, sw.row - 2, 'keyswitch', sw.id, '')
-    } else {
-      add(sw.col + 1, sw.row - 1.5, 'keyswitch', sw.id, '')
-      add(sw.col + 2, sw.row + 1, 'keyswitch', sw.id, '')
+    for (const p of getKswPins(sw)) {
+      add(p.col, p.row, 'keyswitch', sw.id, '')
     }
   }
   for (const m of doc.modules ?? []) {
