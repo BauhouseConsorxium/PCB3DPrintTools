@@ -825,18 +825,28 @@ function buildComponentBodies(doc) {
     bodies.push(mergeGeoms(`Component_res${ri}`, geoms))
   }
 
+  // Cherry MX dimensions (mm)
   const KSW_SOLDER = 1.5
   const KSW_PIN_HW = 0.25
-  const KSW_BODY_HW = 7.0
-  const KSW_BODY_H = 11.6
-  const KSW_BASE_H = 0.6
-  const KSW_BASE_HW = 7.8
-  const KSW_STEM_R = 2.0
-  const KSW_STEM_RISE = 6.0
-  const KSW_STEM_H = 15.6
-  const KSW_POST_R = 1.95
-  const KSW_CROSS_HW = 1.15
-  const KSW_CROSS_HT = 0.55
+  const KSW_FLANGE_HW = 7.8    // 15.6×15.6 base flange
+  const KSW_FLANGE_H = 0.6
+  const KSW_LOW_HW = 7.0       // 14×14 lower housing
+  const KSW_LOW_H = 5.0
+  const KSW_UP_HW = 6.4        // 12.8×12.8 upper housing (stepped, slightly narrower)
+  const KSW_UP_H = 6.0
+  const KSW_TOP_HW = 5.6       // 11.2×11.2 top deck (subtle 2nd step)
+  const KSW_TOP_H = 0.4
+  const KSW_LED_HW = 1.4       // small LED slot recess on south face
+  const KSW_LED_HT = 0.5
+  const KSW_LED_H = 0.4
+  const KSW_STEM_R = 2.7       // slider barrel just above deck (Ø5.4mm)
+  const KSW_STEM_BARREL_H = 0.8
+  const KSW_SHAFT_HW = 1.55    // square slider shaft (Ø3.1mm box) rising into cross
+  const KSW_SHAFT_H = 2.0
+  const KSW_CROSS_HW = 2.0     // cruciform: 4mm tip-to-tip
+  const KSW_CROSS_HT = 0.65    // arms 1.3mm thick
+  const KSW_CROSS_H = 1.0
+  const KSW_POST_R = 1.95      // alignment post through board hole
 
   for (let swi = 0; swi < (doc.keyswitches || []).length; swi++) {
     const sw = (doc.keyswitches || [])[swi]
@@ -855,23 +865,51 @@ function buildComponentBodies(doc) {
     const p2x = p2Col * pitch, p2y = -(p2Row * pitch)
     const kBot = boardThickness
 
+    // Z layers (total 15.6mm above board)
+    const z0 = kBot
+    const z1 = z0 + KSW_FLANGE_H              // +0.6  end of flange
+    const z2 = z1 + KSW_LOW_H                 // +5.6  end of lower housing
+    const z3 = z2 + KSW_UP_H                  // +11.6 end of upper housing
+    const z4 = z3 + KSW_TOP_H                 // +12.0 end of top deck
+    const z5 = z4 + KSW_STEM_BARREL_H         // +12.8 end of slider barrel
+    const z6 = z5 + KSW_SHAFT_H               // +14.8 end of shaft
+    const z7 = z6 + KSW_CROSS_H               // +15.8 top of cross mount
+
+    // LED slot lives on the "front" face — opposite the pin side
+    // 'h' pins are at -row direction (top in data space → +Y in 3D); LED faces -Y (bottom)
+    // 'v' pins are at +col direction (right); LED faces -X (left)
+    const ledIsH = sw.orientation === 'h'
+    const ledOfs = KSW_UP_HW - KSW_LED_H / 2
+    const ledCx = cx + (ledIsH ? 0 : -ledOfs)
+    const ledCy = cy + (ledIsH ? -ledOfs : 0)
+    const ledHw = ledIsH ? KSW_LED_HW : KSW_LED_H / 2
+    const ledHd = ledIsH ? KSW_LED_H / 2 : KSW_LED_HW
+    const ledZ0 = z2 + KSW_UP_H - KSW_LED_HT - 0.4
+    const ledZ1 = ledZ0 + KSW_LED_HT
+
     const geoms = []
-    // Wider flange/base
-    geoms.push(boxGeomRaw(cx, cy, KSW_BASE_HW, KSW_BASE_HW, kBot, kBot + KSW_BASE_H))
-    // Main housing (14×14mm)
-    geoms.push(boxGeomRaw(cx, cy, KSW_BODY_HW, KSW_BODY_HW, kBot + KSW_BASE_H, kBot + KSW_BODY_H))
-    // Stem cylinder rising above housing
-    geoms.push(cylGeom(cx, cy, KSW_STEM_R, kBot + KSW_STEM_RISE, kBot + KSW_STEM_H, 16))
-    // Cherry MX cross stem on top of stem cylinder
-    const crossZ0 = kBot + KSW_STEM_H - 0.6
-    const crossZ1 = kBot + KSW_STEM_H + 0.4
-    geoms.push(boxGeomRaw(cx, cy, KSW_CROSS_HW, KSW_CROSS_HT, crossZ0, crossZ1))
-    geoms.push(boxGeomRaw(cx, cy, KSW_CROSS_HT, KSW_CROSS_HW, crossZ0, crossZ1))
+    // Wide base flange
+    geoms.push(boxGeomRaw(cx, cy, KSW_FLANGE_HW, KSW_FLANGE_HW, z0, z1))
+    // Lower housing (main body)
+    geoms.push(boxGeomRaw(cx, cy, KSW_LOW_HW, KSW_LOW_HW, z1, z2))
+    // Upper housing (first step inward)
+    geoms.push(boxGeomRaw(cx, cy, KSW_UP_HW, KSW_UP_HW, z2, z3))
+    // LED nub on front face (subtle visual marker)
+    geoms.push(boxGeomRaw(ledCx, ledCy, ledHw, ledHd, ledZ0, ledZ1))
+    // Top deck (second step inward — where slider barrel emerges)
+    geoms.push(boxGeomRaw(cx, cy, KSW_TOP_HW, KSW_TOP_HW, z3, z4))
+    // Slider barrel — short wider cylinder at the base of the stem
+    geoms.push(cylGeom(cx, cy, KSW_STEM_R, z4, z5, 20))
+    // Slider shaft (square pillar to the cross — looks like Cherry MX cross-section)
+    geoms.push(boxGeomRaw(cx, cy, KSW_SHAFT_HW, KSW_SHAFT_HW, z5, z6))
+    // Cruciform keycap mount on top
+    geoms.push(boxGeomRaw(cx, cy, KSW_CROSS_HW, KSW_CROSS_HT, z6, z7))
+    geoms.push(boxGeomRaw(cx, cy, KSW_CROSS_HT, KSW_CROSS_HW, z6, z7))
     // Alignment post going down through board hole
-    geoms.push(cylGeom(cx, cy, KSW_POST_R, 0, kBot, 16))
-    // Pin wires (Cherry MX positions)
-    geoms.push(boxGeomRaw(p1x, p1y, KSW_PIN_HW, KSW_PIN_HW, -KSW_SOLDER, kBot))
-    geoms.push(boxGeomRaw(p2x, p2y, KSW_PIN_HW, KSW_PIN_HW, -KSW_SOLDER, kBot))
+    geoms.push(cylGeom(cx, cy, KSW_POST_R, 0, z0, 16))
+    // Pin wires (Cherry MX electrical contact positions)
+    geoms.push(boxGeomRaw(p1x, p1y, KSW_PIN_HW, KSW_PIN_HW, -KSW_SOLDER, z0))
+    geoms.push(boxGeomRaw(p2x, p2y, KSW_PIN_HW, KSW_PIN_HW, -KSW_SOLDER, z0))
     bodies.push(mergeGeoms(`Component_ksw${swi}`, geoms))
   }
 
