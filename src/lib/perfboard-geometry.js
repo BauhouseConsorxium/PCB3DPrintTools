@@ -1106,7 +1106,7 @@ function buildSquareCornerTraceGeometry(doc, drills, zBot, zTop) {
   }
 
   if (!shapes.length) return null
-  return buildPolygonsWithDrills(shapes, drills, 'F.Cu', zBot, zTop)
+  return buildPolygonsWithDrills(shapes, drills, 'SquareCornerTraces_F.Cu', zBot, zTop)
 }
 
 export function buildPerfboardBodies(doc) {
