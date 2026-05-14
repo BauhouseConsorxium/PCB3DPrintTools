@@ -5,7 +5,7 @@ import { buildEnclosureBody } from './enclosure.js'
 import { sampleCatmullRom, sampleCatmullRomWithWidth } from './catmull-rom.js'
 import { computeRoundedCorners, computeSubdivisionRounding, sampleRoundedPath, computeTeardrops } from './round-trace.js'
 import { enumerateConductorNodes } from './perfboard-topology.js'
-import { getVariant as getModuleVariant } from './perfboard-modules.js'
+import { getVariant as getModuleVariant, getBodyExtent as getModuleBodyExtent } from './perfboard-modules.js'
 
 const PAD_CIRCLE_N = 32
 
@@ -926,7 +926,8 @@ function buildComponentBodies(doc, opts = {}) {
     if (!v) continue
     const isV = m.orientation === 'v'
     const N = v.pinsPerRow
-    const gap = v.rowGap
+    const extent = getModuleBodyExtent(v)
+    const rowCount = v.singleRow ? 1 : 2
     const baseX = m.col * pitch
     const baseY = -(m.row * pitch)
     const headerH = v.headerHeightMm ?? 8.5
@@ -939,9 +940,9 @@ function buildComponentBodies(doc, opts = {}) {
 
     const geoms = []
 
-    // Two female header housings + pin wires for each row
-    for (let r = 0; r < 2; r++) {
-      const offset = r === 0 ? 0 : gap
+    // Female header housings + pin wires (1 row for singleRow modules, 2 otherwise)
+    for (let r = 0; r < rowCount; r++) {
+      const offset = r === 0 ? 0 : extent
       let hcx, hcy, hw, hd
       if (isV) {
         hcx = baseX + offset * pitch
@@ -965,18 +966,19 @@ function buildComponentBodies(doc, opts = {}) {
       }
     }
 
-    // Module PCB sitting on top of the headers (spans both rows)
+    // Module PCB sitting on top of the header(s). For singleRow modules the
+    // PCB still spans from the pin row to `extent` pitches outward.
     let pcbCx, pcbCy, pcbHw, pcbHd
     if (isV) {
-      pcbCx = baseX + (gap * pitch) / 2
+      pcbCx = baseX + (extent * pitch) / 2
       pcbCy = baseY - ((N - 1) * pitch) / 2
-      pcbHw = (gap * pitch + pitch) / 2
+      pcbHw = (extent * pitch + pitch) / 2
       pcbHd = ((N - 1) * pitch + pitch) / 2
     } else {
       pcbCx = baseX + ((N - 1) * pitch) / 2
-      pcbCy = baseY - (gap * pitch) / 2
+      pcbCy = baseY - (extent * pitch) / 2
       pcbHw = ((N - 1) * pitch + pitch) / 2
-      pcbHd = (gap * pitch + pitch) / 2
+      pcbHd = (extent * pitch + pitch) / 2
     }
     geoms.push(boxGeomRaw(pcbCx, pcbCy, pcbHw, pcbHd, pcbZ0, pcbZ1))
 

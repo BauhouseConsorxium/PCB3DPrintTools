@@ -61,6 +61,33 @@ export const MODULE_VARIANTS = {
     usbSizeMm: { w: 9, d: 7, h: 3 },
     usbOffsetMm: 16,
   },
+  ads1115: {
+    id: 'ads1115',
+    label: 'ADS1115',
+    description: 'Adafruit ADS1115 16-bit I2C ADC + PGA breakout (single-row)',
+    icon: 'ads1115',
+    key: 'A',
+    title: 'ADS1115',
+    titleColor: '#00f0ff',
+    // singleRow modules have one pin column on the "left" edge and a PCB
+    // body that extends `bodyExtent` pitches outward. `pinLabels.right` is
+    // omitted and the second header / row is skipped during build.
+    singleRow: true,
+    pinsPerRow: 10,
+    bodyExtent: 6,
+    pinLabels: {
+      left: ['VDD','GND','SCL','SDA','ADDR','ALRT','A0','A1','A2','A3'],
+    },
+    // Adafruit ADS1115 ships on a bright blue PCB
+    bodyFill: 'rgba(35,75,170,0.85)',
+    bodyStroke: 'rgba(140,180,240,0.55)',
+    pcbThicknessMm: 1.6,
+    headerHeightMm: 8.5,
+    // ADS1115 in TSSOP-10 — small chip on the breakout
+    chipSizeMm: { w: 4, d: 5, h: 1 },
+    chipOffsetMm: 0,
+    // no USB on this breakout
+  },
 }
 
 export const MODULE_VARIANT_LIST = Object.values(MODULE_VARIANTS)
@@ -74,20 +101,34 @@ export function getVariant(idOrModule) {
   return MODULE_VARIANTS[idOrModule?.variant]
 }
 
+// Distance (in pitches) from the left pin row to the far edge of the PCB
+// body. For dual-row modules this equals `rowGap` (the second row sits on
+// the far edge). For single-row modules `bodyExtent` controls how far the
+// PCB extends past the lone pin column.
+export function getBodyExtent(v) {
+  return v.singleRow ? (v.bodyExtent ?? 6) : v.rowGap
+}
+
 // Pin positions for a placed module instance (anchored at module.col/row,
 // rotated by module.orientation: 'v' = pins run vertically, 'h' = horizontally).
+// Single-row modules emit only the left column.
 export function getModulePinPositions(module) {
   const v = getVariant(module)
   if (!v) return []
-  const { pinsPerRow, rowGap } = v
+  const { pinsPerRow } = v
+  const extent = getBodyExtent(v)
   const pins = []
   for (let i = 0; i < pinsPerRow; i++) {
     if (module.orientation === 'v') {
       pins.push({ col: module.col, row: module.row + i, label: v.pinLabels.left[i], side: 'left', index: i })
-      pins.push({ col: module.col + rowGap, row: module.row + i, label: v.pinLabels.right[i], side: 'right', index: i })
+      if (!v.singleRow) {
+        pins.push({ col: module.col + extent, row: module.row + i, label: v.pinLabels.right[i], side: 'right', index: i })
+      }
     } else {
       pins.push({ col: module.col + i, row: module.row, label: v.pinLabels.left[i], side: 'left', index: i })
-      pins.push({ col: module.col + i, row: module.row + rowGap, label: v.pinLabels.right[i], side: 'right', index: i })
+      if (!v.singleRow) {
+        pins.push({ col: module.col + i, row: module.row + extent, label: v.pinLabels.right[i], side: 'right', index: i })
+      }
     }
   }
   return pins
@@ -97,13 +138,14 @@ export function getModulePinPositions(module) {
 export function getModuleBounds(module) {
   const v = getVariant(module)
   if (!v) return null
-  const { pinsPerRow, rowGap } = v
+  const { pinsPerRow } = v
+  const extent = getBodyExtent(v)
   const pad = 0.4
   if (module.orientation === 'v') {
     return {
       col1: module.col - pad,
       row1: module.row - pad,
-      col2: module.col + rowGap + pad,
+      col2: module.col + extent + pad,
       row2: module.row + (pinsPerRow - 1) + pad,
     }
   }
@@ -111,7 +153,7 @@ export function getModuleBounds(module) {
     col1: module.col - pad,
     row1: module.row - pad,
     col2: module.col + (pinsPerRow - 1) + pad,
-    row2: module.row + rowGap + pad,
+    row2: module.row + extent + pad,
   }
 }
 

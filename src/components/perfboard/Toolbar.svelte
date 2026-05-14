@@ -126,6 +126,14 @@
             <line x1="14" y1="6" x2="17" y2="6" stroke-linecap="round" />
             <line x1="14" y1="10" x2="17" y2="10" stroke-linecap="round" />
             <line x1="14" y1="14" x2="17" y2="14" stroke-linecap="round" />
+          {:else if tool.icon === 'ads1115'}
+            <rect x="6" y="3" width="11" height="14" rx="0.5" />
+            <rect x="11" y="8" width="4" height="4" fill="currentColor" stroke="none" opacity="0.55" />
+            <line x1="3" y1="5" x2="6" y2="5" stroke-linecap="round" />
+            <line x1="3" y1="7.5" x2="6" y2="7.5" stroke-linecap="round" />
+            <line x1="3" y1="10" x2="6" y2="10" stroke-linecap="round" />
+            <line x1="3" y1="12.5" x2="6" y2="12.5" stroke-linecap="round" />
+            <line x1="3" y1="15" x2="6" y2="15" stroke-linecap="round" />
           {/if}
         </svg>
         <span>{tool.label}</span>

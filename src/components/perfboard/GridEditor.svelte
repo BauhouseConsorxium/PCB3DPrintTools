@@ -3482,21 +3482,23 @@
         <rect x={b.col1 * pitch} y={b.row1 * pitch}
               width={(b.col2 - b.col1) * pitch} height={(b.row2 - b.row1) * pitch}
               rx="0.6" fill={bodyFill} stroke={bodyStroke} stroke-width="0.2"/>
-        <!-- USB connector hint (small dark notch at one end) -->
-        {@const usbW = pitch * 1.4}
-        {@const usbD = pitch * 0.5}
-        {#if isV}
-          <rect x={((b.col1 + b.col2) / 2) * pitch - usbW / 2}
-                y={(b.row2) * pitch - usbD / 2}
-                width={usbW} height={usbD}
-                fill="rgba(255,255,255,0.15)"
-                stroke="rgba(255,255,255,0.25)" stroke-width="0.08" rx="0.1"/>
-        {:else}
-          <rect x={b.col2 * pitch - usbD / 2}
-                y={((b.row1 + b.row2) / 2) * pitch - usbW / 2}
-                width={usbD} height={usbW}
-                fill="rgba(255,255,255,0.15)"
-                stroke="rgba(255,255,255,0.25)" stroke-width="0.08" rx="0.1"/>
+        <!-- USB connector hint (only for variants that have a usb port) -->
+        {#if v.usbSizeMm}
+          {@const usbW = pitch * 1.4}
+          {@const usbD = pitch * 0.5}
+          {#if isV}
+            <rect x={((b.col1 + b.col2) / 2) * pitch - usbW / 2}
+                  y={(b.row2) * pitch - usbD / 2}
+                  width={usbW} height={usbD}
+                  fill="rgba(255,255,255,0.15)"
+                  stroke="rgba(255,255,255,0.25)" stroke-width="0.08" rx="0.1"/>
+          {:else}
+            <rect x={b.col2 * pitch - usbD / 2}
+                  y={((b.row1 + b.row2) / 2) * pitch - usbW / 2}
+                  width={usbD} height={usbW}
+                  fill="rgba(255,255,255,0.15)"
+                  stroke="rgba(255,255,255,0.25)" stroke-width="0.08" rx="0.1"/>
+          {/if}
         {/if}
         <!-- Pin pads -->
         {#each pins as pin}
