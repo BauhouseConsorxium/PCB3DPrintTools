@@ -54,7 +54,9 @@
       roundTraceRadius, roundTraceMode, roundTracePasses, roundTraceTeardrop,
       roundTraceTdHPercent, roundTraceTdVPercent,
       pinHousingHeight, pinHousingBoreWidth, pinHousingBoreOffset,
-      pinHousingWidth, pinHousingDepth, pinHousingFaceOffset
+      pinHousingWidth, pinHousingDepth, pinHousingFaceOffset,
+      enclosureEnabled, enclosureWallThickness, enclosureClearance,
+      enclosureFloorThickness, enclosureWallHeight, enclosureShelfDepth, enclosureShelfHeight
     }
   }
 
@@ -87,6 +89,13 @@
     pinHousingWidth = s.pinHousingWidth ?? pinHousingWidth
     pinHousingDepth = s.pinHousingDepth ?? pinHousingDepth
     pinHousingFaceOffset = s.pinHousingFaceOffset ?? pinHousingFaceOffset
+    enclosureEnabled = s.enclosureEnabled ?? enclosureEnabled
+    enclosureWallThickness = s.enclosureWallThickness ?? enclosureWallThickness
+    enclosureClearance = s.enclosureClearance ?? enclosureClearance
+    enclosureFloorThickness = s.enclosureFloorThickness ?? enclosureFloorThickness
+    enclosureWallHeight = s.enclosureWallHeight ?? enclosureWallHeight
+    enclosureShelfDepth = s.enclosureShelfDepth ?? enclosureShelfDepth
+    enclosureShelfHeight = s.enclosureShelfHeight ?? enclosureShelfHeight
     onBeforeChange()
   }
 </script>
