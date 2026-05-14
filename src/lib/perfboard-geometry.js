@@ -825,6 +825,56 @@ function buildComponentBodies(doc) {
     bodies.push(mergeGeoms(`Component_res${ri}`, geoms))
   }
 
+  const KSW_SOLDER = 1.5
+  const KSW_PIN_HW = 0.25
+  const KSW_BODY_HW = 7.0
+  const KSW_BODY_H = 11.6
+  const KSW_BASE_H = 0.6
+  const KSW_BASE_HW = 7.8
+  const KSW_STEM_R = 2.0
+  const KSW_STEM_RISE = 6.0
+  const KSW_STEM_H = 15.6
+  const KSW_POST_R = 1.95
+  const KSW_CROSS_HW = 1.15
+  const KSW_CROSS_HT = 0.55
+
+  for (let swi = 0; swi < (doc.keyswitches || []).length; swi++) {
+    const sw = (doc.keyswitches || [])[swi]
+    const cx = sw.col * pitch
+    const cy = -(sw.row * pitch)
+
+    let p1Col, p1Row, p2Col, p2Row
+    if (sw.orientation === 'h') {
+      p1Col = sw.col - 1.5; p1Row = sw.row - 1
+      p2Col = sw.col + 1; p2Row = sw.row - 2
+    } else {
+      p1Col = sw.col + 1; p1Row = sw.row - 1.5
+      p2Col = sw.col + 2; p2Row = sw.row + 1
+    }
+    const p1x = p1Col * pitch, p1y = -(p1Row * pitch)
+    const p2x = p2Col * pitch, p2y = -(p2Row * pitch)
+    const kBot = boardThickness
+
+    const geoms = []
+    // Wider flange/base
+    geoms.push(boxGeomRaw(cx, cy, KSW_BASE_HW, KSW_BASE_HW, kBot, kBot + KSW_BASE_H))
+    // Main housing (14×14mm)
+    geoms.push(boxGeomRaw(cx, cy, KSW_BODY_HW, KSW_BODY_HW, kBot + KSW_BASE_H, kBot + KSW_BODY_H))
+    // Stem cylinder rising above housing
+    geoms.push(cylGeom(cx, cy, KSW_STEM_R, kBot + KSW_STEM_RISE, kBot + KSW_STEM_H, 16))
+    // Cherry MX cross stem on top of stem cylinder
+    const crossZ0 = kBot + KSW_STEM_H - 0.6
+    const crossZ1 = kBot + KSW_STEM_H + 0.4
+    geoms.push(boxGeomRaw(cx, cy, KSW_CROSS_HW, KSW_CROSS_HT, crossZ0, crossZ1))
+    geoms.push(boxGeomRaw(cx, cy, KSW_CROSS_HT, KSW_CROSS_HW, crossZ0, crossZ1))
+    // Alignment post going down through board hole
+    geoms.push(cylGeom(cx, cy, KSW_POST_R, 0, kBot, 16))
+    // Pin wires (Cherry MX positions)
+    geoms.push(boxGeomRaw(p1x, p1y, KSW_PIN_HW, KSW_PIN_HW, -KSW_SOLDER, kBot))
+    geoms.push(boxGeomRaw(p2x, p2y, KSW_PIN_HW, KSW_PIN_HW, -KSW_SOLDER, kBot))
+    bodies.push(mergeGeoms(`Component_ksw${swi}`, geoms))
+  }
+
   const PH_FACE = (doc.pinHousingWidth ?? (pitch - 0.4)) / 2
   const PH_DEPTH = (doc.pinHousingDepth ?? (pitch - 0.4)) / 2
   const PH_ABOVE_COPPER = doc.pinHousingHeight ?? 2.5
@@ -1110,6 +1160,81 @@ function buildSquareCornerTraceGeometry(doc, drills, zBot, zTop) {
   return buildPolygonsWithDrills(shapes, drills, 'SquareCornerTraces_F.Cu', zBot, zTop)
 }
 
+function computeEnclosureCutouts(doc, boardPoly) {
+  const housings = doc.pinHousings ?? []
+  if (!housings.length) return []
+
+  const { pitch } = doc.grid
+  const copperThickness = doc.copperThickness
+  const phHeight = doc.pinHousingHeight ?? 2.5
+  const phWidth = doc.pinHousingWidth ?? 2.6
+  const slotClearance = 0.5
+  const edgeThreshold = 2.5 * pitch
+
+  let xMin = Infinity, xMax = -Infinity, yMin = Infinity, yMax = -Infinity
+  for (const pt of boardPoly) {
+    if (pt[0] < xMin) xMin = pt[0]
+    if (pt[0] > xMax) xMax = pt[0]
+    if (pt[1] < yMin) yMin = pt[1]
+    if (pt[1] > yMax) yMax = pt[1]
+  }
+
+  const cutouts = []
+  for (const ph of housings) {
+    const facing = ph.facing
+    if (!facing) continue
+    const count = ph.count ?? 2
+    const isH = ph.orientation === 'h'
+    const faceOfs = doc.pinHousingFaceOffset ?? 0
+    const boreAlongX = (facing === 'east' || facing === 'west')
+    const faceDx = boreAlongX ? faceOfs : 0
+    const faceDy = boreAlongX ? 0 : -faceOfs
+
+    const firstX = ph.col * pitch + faceDx
+    const firstY = -(ph.row * pitch) + faceDy
+    const lastX = (isH ? (ph.col + count - 1) * pitch : ph.col * pitch) + faceDx
+    const lastY = (isH ? -(ph.row * pitch) : -((ph.row + count - 1) * pitch)) + faceDy
+
+    const centerX = (firstX + lastX) / 2
+    const centerY = (firstY + lastY) / 2
+
+    let distToEdge
+    if (facing === 'east') distToEdge = xMax - centerX
+    else if (facing === 'west') distToEdge = centerX - xMin
+    else if (facing === 'north') distToEdge = yMax - centerY
+    else distToEdge = centerY - yMin
+
+    if (distToEdge > edgeThreshold) continue
+
+    const spanAlongWall = isH
+      ? (facing === 'north' || facing === 'south'
+        ? (count - 1) * pitch + phWidth + slotClearance
+        : phWidth + slotClearance)
+      : (facing === 'east' || facing === 'west'
+        ? (count - 1) * pitch + phWidth + slotClearance
+        : phWidth + slotClearance)
+
+    const halfSpan = spanAlongWall / 2
+    const zBottom = -(copperThickness + phHeight)
+
+    let cx, cy, dx, dy
+    if (facing === 'east' || facing === 'west') {
+      cx = centerX
+      cy = centerY
+      dx = 0
+      dy = halfSpan
+    } else {
+      cx = centerX
+      cy = centerY
+      dx = halfSpan
+      dy = 0
+    }
+
+    cutouts.push({ cx, cy, dx, dy, zBottom })
+  }
+  return cutouts
+}
+
 export function buildPerfboardBodies(doc) {
   const boardPoly = buildBoardPolygon(doc)
   const allNodes = enumerateConductorNodes(doc)
@@ -1119,6 +1244,24 @@ export function buildPerfboardBodies(doc) {
   const padR = padDiameter / 2
 
   const drills = padPositions.map(p => ({ x: p.x, y: p.y, r: drillR }))
+
+  // Cherry MX mounting holes (center post + 2 alignment pegs)
+  // Note: drills use data-space Y (positive for positive row); buildBoardGeometry flips internally
+  const KSW_CENTER_DRILL_R = 2.0
+  const KSW_PEG_DRILL_R = 0.85
+  const gridPitch = doc.grid.pitch
+  for (const sw of doc.keyswitches ?? []) {
+    const cx = sw.col * gridPitch
+    const cy = sw.row * gridPitch
+    drills.push({ x: cx, y: cy, r: KSW_CENTER_DRILL_R })
+    if (sw.orientation === 'h') {
+      drills.push({ x: cx - 2 * gridPitch, y: cy, r: KSW_PEG_DRILL_R })
+      drills.push({ x: cx + 2 * gridPitch, y: cy, r: KSW_PEG_DRILL_R })
+    } else {
+      drills.push({ x: cx, y: cy - 2 * gridPitch, r: KSW_PEG_DRILL_R })
+      drills.push({ x: cx, y: cy + 2 * gridPitch, r: KSW_PEG_DRILL_R })
+    }
+  }
 
   const boardBody = buildBoardGeometry(boardPoly, drills, boardThickness)
 
@@ -1201,7 +1344,9 @@ export function buildPerfboardBodies(doc) {
     }
     if (area < 0) poly.reverse()
     poly.push([poly[0][0], poly[0][1]])
-    enclosureBody = buildEnclosureBody(poly, doc.enclosure)
+
+    const cutouts = computeEnclosureCutouts(doc, boardPoly)
+    enclosureBody = buildEnclosureBody(poly, doc.enclosure, cutouts)
   }
 
   return [boardBody, padsBody, tracesBody, squareCornerBody, curveTracesBody, teardropBody, ...componentBodies, ...jumperBodies, enclosureBody].filter(Boolean)
@@ -1248,6 +1393,7 @@ export function createDefaultDocument() {
     capacitors: [],
     resistors: [],
     pinHousings: [],
+    keyswitches: [],
     traces: [],
     jumpers: [],
     joints: [],

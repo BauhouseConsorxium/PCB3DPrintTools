@@ -69,6 +69,16 @@ export function enumerateConductorNodes(doc) {
       add(c, r, 'pinhousing', ph.id, '')
     }
   }
+  for (const sw of doc.keyswitches ?? []) {
+    // Cherry MX electrical pin positions (relative to switch center)
+    if (sw.orientation === 'h') {
+      add(sw.col - 1.5, sw.row - 1, 'keyswitch', sw.id, '')
+      add(sw.col + 1, sw.row - 2, 'keyswitch', sw.id, '')
+    } else {
+      add(sw.col + 1, sw.row - 1.5, 'keyswitch', sw.id, '')
+      add(sw.col + 2, sw.row + 1, 'keyswitch', sw.id, '')
+    }
+  }
 
   return nodes
 }

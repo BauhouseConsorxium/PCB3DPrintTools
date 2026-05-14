@@ -55,6 +55,8 @@
     onUpdateResistor = () => {},
     onAddPinHousing = () => {},
     onUpdatePinHousing = () => {},
+    onAddKeyswitch = () => {},
+    onUpdateKeyswitch = () => {},
     svgRef = $bindable(null),
   } = $props();
 
@@ -131,6 +133,11 @@
   let phStart = $state(null);
   let phPreview = $state(null);
   let editingPinHousing = $state(null);
+
+  // Keyswitch drawing state
+  let kswStart = $state(null);
+  let kswPreview = $state(null);
+  let editingKeyswitch = $state(null);
 
   // Freetrace drawing state
   let freetraceDrawing = $state(false);
@@ -329,6 +336,16 @@
         if (pc === col && pr === row) return ph
       }
     }
+    for (const sw of doc.keyswitches || []) {
+      if (sw.col === col && sw.row === row) return sw;
+      const pins = kswPins(sw);
+      if (pins.some((p) => p.col === col && p.row === row)) return sw;
+      if (rawX != null && rawY != null) {
+        const swCx = sw.col * pitch;
+        const swCy = sw.row * pitch;
+        if (Math.abs(rawX - swCx) <= 7 && Math.abs(rawY - swCy) <= 7) return sw;
+      }
+    }
     for (const jt of doc.joints || []) {
       if (jt.col === col && jt.row === row) return jt;
     }
@@ -447,6 +464,9 @@
     }
     if (editingPinHousing) {
       editingPinHousing = null;
+    }
+    if (editingKeyswitch) {
+      editingKeyswitch = null;
     }
     if (editingPad) {
       editingPad = null;
@@ -606,6 +626,17 @@
           phStart = null;
           phPreview = null;
         }
+      }
+    } else if (activeTool === 'keyswitch') {
+      if (!kswStart) {
+        kswStart = { col, row };
+      } else {
+        const dc = col - kswStart.col;
+        const dr = row - kswStart.row;
+        const orientation = Math.abs(dc) >= Math.abs(dr) ? 'h' : 'v';
+        onAddKeyswitch(kswStart.col, kswStart.row, orientation);
+        kswStart = null;
+        kswPreview = null;
       }
     } else if (activeTool === "trace") {
       if (tracePoints.length === 0) {
@@ -871,6 +902,13 @@
       const startRow = orientation === "v" ? Math.min(phStart.row, row) : phStart.row;
       phPreview = { col: startCol, row: startRow, count, orientation };
     }
+
+    if (activeTool === 'keyswitch' && kswStart) {
+      const dc = col - kswStart.col;
+      const dr = row - kswStart.row;
+      const orientation = Math.abs(dc) >= Math.abs(dr) ? 'h' : 'v';
+      kswPreview = { col: kswStart.col, row: kswStart.row, orientation };
+    }
   }
 
   function findElementsInRect(x1, y1, x2, y2) {
@@ -933,6 +971,14 @@
         const pr = ph.orientation === 'v' ? ph.row + i : ph.row;
         if (inRect(pc * pitch, pr * pitch)) { ids.push(ph.id); break; }
       }
+    }
+    for (const sw of doc.keyswitches || []) {
+      const pins = kswPins(sw);
+      if (
+        inRect(sw.col * pitch, sw.row * pitch) ||
+        pins.some((p) => inRect(p.col * pitch, p.row * pitch))
+      )
+        ids.push(sw.id);
     }
     for (const t of doc.traces) {
       for (const pt of t.points) {
@@ -1166,6 +1212,15 @@
           left: e.clientX - rect.left,
           top: e.clientY - rect.top - 20,
         };
+      } else if (el && (doc.keyswitches || []).find((sw) => sw.id === el.id)) {
+        const sw = (doc.keyswitches || []).find((sw) => sw.id === el.id);
+        const rect = containerEl.getBoundingClientRect();
+        editingKeyswitch = {
+          id: el.id,
+          label: sw.label ?? '',
+          left: e.clientX - rect.left,
+          top: e.clientY - rect.top - 20,
+        };
       } else if (el && doc.headers.find((h) => h.id === el.id)) {
         const header = doc.headers.find((h) => h.id === el.id);
         const rect = containerEl.getBoundingClientRect();
@@ -1354,6 +1409,21 @@
     if (e.key === "Enter" || e.key === "Escape") closePhEdit();
   }
 
+  function applyKswEdit() {
+    if (!editingKeyswitch) return;
+    onUpdateKeyswitch(editingKeyswitch.id, editingKeyswitch.label);
+  }
+
+  function closeKswEdit() {
+    applyKswEdit();
+    editingKeyswitch = null;
+  }
+
+  function handleKswEditKeydown(e) {
+    e.stopPropagation();
+    if (e.key === 'Enter' || e.key === 'Escape') closeKswEdit();
+  }
+
   function applyCurveEdit() {
     if (!editingCurve) return;
     onUpdateCurve(
@@ -1463,6 +1533,11 @@
       phPreview = null;
       return true;
     }
+    if (activeTool === 'keyswitch' && kswStart) {
+      kswStart = null;
+      kswPreview = null;
+      return true;
+    }
     if (freetraceDrawing) {
       freetraceDrawing = false;
       freetracePoints = [];
@@ -1508,6 +1583,8 @@
     "R": "resistor",
     "h": "pinhousing",
     "H": "pinhousing",
+    "k": "keyswitch",
+    "K": "keyswitch",
   };
 
   function handleKeydown(e) {
@@ -1549,6 +1626,10 @@
       }
       if (editingPinHousing) {
         editingPinHousing = null;
+        return;
+      }
+      if (editingKeyswitch) {
+        editingKeyswitch = null;
         return;
       }
       if (editingJumper) {
@@ -1613,6 +1694,34 @@
     return pads;
   }
 
+  // Cherry MX electrical pin positions relative to switch center (col, row)
+  function kswPins(sw) {
+    if (sw.orientation === 'h') {
+      return [
+        { col: sw.col - 1.5, row: sw.row - 1 },
+        { col: sw.col + 1, row: sw.row - 2 },
+      ]
+    }
+    return [
+      { col: sw.col + 1, row: sw.row - 1.5 },
+      { col: sw.col + 2, row: sw.row + 1 },
+    ]
+  }
+
+  // Cherry MX alignment peg positions (no electrical, just drill holes)
+  function kswPegs(sw) {
+    if (sw.orientation === 'h') {
+      return [
+        { col: sw.col - 2, row: sw.row },
+        { col: sw.col + 2, row: sw.row },
+      ]
+    }
+    return [
+      { col: sw.col, row: sw.row - 2 },
+      { col: sw.col, row: sw.row + 2 },
+    ]
+  }
+
   function getDipPads(dip) {
     const spacing = dip.rowSpacing ?? 3;
     const pads = [];
@@ -1670,6 +1779,11 @@
       positions.push({ x: res.col * pitch, y: res.row * pitch });
       if (res.orientation === 'h') positions.push({ x: (res.col + spacing) * pitch, y: res.row * pitch });
       else positions.push({ x: res.col * pitch, y: (res.row + spacing) * pitch });
+    }
+    for (const sw of doc.keyswitches || []) {
+      for (const p of kswPins(sw)) {
+        positions.push({ x: p.col * pitch, y: p.row * pitch });
+      }
     }
     return positions;
   });
@@ -3206,6 +3320,92 @@
         font-weight="bold">{phPreview.count}</text>
     {/if}
 
+    <!-- Key Switches (Cherry MX footprint) -->
+    {#each doc.keyswitches || [] as sw}
+      {@const isSelected = selectedIds.includes(sw.id)}
+      {@const cx = sw.col * pitch}
+      {@const cy = sw.row * pitch}
+      {@const pins = kswPins(sw)}
+      {@const pegs = kswPegs(sw)}
+      {@const halfBody = 7.0}
+      {@const halfBase = 7.8}
+      {@const centerR = 2.0}
+      {@const pegR = 0.85}
+      {@const bodyColor = isSelected ? "rgba(251,191,36,0.18)" : "rgba(40,40,60,0.85)"}
+      {@const baseColor = isSelected ? "rgba(251,191,36,0.1)" : "rgba(30,30,50,0.6)"}
+      {@const strokeColor = isSelected ? "#fbbf24" : "rgba(255,255,255,0.35)"}
+      {@const innerStroke = isSelected ? "rgba(251,191,36,0.5)" : "rgba(255,255,255,0.15)"}
+      {@const accentColor = isSelected ? "#fbbf24" : "rgba(180,220,255,0.7)"}
+      <!-- Outer base flange -->
+      <rect x={cx - halfBase} y={cy - halfBase} width={halfBase * 2} height={halfBase * 2}
+            rx="0.6" fill={baseColor} stroke={strokeColor} stroke-width="0.15"/>
+      <!-- Main housing -->
+      <rect x={cx - halfBody} y={cy - halfBody} width={halfBody * 2} height={halfBody * 2}
+            rx="0.5" fill={bodyColor} stroke={strokeColor} stroke-width="0.18"/>
+      <!-- Inner bevel -->
+      <rect x={cx - halfBody + 0.7} y={cy - halfBody + 0.7}
+            width={(halfBody - 0.7) * 2} height={(halfBody - 0.7) * 2}
+            rx="0.3" fill="none" stroke={innerStroke} stroke-width="0.1"/>
+      <!-- Center mounting hole (4mm dia) -->
+      <circle cx={cx} cy={cy} r={centerR} fill="#1a1a2e"
+              stroke={isSelected ? "#fbbf24" : "rgba(255,255,255,0.2)"} stroke-width="0.12"/>
+      <!-- Cherry MX cross stem indicator inside center hole -->
+      <rect x={cx - 0.85} y={cy - 0.18} width="1.7" height="0.36" fill={accentColor} opacity="0.85"/>
+      <rect x={cx - 0.18} y={cy - 0.85} width="0.36" height="1.7" fill={accentColor} opacity="0.85"/>
+      <!-- Alignment pegs (no pad, just drill) -->
+      {#each pegs as peg}
+        <circle cx={peg.col * pitch} cy={peg.row * pitch} r={pegR + 0.15}
+                fill="rgba(20,20,30,0.6)" stroke={innerStroke} stroke-width="0.08"/>
+        <circle cx={peg.col * pitch} cy={peg.row * pitch} r={pegR} fill="#1a1a2e"/>
+      {/each}
+      <!-- Electrical pin pads -->
+      {#each pins as pin}
+        {@const px = pin.col * pitch}
+        {@const py = pin.row * pitch}
+        {@const pFill = padFillFor(nets, pin.col, pin.row, isSelected, null)}
+        <g opacity={padDim(pin.col, pin.row)}>
+          {#if isSelected}
+            <circle cx={px} cy={py} r={padR + pitch * 0.04} fill="rgba(255,255,255,0.45)"/>
+          {/if}
+          <circle cx={px} cy={py} r={padR} fill={pFill}/>
+          <circle cx={px} cy={py} r={drillR} fill="#1a1a2e"/>
+        </g>
+      {/each}
+      {#if sw.label}
+        <text x={cx} y={cy - halfBase - pitch * 0.2}
+              text-anchor="middle" dominant-baseline="auto"
+              fill="rgba(255,255,255,0.7)"
+              font-size={pitch * 0.4}
+              font-family="monospace"
+              font-weight="bold">{sw.label}</text>
+      {/if}
+    {/each}
+
+    <!-- Key Switch preview -->
+    {#if kswPreview}
+      {@const cx = kswPreview.col * pitch}
+      {@const cy = kswPreview.row * pitch}
+      {@const pins = kswPins(kswPreview)}
+      {@const pegs = kswPegs(kswPreview)}
+      {@const halfBody = 7.0}
+      {@const halfBase = 7.8}
+      {@const centerR = 2.0}
+      {@const pegR = 0.85}
+      <rect x={cx - halfBase} y={cy - halfBase} width={halfBase * 2} height={halfBase * 2}
+            rx="0.6" fill="rgba(30,30,50,0.3)" stroke="rgba(255,255,255,0.15)" stroke-width="0.15"/>
+      <rect x={cx - halfBody} y={cy - halfBody} width={halfBody * 2} height={halfBody * 2}
+            rx="0.5" fill="rgba(40,40,60,0.4)" stroke="rgba(255,255,255,0.25)" stroke-width="0.18"/>
+      <circle cx={cx} cy={cy} r={centerR} fill="#1a1a2e" opacity="0.6"
+              stroke="rgba(255,255,255,0.2)" stroke-width="0.12"/>
+      {#each pegs as peg}
+        <circle cx={peg.col * pitch} cy={peg.row * pitch} r={pegR} fill="#1a1a2e" opacity="0.5"/>
+      {/each}
+      {#each pins as pin}
+        <circle cx={pin.col * pitch} cy={pin.row * pitch} r={padR} fill="#d4a534" opacity="0.4"/>
+        <circle cx={pin.col * pitch} cy={pin.row * pitch} r={drillR} fill="#1a1a2e" opacity="0.4"/>
+      {/each}
+    {/if}
+
     <!-- Pads -->
     {#each doc.pads as pad}
       {@const isSelected = selectedIds.includes(pad.id)}
@@ -3276,7 +3476,7 @@
     <!-- Interactive editor overlays (not exported) -->
     <g class="editor-interactive">
     <!-- Ghost cursor -->
-    {#if ghostPos && (activeTool === "pad" || activeTool === "header" || (activeTool === "dip" && !dipStart) || (activeTool === "cap" && !capStart) || (activeTool === "resistor" && !resStart) || (activeTool === "pinhousing" && !phStart))}
+    {#if ghostPos && (activeTool === "pad" || activeTool === "header" || (activeTool === "dip" && !dipStart) || (activeTool === "cap" && !capStart) || (activeTool === "resistor" && !resStart) || (activeTool === "pinhousing" && !phStart) || (activeTool === 'keyswitch' && !kswStart))}
       <circle
         cx={ghostPos.col * pitch}
         cy={ghostPos.row * pitch}
@@ -3664,6 +3864,17 @@
             <circle cx={(pp.col + dc) * pitch} cy={(pp.row + dr) * pitch} r={drillR} fill="#1a1a2e" opacity="0.4"/>
           {/each}
         {/each}
+        {#each (doc.keyswitches || []).filter((sw) => selectedIds.includes(sw.id)) as sw}
+          {@const ghostCx = (sw.col + dc) * pitch}
+          {@const ghostCy = (sw.row + dr) * pitch}
+          <rect x={ghostCx - 7} y={ghostCy - 7} width="14" height="14"
+                rx="0.5" fill="rgba(40,40,60,0.3)" stroke="#fbbf24" stroke-width="0.18" opacity="0.4"/>
+          <circle cx={ghostCx} cy={ghostCy} r="2" fill="#1a1a2e" opacity="0.5"/>
+          {#each kswPins(sw) as pin}
+            <circle cx={(pin.col + dc) * pitch} cy={(pin.row + dr) * pitch} r={padR} fill="#fbbf24" opacity="0.4"/>
+            <circle cx={(pin.col + dc) * pitch} cy={(pin.row + dr) * pitch} r={drillR} fill="#1a1a2e" opacity="0.4"/>
+          {/each}
+        {/each}
         {#each doc.traces.filter((t) => selectedIds.includes(t.id)) as trace}
           {#if trace.type === "curve"}
             {@const pts = trace.points.map((p) => ({
@@ -3979,6 +4190,24 @@
           {/each}
         </div>
       </div>
+    </div>
+  {/if}
+
+  {#if editingKeyswitch}
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
+    <div
+      class="absolute bg-surface-1 rounded-lg border-2 border-black shadow-[4px_4px_0_black] z-10 p-1.5 flex flex-col gap-1.5"
+      style="left: {editingKeyswitch.left}px; top: {editingKeyswitch.top}px"
+      onfocusout={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) closeKswEdit() }}
+    >
+      <input
+        type="text"
+        value={editingKeyswitch.label}
+        placeholder="Label (e.g. SW1)"
+        class="bg-surface-2 text-xs text-cyan-light rounded-lg px-2 py-1 border-2 border-black outline-none shadow-[2px_2px_0_black] w-36"
+        onkeydown={handleKswEditKeydown}
+        oninput={(e) => { editingKeyswitch = { ...editingKeyswitch, label: e.target.value }; applyKswEdit() }}
+      />
     </div>
   {/if}
 

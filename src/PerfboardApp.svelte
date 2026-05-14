@@ -206,6 +206,23 @@
     }
   }
 
+  function addKeyswitch(col, row, orientation) {
+    pushUndo();
+    doc.keyswitches = [
+      ...(doc.keyswitches || []),
+      { id: crypto.randomUUID(), col, row, orientation },
+    ];
+  }
+
+  function updateKeyswitch(id, label) {
+    pushUndo();
+    const sw = (doc.keyswitches || []).find((s) => s.id === id);
+    if (sw) {
+      sw.label = label;
+      doc.keyswitches = [...(doc.keyswitches || [])];
+    }
+  }
+
   function addTrace(points, type) {
     if (points.length < 2) return;
     pushUndo();
@@ -526,6 +543,12 @@
         ph.row += dr;
         continue;
       }
+      const ksw = (doc.keyswitches || []).find((s) => s.id === id);
+      if (ksw) {
+        ksw.col += dc;
+        ksw.row += dr;
+        continue;
+      }
       const jumper = doc.jumpers.find((j) => j.id === id);
       if (jumper) {
         jumper.col1 += dc;
@@ -553,6 +576,7 @@
     doc.capacitors = [...(doc.capacitors || [])];
     doc.resistors = [...(doc.resistors || [])];
     doc.pinHousings = [...(doc.pinHousings || [])];
+    doc.keyswitches = [...(doc.keyswitches || [])];
     doc.traces = [...doc.traces];
     doc.jumpers = [...doc.jumpers];
     doc.joints = [...(doc.joints || [])];
@@ -590,6 +614,11 @@
         ph.facing = facingMap[ph.facing] ?? (ph.orientation === 'h' ? 'south' : 'east');
         continue;
       }
+      const ksw = (doc.keyswitches || []).find((s) => s.id === id);
+      if (ksw) {
+        ksw.orientation = ksw.orientation === 'h' ? 'v' : 'h';
+        continue;
+      }
       const trace = doc.traces.find((t) => t.id === id);
       if (trace && trace.points.length >= 2) {
         const pivot = trace.points[0];
@@ -621,6 +650,7 @@
     doc.capacitors = [...(doc.capacitors || [])];
     doc.resistors = [...(doc.resistors || [])];
     doc.pinHousings = [...(doc.pinHousings || [])];
+    doc.keyswitches = [...(doc.keyswitches || [])];
     doc.traces = [...doc.traces];
     doc.jumpers = [...doc.jumpers];
   }
@@ -633,6 +663,7 @@
     doc.capacitors = (doc.capacitors || []).filter((c) => c.id !== id);
     doc.resistors = (doc.resistors || []).filter((r) => r.id !== id);
     doc.pinHousings = (doc.pinHousings || []).filter((p) => p.id !== id);
+    doc.keyswitches = (doc.keyswitches || []).filter((s) => s.id !== id);
     doc.traces = doc.traces.filter((t) => t.id !== id);
     doc.jumpers = doc.jumpers.filter((j) => j.id !== id);
     doc.joints = (doc.joints || []).filter((j) => j.id !== id);
@@ -743,6 +774,7 @@
     parsed.capacitors = parsed.capacitors ?? [];
     parsed.resistors = parsed.resistors ?? [];
     parsed.pinHousings = parsed.pinHousings ?? [];
+    parsed.keyswitches = parsed.keyswitches ?? [];
     parsed.jumpers = parsed.jumpers ?? [];
     parsed.joints = parsed.joints ?? [];
     parsed.annotations = parsed.annotations ?? [];
@@ -933,6 +965,7 @@
         doc.capacitors = (doc.capacitors || []).filter((c) => !idSet.has(c.id));
         doc.resistors = (doc.resistors || []).filter((r) => !idSet.has(r.id));
         doc.pinHousings = (doc.pinHousings || []).filter((p) => !idSet.has(p.id));
+        doc.keyswitches = (doc.keyswitches || []).filter((s) => !idSet.has(s.id));
         doc.traces = doc.traces.filter((t) => !idSet.has(t.id));
         doc.jumpers = doc.jumpers.filter((j) => !idSet.has(j.id));
         doc.joints = (doc.joints || []).filter((j) => !idSet.has(j.id));
@@ -1296,7 +1329,7 @@
           ).toFixed(1)} mm
         </div>
         <div>
-          Pads: {doc.pads.length} | Headers: {doc.headers.length} | DIPs: {(doc.dips || []).length} | Caps: {(doc.capacitors || []).length} | Res: {(doc.resistors || []).length} | Sockets: {(doc.pinHousings || []).length} | Traces: {doc.traces.length} | Jumpers: {doc.jumpers.length} | Labels: {doc.annotations.length}
+          Pads: {doc.pads.length} | Headers: {doc.headers.length} | DIPs: {(doc.dips || []).length} | Caps: {(doc.capacitors || []).length} | Res: {(doc.resistors || []).length} | Sockets: {(doc.pinHousings || []).length} | Keys: {(doc.keyswitches || []).length} | Traces: {doc.traces.length} | Jumpers: {doc.jumpers.length} | Labels: {doc.annotations.length}
         </div>
       </div>
     </div>
@@ -1341,6 +1374,8 @@
             onUpdateResistor={updateResistor}
             onAddPinHousing={addPinHousing}
             onUpdatePinHousing={updatePinHousing}
+            onAddKeyswitch={addKeyswitch}
+            onUpdateKeyswitch={updateKeyswitch}
             onAddJumper={addJumper}
             onAddJoint={addJoint}
             onAddAnnotation={addAnnotation}

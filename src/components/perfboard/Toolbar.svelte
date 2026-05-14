@@ -17,6 +17,7 @@
     { id: 'freetrace', label: 'Free', icon: 'freetrace', key: 'F' },
     { id: 'resistor', label: 'Res', icon: 'resistor', key: 'R' },
     { id: 'pinhousing', label: 'Socket', icon: 'pinhousing', key: 'H' },
+    { id: 'keyswitch', label: 'Key', icon: 'keyswitch', key: 'K' },
   ]
 </script>
 
@@ -90,6 +91,11 @@
             <line x1="13" y1="10" x2="13" y2="16" stroke-linecap="round" />
             <circle cx="7" cy="7" r="1.5" fill="currentColor" stroke="none" />
             <circle cx="13" cy="7" r="1.5" fill="currentColor" stroke="none" />
+          {:else if tool.icon === 'keyswitch'}
+            <rect x="4" y="3" width="12" height="12" rx="1" />
+            <circle cx="10" cy="8.5" r="2.5" />
+            <line x1="8" y1="15" x2="8" y2="18" stroke-linecap="round" />
+            <line x1="12" y1="15" x2="12" y2="18" stroke-linecap="round" />
           {/if}
         </svg>
         <span>{tool.label}</span>
