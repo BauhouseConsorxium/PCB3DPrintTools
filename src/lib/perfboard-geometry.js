@@ -5,6 +5,7 @@ import { buildEnclosureBody } from './enclosure.js'
 import { sampleCatmullRom, sampleCatmullRomWithWidth } from './catmull-rom.js'
 import { computeRoundedCorners, computeSubdivisionRounding, sampleRoundedPath, computeTeardrops } from './round-trace.js'
 import { enumerateConductorNodes } from './perfboard-topology.js'
+import { getVariant as getModuleVariant } from './perfboard-modules.js'
 
 const PAD_CIRCLE_N = 32
 
@@ -913,6 +914,91 @@ function buildComponentBodies(doc) {
     bodies.push(mergeGeoms(`Component_ksw${swi}`, geoms))
   }
 
+  // ESP32 / dev-board modules (single editable entity per instance)
+  const MOD_PIN_HW = 0.32
+  const MOD_PIN_BELOW = 2.5
+  const MOD_HOUSING_HW = (pitch - 0.4) / 2
+  for (let modi = 0; modi < (doc.modules || []).length; modi++) {
+    const m = (doc.modules || [])[modi]
+    const v = getModuleVariant(m)
+    if (!v) continue
+    const isV = m.orientation === 'v'
+    const N = v.pinsPerRow
+    const gap = v.rowGap
+    const baseX = m.col * pitch
+    const baseY = -(m.row * pitch)
+    const headerH = v.headerHeightMm ?? 8.5
+    const pcbH = v.pcbThicknessMm ?? 1.6
+    const housingZ0 = boardThickness
+    const housingZ1 = boardThickness + headerH
+    const pcbZ0 = housingZ1
+    const pcbZ1 = pcbZ0 + pcbH
+
+    const geoms = []
+
+    // Two female header housings + pin wires for each row
+    for (let r = 0; r < 2; r++) {
+      const offset = r === 0 ? 0 : gap
+      let hcx, hcy, hw, hd
+      if (isV) {
+        hcx = baseX + offset * pitch
+        hcy = baseY - ((N - 1) * pitch) / 2
+        hw = MOD_HOUSING_HW
+        hd = ((N - 1) * pitch + pitch) / 2
+      } else {
+        hcx = baseX + ((N - 1) * pitch) / 2
+        hcy = baseY - offset * pitch
+        hw = ((N - 1) * pitch + pitch) / 2
+        hd = MOD_HOUSING_HW
+      }
+      geoms.push(boxGeomRaw(hcx, hcy, hw, hd, housingZ0, housingZ1))
+      for (let i = 0; i < N; i++) {
+        const px = isV ? baseX + offset * pitch : baseX + i * pitch
+        const py = isV ? baseY - i * pitch : baseY - offset * pitch
+        geoms.push(boxGeomRaw(px, py, MOD_PIN_HW, MOD_PIN_HW, -MOD_PIN_BELOW, housingZ1))
+      }
+    }
+
+    // Module PCB sitting on top of the headers (spans both rows)
+    let pcbCx, pcbCy, pcbHw, pcbHd
+    if (isV) {
+      pcbCx = baseX + (gap * pitch) / 2
+      pcbCy = baseY - ((N - 1) * pitch) / 2
+      pcbHw = (gap * pitch + pitch) / 2
+      pcbHd = ((N - 1) * pitch + pitch) / 2
+    } else {
+      pcbCx = baseX + ((N - 1) * pitch) / 2
+      pcbCy = baseY - (gap * pitch) / 2
+      pcbHw = ((N - 1) * pitch + pitch) / 2
+      pcbHd = (gap * pitch + pitch) / 2
+    }
+    geoms.push(boxGeomRaw(pcbCx, pcbCy, pcbHw, pcbHd, pcbZ0, pcbZ1))
+
+    // ESP32-WROOM chip can on PCB top (offset along pin-axis toward one end)
+    const chip = v.chipSizeMm
+    if (chip) {
+      const chipOfs = v.chipOffsetMm ?? 0
+      const chipCx = isV ? pcbCx : pcbCx + chipOfs
+      const chipCy = isV ? pcbCy + chipOfs : pcbCy
+      const chipHw = isV ? chip.w / 2 : chip.d / 2
+      const chipHd = isV ? chip.d / 2 : chip.w / 2
+      geoms.push(boxGeomRaw(chipCx, chipCy, chipHw, chipHd, pcbZ1, pcbZ1 + chip.h))
+    }
+
+    // USB connector at opposite end
+    const usb = v.usbSizeMm
+    if (usb) {
+      const usbOfs = v.usbOffsetMm ?? 0
+      const usbCx = isV ? pcbCx : pcbCx + usbOfs
+      const usbCy = isV ? pcbCy + usbOfs : pcbCy
+      const usbHw = isV ? usb.w / 2 : usb.d / 2
+      const usbHd = isV ? usb.d / 2 : usb.w / 2
+      geoms.push(boxGeomRaw(usbCx, usbCy, usbHw, usbHd, pcbZ1, pcbZ1 + usb.h))
+    }
+
+    bodies.push(mergeGeoms(`Component_mod${modi}`, geoms))
+  }
+
   const PH_FACE = (doc.pinHousingWidth ?? (pitch - 0.4)) / 2
   const PH_DEPTH = (doc.pinHousingDepth ?? (pitch - 0.4)) / 2
   const PH_ABOVE_COPPER = doc.pinHousingHeight ?? 2.5
@@ -1432,6 +1518,7 @@ export function createDefaultDocument() {
     resistors: [],
     pinHousings: [],
     keyswitches: [],
+    modules: [],
     traces: [],
     jumpers: [],
     joints: [],

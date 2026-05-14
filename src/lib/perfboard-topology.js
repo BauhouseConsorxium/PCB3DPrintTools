@@ -1,3 +1,5 @@
+import { getModulePinPositions } from './perfboard-modules.js'
+
 export function nodeKey(col, row) {
   return `${col},${row}`
 }
@@ -77,6 +79,11 @@ export function enumerateConductorNodes(doc) {
     } else {
       add(sw.col + 1, sw.row - 1.5, 'keyswitch', sw.id, '')
       add(sw.col + 2, sw.row + 1, 'keyswitch', sw.id, '')
+    }
+  }
+  for (const m of doc.modules ?? []) {
+    for (const pin of getModulePinPositions(m)) {
+      add(pin.col, pin.row, 'module', m.id, pin.label)
     }
   }
 

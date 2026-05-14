@@ -223,6 +223,14 @@
     }
   }
 
+  function addModule(col, row, variant) {
+    pushUndo();
+    doc.modules = [
+      ...(doc.modules || []),
+      { id: crypto.randomUUID(), col, row, orientation: 'v', variant },
+    ];
+  }
+
   function addTrace(points, type) {
     if (points.length < 2) return;
     pushUndo();
@@ -549,6 +557,12 @@
         ksw.row += dr;
         continue;
       }
+      const mod = (doc.modules || []).find((m) => m.id === id);
+      if (mod) {
+        mod.col += dc;
+        mod.row += dr;
+        continue;
+      }
       const jumper = doc.jumpers.find((j) => j.id === id);
       if (jumper) {
         jumper.col1 += dc;
@@ -577,6 +591,7 @@
     doc.resistors = [...(doc.resistors || [])];
     doc.pinHousings = [...(doc.pinHousings || [])];
     doc.keyswitches = [...(doc.keyswitches || [])];
+    doc.modules = [...(doc.modules || [])];
     doc.traces = [...doc.traces];
     doc.jumpers = [...doc.jumpers];
     doc.joints = [...(doc.joints || [])];
@@ -619,6 +634,11 @@
         ksw.orientation = ksw.orientation === 'h' ? 'v' : 'h';
         continue;
       }
+      const mod = (doc.modules || []).find((m) => m.id === id);
+      if (mod) {
+        mod.orientation = mod.orientation === 'h' ? 'v' : 'h';
+        continue;
+      }
       const trace = doc.traces.find((t) => t.id === id);
       if (trace && trace.points.length >= 2) {
         const pivot = trace.points[0];
@@ -651,6 +671,7 @@
     doc.resistors = [...(doc.resistors || [])];
     doc.pinHousings = [...(doc.pinHousings || [])];
     doc.keyswitches = [...(doc.keyswitches || [])];
+    doc.modules = [...(doc.modules || [])];
     doc.traces = [...doc.traces];
     doc.jumpers = [...doc.jumpers];
   }
@@ -664,6 +685,7 @@
     doc.resistors = (doc.resistors || []).filter((r) => r.id !== id);
     doc.pinHousings = (doc.pinHousings || []).filter((p) => p.id !== id);
     doc.keyswitches = (doc.keyswitches || []).filter((s) => s.id !== id);
+    doc.modules = (doc.modules || []).filter((m) => m.id !== id);
     doc.traces = doc.traces.filter((t) => t.id !== id);
     doc.jumpers = doc.jumpers.filter((j) => j.id !== id);
     doc.joints = (doc.joints || []).filter((j) => j.id !== id);
@@ -775,6 +797,7 @@
     parsed.resistors = parsed.resistors ?? [];
     parsed.pinHousings = parsed.pinHousings ?? [];
     parsed.keyswitches = parsed.keyswitches ?? [];
+    parsed.modules = parsed.modules ?? [];
     parsed.jumpers = parsed.jumpers ?? [];
     parsed.joints = parsed.joints ?? [];
     parsed.annotations = parsed.annotations ?? [];
@@ -966,6 +989,7 @@
         doc.resistors = (doc.resistors || []).filter((r) => !idSet.has(r.id));
         doc.pinHousings = (doc.pinHousings || []).filter((p) => !idSet.has(p.id));
         doc.keyswitches = (doc.keyswitches || []).filter((s) => !idSet.has(s.id));
+        doc.modules = (doc.modules || []).filter((m) => !idSet.has(m.id));
         doc.traces = doc.traces.filter((t) => !idSet.has(t.id));
         doc.jumpers = doc.jumpers.filter((j) => !idSet.has(j.id));
         doc.joints = (doc.joints || []).filter((j) => !idSet.has(j.id));
@@ -1329,7 +1353,7 @@
           ).toFixed(1)} mm
         </div>
         <div>
-          Pads: {doc.pads.length} | Headers: {doc.headers.length} | DIPs: {(doc.dips || []).length} | Caps: {(doc.capacitors || []).length} | Res: {(doc.resistors || []).length} | Sockets: {(doc.pinHousings || []).length} | Keys: {(doc.keyswitches || []).length} | Traces: {doc.traces.length} | Jumpers: {doc.jumpers.length} | Labels: {doc.annotations.length}
+          Pads: {doc.pads.length} | Headers: {doc.headers.length} | DIPs: {(doc.dips || []).length} | Caps: {(doc.capacitors || []).length} | Res: {(doc.resistors || []).length} | Sockets: {(doc.pinHousings || []).length} | Keys: {(doc.keyswitches || []).length} | Modules: {(doc.modules || []).length} | Traces: {doc.traces.length} | Jumpers: {doc.jumpers.length} | Labels: {doc.annotations.length}
         </div>
       </div>
     </div>
@@ -1376,6 +1400,7 @@
             onUpdatePinHousing={updatePinHousing}
             onAddKeyswitch={addKeyswitch}
             onUpdateKeyswitch={updateKeyswitch}
+            onAddModule={addModule}
             onAddJumper={addJumper}
             onAddJoint={addJoint}
             onAddAnnotation={addAnnotation}

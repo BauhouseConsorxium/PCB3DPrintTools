@@ -15,6 +15,10 @@
   } from "../../lib/round-trace.js";
   import { computeNets, traceColor, padFillFor } from "../../lib/perfboard-nets.js";
   import { circleParams } from "../../lib/perfboard-geometry.js";
+  import {
+    MODULE_VARIANTS, MODULE_VARIANT_LIST, isModuleVariant,
+    getVariant as getModuleVariant, getModulePinPositions, getModuleBounds, labelColor as moduleLabelColor,
+  } from "../../lib/perfboard-modules.js";
 
   let {
     doc,
@@ -57,6 +61,7 @@
     onUpdatePinHousing = () => {},
     onAddKeyswitch = () => {},
     onUpdateKeyswitch = () => {},
+    onAddModule = () => {},
     svgRef = $bindable(null),
   } = $props();
 
@@ -345,6 +350,12 @@
         const swCy = sw.row * pitch;
         if (Math.abs(rawX - swCx) <= 7 && Math.abs(rawY - swCy) <= 7) return sw;
       }
+    }
+    for (const m of doc.modules || []) {
+      const pins = getModulePinPositions(m);
+      if (pins.some((p) => p.col === col && p.row === row)) return m;
+      const b = getModuleBounds(m);
+      if (b && col >= b.col1 && col <= b.col2 && row >= b.row1 && row <= b.row2) return m;
     }
     for (const jt of doc.joints || []) {
       if (jt.col === col && jt.row === row) return jt;
@@ -638,6 +649,8 @@
         kswStart = null;
         kswPreview = null;
       }
+    } else if (isModuleVariant(activeTool)) {
+      onAddModule(col, row, activeTool);
     } else if (activeTool === "trace") {
       if (tracePoints.length === 0) {
         tracePoints = [{ col, row }];
@@ -979,6 +992,11 @@
         pins.some((p) => inRect(p.col * pitch, p.row * pitch))
       )
         ids.push(sw.id);
+    }
+    for (const m of doc.modules || []) {
+      const pins = getModulePinPositions(m);
+      if (pins.some((p) => inRect(p.col * pitch, p.row * pitch)))
+        ids.push(m.id);
     }
     for (const t of doc.traces) {
       for (const pt of t.points) {
@@ -1585,6 +1603,9 @@
     "H": "pinhousing",
     "k": "keyswitch",
     "K": "keyswitch",
+    ...Object.fromEntries(MODULE_VARIANT_LIST.flatMap((v) =>
+      v.key ? [[v.key.toLowerCase(), v.id], [v.key.toUpperCase(), v.id]] : []
+    )),
   };
 
   function handleKeydown(e) {
@@ -1782,6 +1803,11 @@
     }
     for (const sw of doc.keyswitches || []) {
       for (const p of kswPins(sw)) {
+        positions.push({ x: p.col * pitch, y: p.row * pitch });
+      }
+    }
+    for (const m of doc.modules || []) {
+      for (const p of getModulePinPositions(m)) {
         positions.push({ x: p.col * pitch, y: p.row * pitch });
       }
     }
@@ -3406,6 +3432,96 @@
       {/each}
     {/if}
 
+    <!-- Modules (ESP32 etc) -->
+    {#each doc.modules || [] as m}
+      {@const v = getModuleVariant(m)}
+      {#if v}
+        {@const isSelected = selectedIds.includes(m.id)}
+        {@const isV = m.orientation === 'v'}
+        {@const b = getModuleBounds(m)}
+        {@const pins = getModulePinPositions(m)}
+        {@const bodyFill = isSelected ? "rgba(251,191,36,0.15)" : v.bodyFill}
+        {@const bodyStroke = isSelected ? "#fbbf24" : v.bodyStroke}
+        <!-- Module PCB body -->
+        <rect x={b.col1 * pitch} y={b.row1 * pitch}
+              width={(b.col2 - b.col1) * pitch} height={(b.row2 - b.row1) * pitch}
+              rx="0.6" fill={bodyFill} stroke={bodyStroke} stroke-width="0.2"/>
+        <!-- USB connector hint (small dark notch at one end) -->
+        {@const usbW = pitch * 1.4}
+        {@const usbD = pitch * 0.5}
+        {#if isV}
+          <rect x={((b.col1 + b.col2) / 2) * pitch - usbW / 2}
+                y={(b.row2) * pitch - usbD / 2}
+                width={usbW} height={usbD}
+                fill="rgba(255,255,255,0.15)"
+                stroke="rgba(255,255,255,0.25)" stroke-width="0.08" rx="0.1"/>
+        {:else}
+          <rect x={b.col2 * pitch - usbD / 2}
+                y={((b.row1 + b.row2) / 2) * pitch - usbW / 2}
+                width={usbD} height={usbW}
+                fill="rgba(255,255,255,0.15)"
+                stroke="rgba(255,255,255,0.25)" stroke-width="0.08" rx="0.1"/>
+        {/if}
+        <!-- Pin pads -->
+        {#each pins as pin}
+          {@const pFill = padFillFor(nets, pin.col, pin.row, isSelected, pin.label)}
+          {@const px = pin.col * pitch}
+          {@const py = pin.row * pitch}
+          <g opacity={padDim(pin.col, pin.row)}>
+            {#if isSelected}
+              <circle cx={px} cy={py} r={padR + pitch * 0.04} fill="rgba(255,255,255,0.45)"/>
+            {/if}
+            <circle cx={px} cy={py} r={padR} fill={pFill}/>
+            <circle cx={px} cy={py} r={drillR} fill="#1a1a2e"/>
+          </g>
+        {/each}
+        <!-- Pin labels (rendered outside the module body, per side) -->
+        {#each pins as pin}
+          {@const lblColor = moduleLabelColor(pin.label)}
+          {@const tw = pin.label.length * pitch * 0.28 + pitch * 0.2}
+          {@const rectH = pitch * 0.5}
+          {#if isV}
+            {@const py = pin.row * pitch}
+            {@const lx = pin.side === 'left'
+              ? pin.col * pitch - padR - 0.2 - tw
+              : pin.col * pitch + padR + 0.2}
+            <rect x={lx} y={py - rectH / 2} width={tw} height={rectH}
+                  rx={pitch * 0.08} fill="rgba(0,0,0,0.6)"/>
+            <text x={lx + pitch * 0.1} y={py + pitch * 0.12}
+                  font-size={pitch * 0.35}
+                  font-family="monospace"
+                  font-weight="bold"
+                  fill={lblColor}>{pin.label}</text>
+          {:else}
+            {@const px = pin.col * pitch}
+            {@const ty = pin.side === 'left'
+              ? pin.row * pitch - padR - 0.2 - rectH
+              : pin.row * pitch + padR + 0.2}
+            <g transform="rotate(-90 {px} {ty + rectH / 2})">
+              <rect x={px - tw} y={ty} width={tw} height={rectH}
+                    rx={pitch * 0.08} fill="rgba(0,0,0,0.6)"/>
+              <text x={px - tw + pitch * 0.1} y={ty + pitch * 0.38}
+                    font-size={pitch * 0.35}
+                    font-family="monospace"
+                    font-weight="bold"
+                    fill={lblColor}>{pin.label}</text>
+            </g>
+          {/if}
+        {/each}
+        <!-- Module title -->
+        {#if v.title}
+          {@const titleX = ((b.col1 + b.col2) / 2) * pitch}
+          {@const titleY = b.row1 * pitch - pitch * 0.3}
+          <text x={titleX} y={titleY}
+                text-anchor="middle" dominant-baseline="auto"
+                fill={v.titleColor}
+                font-size={pitch * 0.55}
+                font-family="monospace"
+                font-weight="bold">{v.title}</text>
+        {/if}
+      {/if}
+    {/each}
+
     <!-- Pads -->
     {#each doc.pads as pad}
       {@const isSelected = selectedIds.includes(pad.id)}
@@ -3476,6 +3592,26 @@
     <!-- Interactive editor overlays (not exported) -->
     <g class="editor-interactive">
     <!-- Ghost cursor -->
+    {#if ghostPos && isModuleVariant(activeTool)}
+      {@const v = MODULE_VARIANTS[activeTool]}
+      {@const ghostMod = { col: ghostPos.col, row: ghostPos.row, orientation: 'v', variant: activeTool }}
+      {@const b = getModuleBounds(ghostMod)}
+      <rect x={b.col1 * pitch} y={b.row1 * pitch}
+            width={(b.col2 - b.col1) * pitch} height={(b.row2 - b.row1) * pitch}
+            fill="rgba(0,240,255,0.05)"
+            stroke="rgba(0,240,255,0.5)" stroke-width="0.15"
+            stroke-dasharray="0.3,0.2" rx="0.3"/>
+      {#each getModulePinPositions(ghostMod) as pin}
+        <circle cx={pin.col * pitch} cy={pin.row * pitch} r={padR} fill="#d4a534" opacity="0.4"/>
+        <circle cx={pin.col * pitch} cy={pin.row * pitch} r={drillR} fill="#1a1a2e" opacity="0.4"/>
+      {/each}
+      <text x={((b.col1 + b.col2) / 2) * pitch} y={b.row1 * pitch - pitch * 0.2}
+            text-anchor="middle" dominant-baseline="auto"
+            fill="rgba(0,240,255,0.7)"
+            font-size={pitch * 0.5}
+            font-family="monospace"
+            font-weight="bold">{v.label}</text>
+    {/if}
     {#if ghostPos && (activeTool === "pad" || activeTool === "header" || (activeTool === "dip" && !dipStart) || (activeTool === "cap" && !capStart) || (activeTool === "resistor" && !resStart) || (activeTool === "pinhousing" && !phStart) || (activeTool === 'keyswitch' && !kswStart))}
       <circle
         cx={ghostPos.col * pitch}
@@ -3874,6 +4010,19 @@
             <circle cx={(pin.col + dc) * pitch} cy={(pin.row + dr) * pitch} r={padR} fill="#fbbf24" opacity="0.4"/>
             <circle cx={(pin.col + dc) * pitch} cy={(pin.row + dr) * pitch} r={drillR} fill="#1a1a2e" opacity="0.4"/>
           {/each}
+        {/each}
+        {#each (doc.modules || []).filter((m) => selectedIds.includes(m.id)) as m}
+          {@const gm = { ...m, col: m.col + dc, row: m.row + dr }}
+          {@const mb = getModuleBounds(gm)}
+          {#if mb}
+            <rect x={mb.col1 * pitch} y={mb.row1 * pitch}
+                  width={(mb.col2 - mb.col1) * pitch} height={(mb.row2 - mb.row1) * pitch}
+                  rx="0.6" fill="rgba(40,40,60,0.3)" stroke="#fbbf24" stroke-width="0.2" opacity="0.4"/>
+            {#each getModulePinPositions(gm) as pin}
+              <circle cx={pin.col * pitch} cy={pin.row * pitch} r={padR} fill="#fbbf24" opacity="0.4"/>
+              <circle cx={pin.col * pitch} cy={pin.row * pitch} r={drillR} fill="#1a1a2e" opacity="0.4"/>
+            {/each}
+          {/if}
         {/each}
         {#each doc.traces.filter((t) => selectedIds.includes(t.id)) as trace}
           {#if trace.type === "curve"}

@@ -1,0 +1,100 @@
+// Perfboard module components.
+//
+// A "module" is a multi-pin component (dev board, breakout, etc.) that the
+// editor treats as a single editable entity. One instance = one entry in
+// doc.modules. Move/rotate/delete operate on the whole module at once.
+//
+// Variant data lives here; the editor handles placement, hit-test, rendering.
+//
+// To add a new module variant:
+//   1. Add a MODULE_VARIANTS entry with pin labels + dimensions.
+//   2. Add an SVG icon clause in Toolbar.svelte keyed on the variant icon.
+
+export const MODULE_VARIANTS = {
+  esp32s3: {
+    id: 'esp32s3',
+    label: 'ESP32 S3',
+    description: 'ESP32-S3 DevKitC 1',
+    icon: 'esp32s3',
+    key: 'E',
+    title: 'ESP32 S3',
+    titleColor: '#00f0ff',
+    pinsPerRow: 22,
+    rowGap: 9,
+    pinLabels: {
+      left: ['3V3','3V3','RST','GPIO4','GPIO5','GPIO6','GPIO7','GPIO15','GPIO16','GPIO17','GPIO18','GPIO8','GPIO3','GPIO46','GPIO9','GPIO10','GPIO11','GPIO12','GPIO13','GPIO14','5V','GND'],
+      right: ['GND','GPIO43','GPIO44','GPIO1','GPIO2','GPIO42','GPIO41','GPIO40','GPIO39','GPIO38','GPIO37','GPIO36','GPIO35','GPIO0','GPIO45','GPIO48','GPIO47','GPIO21','GPIO20','GPIO19','GND','GND'],
+    },
+    // PCB body color in the 2D editor
+    bodyFill: 'rgba(20,20,40,0.85)',
+    bodyStroke: 'rgba(120,180,255,0.4)',
+    // 3D dimensions (mm)
+    pcbThicknessMm: 1.6,
+    headerHeightMm: 8.5,
+    // ESP32-WROOM module on PCB top (centered along pin direction, offset to one end)
+    chipSizeMm: { w: 18, d: 25.5, h: 3.2 },
+    chipOffsetMm: -10, // shift along pin-axis from PCB center toward "antenna" end
+    // USB connector (small box at opposite end)
+    usbSizeMm: { w: 9, d: 7, h: 3 },
+    usbOffsetMm: 23,
+  },
+}
+
+export const MODULE_VARIANT_LIST = Object.values(MODULE_VARIANTS)
+
+export function isModuleVariant(id) {
+  return id in MODULE_VARIANTS
+}
+
+export function getVariant(idOrModule) {
+  if (typeof idOrModule === 'string') return MODULE_VARIANTS[idOrModule]
+  return MODULE_VARIANTS[idOrModule?.variant]
+}
+
+// Pin positions for a placed module instance (anchored at module.col/row,
+// rotated by module.orientation: 'v' = pins run vertically, 'h' = horizontally).
+export function getModulePinPositions(module) {
+  const v = getVariant(module)
+  if (!v) return []
+  const { pinsPerRow, rowGap } = v
+  const pins = []
+  for (let i = 0; i < pinsPerRow; i++) {
+    if (module.orientation === 'v') {
+      pins.push({ col: module.col, row: module.row + i, label: v.pinLabels.left[i], side: 'left', index: i })
+      pins.push({ col: module.col + rowGap, row: module.row + i, label: v.pinLabels.right[i], side: 'right', index: i })
+    } else {
+      pins.push({ col: module.col + i, row: module.row, label: v.pinLabels.left[i], side: 'left', index: i })
+      pins.push({ col: module.col + i, row: module.row + rowGap, label: v.pinLabels.right[i], side: 'right', index: i })
+    }
+  }
+  return pins
+}
+
+// Body bounding box in grid coords (pitches), oriented per module.orientation.
+export function getModuleBounds(module) {
+  const v = getVariant(module)
+  if (!v) return null
+  const { pinsPerRow, rowGap } = v
+  const pad = 0.4
+  if (module.orientation === 'v') {
+    return {
+      col1: module.col - pad,
+      row1: module.row - pad,
+      col2: module.col + rowGap + pad,
+      row2: module.row + (pinsPerRow - 1) + pad,
+    }
+  }
+  return {
+    col1: module.col - pad,
+    row1: module.row - pad,
+    col2: module.col + (pinsPerRow - 1) + pad,
+    row2: module.row + rowGap + pad,
+  }
+}
+
+// Color for a pin label (power/ground/gpio).
+export function labelColor(label) {
+  if (label === 'GND') return '#f0f0f0'
+  if (label === '3V3' || label === '5V' || label === 'RST') return '#ff2d95'
+  return '#ff6bcb'
+}

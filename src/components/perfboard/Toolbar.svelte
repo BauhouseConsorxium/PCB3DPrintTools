@@ -1,7 +1,9 @@
 <script>
+  import { MODULE_VARIANT_LIST } from "../../lib/perfboard-modules.js"
+
   let { activeTool = 'select', onToolChange = () => {} } = $props()
 
-  const tools = [
+  const baseTools = [
     { id: 'select', label: 'Select', icon: 'pointer', key: null },
     { id: 'pad', label: 'Pad', icon: 'pad', key: '1' },
     { id: 'header', label: 'Header', icon: 'header', key: '2' },
@@ -19,6 +21,14 @@
     { id: 'pinhousing', label: 'Socket', icon: 'pinhousing', key: 'H' },
     { id: 'keyswitch', label: 'Key', icon: 'keyswitch', key: 'K' },
   ]
+
+  // Module variant tools are sourced from src/lib/perfboard-modules.js.
+  // To add a new module: register it there + add an icon clause below.
+  const moduleTools = MODULE_VARIANT_LIST.map((v) => ({
+    id: v.id, label: v.label, icon: v.icon, key: v.key,
+  }))
+
+  const tools = [...baseTools, ...moduleTools]
 </script>
 
 <div class="flex flex-col gap-1 mb-4">
@@ -96,6 +106,16 @@
             <circle cx="10" cy="8.5" r="2.5" />
             <line x1="8" y1="15" x2="8" y2="18" stroke-linecap="round" />
             <line x1="12" y1="15" x2="12" y2="18" stroke-linecap="round" />
+          {:else if tool.icon === 'esp32s3'}
+            <rect x="6" y="3" width="8" height="14" rx="0.5" />
+            <path d="M8 3 L8 1.5 L12 1.5 L12 3" fill="none" stroke-linecap="round" />
+            <rect x="8" y="6" width="4" height="5" fill="currentColor" stroke="none" opacity="0.5" />
+            <line x1="3" y1="6" x2="6" y2="6" stroke-linecap="round" />
+            <line x1="3" y1="10" x2="6" y2="10" stroke-linecap="round" />
+            <line x1="3" y1="14" x2="6" y2="14" stroke-linecap="round" />
+            <line x1="14" y1="6" x2="17" y2="6" stroke-linecap="round" />
+            <line x1="14" y1="10" x2="17" y2="10" stroke-linecap="round" />
+            <line x1="14" y1="14" x2="17" y2="14" stroke-linecap="round" />
           {/if}
         </svg>
         <span>{tool.label}</span>
