@@ -38,7 +38,7 @@
   let activeTab = $state("editor");
   let activeTool = $state("select");
   let selectedIds = $state([]);
-  let zScale = $state(8);
+  let zScale = $state(37);
   let boardZScale = $state(1);
   let showExamples = $state(false);
   let annotationText = $state("VCC");

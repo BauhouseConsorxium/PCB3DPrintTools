@@ -2356,83 +2356,68 @@
       {:else}
         {@const sqCorners = trace.cornerShape === 'square'}
         {@const sqEnds = trace.endShape === 'square'}
-        {@const buttCap = sqCorners || sqEnds}
-        {#if isSelected}
+        {#if sqCorners}
+          {@const polyPts = trace.points.map(p => `${p.col * pitch},${p.row * pitch}`).join(' ')}
+          {#if isSelected}
+            <polyline
+              points={polyPts}
+              stroke="rgba(255,255,255,0.45)"
+              stroke-width={trace.width + pitch * 0.08}
+              stroke-linecap={sqEnds ? 'square' : 'round'}
+              stroke-linejoin="miter"
+              stroke-miterlimit="10"
+              fill="none"
+            />
+          {/if}
+          <polyline
+            points={polyPts}
+            stroke={isSelected ? "#fbbf24" : netCol}
+            stroke-width={trace.width}
+            stroke-linecap={sqEnds ? 'square' : 'round'}
+            stroke-linejoin="miter"
+            stroke-miterlimit="10"
+            fill="none"
+            opacity={isSelected ? 1 : 0.85}
+          />
+        {:else}
+          {#if isSelected}
+            {#each getTraceSegments(trace) as seg}
+              <line
+                x1={seg.x1}
+                y1={seg.y1}
+                x2={seg.x2}
+                y2={seg.y2}
+                stroke="rgba(255,255,255,0.45)"
+                stroke-width={trace.width + pitch * 0.08}
+                stroke-linecap={sqEnds ? 'butt' : 'round'}
+              />
+            {/each}
+          {/if}
           {#each getTraceSegments(trace) as seg}
             <line
               x1={seg.x1}
               y1={seg.y1}
               x2={seg.x2}
               y2={seg.y2}
-              stroke="rgba(255,255,255,0.45)"
-              stroke-width={trace.width + pitch * 0.08}
-              stroke-linecap={buttCap ? 'butt' : 'round'}
+              stroke={isSelected ? "#fbbf24" : netCol}
+              stroke-width={trace.width}
+              stroke-linecap={sqEnds ? 'butt' : 'round'}
+              opacity={isSelected ? 1 : 0.85}
             />
           {/each}
-          {#if sqCorners}
-            {#each trace.points as pt, i}
-              {#if i > 0 && i < trace.points.length - 1}
-                {@const hwh = (trace.width + pitch * 0.08) / 2}
-                <rect
-                  x={pt.col * pitch - hwh}
-                  y={pt.row * pitch - hwh}
-                  width={trace.width + pitch * 0.08}
-                  height={trace.width + pitch * 0.08}
-                  fill="rgba(255,255,255,0.45)"
-                />
-              {/if}
+          {#if sqEnds}
+            {#each [trace.points[0], trace.points[trace.points.length - 1]] as pt}
+              {@const hw = trace.width / 2}
+              <rect
+                x={pt.col * pitch - hw}
+                y={pt.row * pitch - hw}
+                width={trace.width}
+                height={trace.width}
+                fill={isSelected ? "#fbbf24" : netCol}
+                opacity={isSelected ? 1 : 0.85}
+              />
             {/each}
           {/if}
-        {/if}
-        {#each getTraceSegments(trace) as seg}
-          <line
-            x1={seg.x1}
-            y1={seg.y1}
-            x2={seg.x2}
-            y2={seg.y2}
-            stroke={isSelected ? "#fbbf24" : netCol}
-            stroke-width={trace.width}
-            stroke-linecap={buttCap ? 'butt' : 'round'}
-            opacity={isSelected ? 1 : 0.85}
-          />
-        {/each}
-        {#if sqCorners}
-          {#each trace.points as pt, i}
-            {#if i > 0 && i < trace.points.length - 1}
-              {@const hw = trace.width / 2}
-              <rect
-                x={pt.col * pitch - hw}
-                y={pt.row * pitch - hw}
-                width={trace.width}
-                height={trace.width}
-                fill={isSelected ? "#fbbf24" : netCol}
-                opacity={isSelected ? 1 : 0.85}
-              />
-            {/if}
-          {/each}
-        {/if}
-        {#if buttCap}
-          {#each [trace.points[0], trace.points[trace.points.length - 1]] as pt}
-            {#if sqEnds}
-              {@const hw = trace.width / 2}
-              <rect
-                x={pt.col * pitch - hw}
-                y={pt.row * pitch - hw}
-                width={trace.width}
-                height={trace.width}
-                fill={isSelected ? "#fbbf24" : netCol}
-                opacity={isSelected ? 1 : 0.85}
-              />
-            {:else}
-              <circle
-                cx={pt.col * pitch}
-                cy={pt.row * pitch}
-                r={trace.width / 2}
-                fill={isSelected ? "#fbbf24" : netCol}
-                opacity={isSelected ? 1 : 0.85}
-              />
-            {/if}
-          {/each}
         {/if}
         {#if isSelected}
           {#each trace.points as pt, i}
@@ -3713,22 +3698,33 @@
           {:else}
             {@const dSqC = trace.cornerShape === 'square'}
             {@const dSqE = trace.endShape === 'square'}
-            {@const dButt = dSqC || dSqE}
-            {#each getTraceSegments(trace) as seg}
-              <line
-                x1={seg.x1 + dc * pitch}
-                y1={seg.y1 + dr * pitch}
-                x2={seg.x2 + dc * pitch}
-                y2={seg.y2 + dr * pitch}
+            {#if dSqC}
+              {@const polyPts = trace.points.map(p => `${p.col * pitch + dc * pitch},${p.row * pitch + dr * pitch}`).join(' ')}
+              <polyline
+                points={polyPts}
                 stroke="#fbbf24"
                 stroke-width={trace.width}
-                stroke-linecap={dButt ? 'butt' : 'round'}
+                stroke-linecap={dSqE ? 'square' : 'round'}
+                stroke-linejoin="miter"
+                stroke-miterlimit="10"
+                fill="none"
                 opacity="0.4"
               />
-            {/each}
-            {#if dSqC}
-              {#each trace.points as pt, i}
-                {#if i > 0 && i < trace.points.length - 1}
+            {:else}
+              {#each getTraceSegments(trace) as seg}
+                <line
+                  x1={seg.x1 + dc * pitch}
+                  y1={seg.y1 + dr * pitch}
+                  x2={seg.x2 + dc * pitch}
+                  y2={seg.y2 + dr * pitch}
+                  stroke="#fbbf24"
+                  stroke-width={trace.width}
+                  stroke-linecap={dSqE ? 'butt' : 'round'}
+                  opacity="0.4"
+                />
+              {/each}
+              {#if dSqE}
+                {#each [trace.points[0], trace.points[trace.points.length - 1]] as pt}
                   {@const hw = trace.width / 2}
                   <rect
                     x={pt.col * pitch + dc * pitch - hw}
@@ -3738,31 +3734,8 @@
                     fill="#fbbf24"
                     opacity="0.4"
                   />
-                {/if}
-              {/each}
-            {/if}
-            {#if dButt}
-              {#each [trace.points[0], trace.points[trace.points.length - 1]] as pt}
-                {#if dSqE}
-                  {@const hw = trace.width / 2}
-                  <rect
-                    x={pt.col * pitch + dc * pitch - hw}
-                    y={pt.row * pitch + dr * pitch - hw}
-                    width={trace.width}
-                    height={trace.width}
-                    fill="#fbbf24"
-                    opacity="0.4"
-                  />
-                {:else}
-                  <circle
-                    cx={pt.col * pitch + dc * pitch}
-                    cy={pt.row * pitch + dr * pitch}
-                    r={trace.width / 2}
-                    fill="#fbbf24"
-                    opacity="0.4"
-                  />
-                {/if}
-              {/each}
+                {/each}
+              {/if}
             {/if}
           {/if}
         {/each}

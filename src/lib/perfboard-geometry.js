@@ -205,6 +205,8 @@ function collectTraceSegments(doc, padPositions) {
       })
     }
 
+    if (trace.cornerShape === 'square') continue
+
     const cs = trace.cornerShape
     const es = trace.endShape
     for (const pair of rawPairs) {
@@ -235,16 +237,6 @@ function collectTraceSegments(doc, padPositions) {
           prevX = mx; prevY = my
         }
         segments.push({ x1: prevX, y1: prevY, x2: bx, y2: by, width: segWidth, layer: 'F.Cu', cornerShape: cs, endShape: es })
-      }
-    }
-
-    if (cs === 'square') {
-      for (let i = 1; i < trace.points.length - 1; i++) {
-        squareCornerPads.push({
-          x: trace.points[i].col * pitch,
-          y: trace.points[i].row * pitch,
-          width: trace.width
-        })
       }
     }
   }
@@ -1007,6 +999,116 @@ function buildTeardropGeometry(doc, padPositions, drills, zBot, zTop) {
   return buildPolygonsWithDrills(shapes, drills, 'Teardrops_F.Cu', zBot, zTop)
 }
 
+const MITER_CAP_N = 12
+
+function buildSquareCornerTraceGeometry(doc, drills, zBot, zTop) {
+  const { pitch } = doc.grid
+  const shapes = []
+
+  for (const trace of doc.traces) {
+    if (trace.type === 'roundtrace' || trace.type === 'freetrace' || trace.type === 'curve') continue
+    if (trace.cornerShape !== 'square') continue
+    if (trace.points.length < 2) continue
+
+    const pts = trace.points.map(p => [p.col * pitch, -(p.row * pitch)])
+    const hw = trace.width / 2
+    const N = pts.length
+
+    const dirs = []
+    for (let i = 0; i < N - 1; i++) {
+      const dx = pts[i + 1][0] - pts[i][0], dy = pts[i + 1][1] - pts[i][1]
+      const len = Math.hypot(dx, dy) || 1e-9
+      dirs.push([dx / len, dy / len])
+    }
+
+    const outline = []
+    const es = trace.endShape
+
+    // Right edge at start
+    outline.push([pts[0][0] + dirs[0][1] * hw, pts[0][1] - dirs[0][0] * hw])
+
+    // Right side: interior corners
+    for (let i = 1; i < N - 1; i++) {
+      const d0 = dirs[i - 1], d1 = dirs[i]
+      const cross = d0[0] * d1[1] - d0[1] * d1[0]
+      const n0x = d0[1], n0y = -d0[0]
+      const n1x = d1[1], n1y = -d1[0]
+      if (cross >= 0) {
+        const bx = n0x + n1x, by = n0y + n1y
+        const bLen = Math.hypot(bx, by) || 1e-9
+        const bnx = bx / bLen, bny = by / bLen
+        const cosHalf = Math.max(0.25, n0x * bnx + n0y * bny)
+        const dist = hw / cosHalf
+        outline.push([pts[i][0] + bnx * dist, pts[i][1] + bny * dist])
+      } else {
+        outline.push([pts[i][0] + n0x * hw, pts[i][1] + n0y * hw])
+        outline.push([pts[i][0] + n1x * hw, pts[i][1] + n1y * hw])
+      }
+    }
+
+    // Right edge at end
+    const dLast = dirs[N - 2]
+    outline.push([pts[N - 1][0] + dLast[1] * hw, pts[N - 1][1] - dLast[0] * hw])
+
+    // End cap
+    const endTheta = Math.atan2(dLast[1], dLast[0])
+    if (es === 'square') {
+      const ex = pts[N - 1][0] + hw * dLast[0], ey = pts[N - 1][1] + hw * dLast[1]
+      outline.push([ex + dLast[1] * hw, ey - dLast[0] * hw])
+      outline.push([ex - dLast[1] * hw, ey + dLast[0] * hw])
+    } else {
+      for (let i = 1; i < MITER_CAP_N; i++) {
+        const a = endTheta - Math.PI / 2 + Math.PI * i / MITER_CAP_N
+        outline.push([pts[N - 1][0] + hw * Math.cos(a), pts[N - 1][1] + hw * Math.sin(a)])
+      }
+    }
+
+    // Left edge at end
+    outline.push([pts[N - 1][0] - dLast[1] * hw, pts[N - 1][1] + dLast[0] * hw])
+
+    // Left side: interior corners (backward)
+    for (let i = N - 2; i >= 1; i--) {
+      const d0 = dirs[i - 1], d1 = dirs[i]
+      const cross = d0[0] * d1[1] - d0[1] * d1[0]
+      const n0x = d0[1], n0y = -d0[0]
+      const n1x = d1[1], n1y = -d1[0]
+      if (cross >= 0) {
+        outline.push([pts[i][0] - n1x * hw, pts[i][1] - n1y * hw])
+        outline.push([pts[i][0] - n0x * hw, pts[i][1] - n0y * hw])
+      } else {
+        const bx = n0x + n1x, by = n0y + n1y
+        const bLen = Math.hypot(bx, by) || 1e-9
+        const bnx = bx / bLen, bny = by / bLen
+        const cosHalf = Math.max(0.25, n0x * bnx + n0y * bny)
+        const dist = hw / cosHalf
+        outline.push([pts[i][0] - bnx * dist, pts[i][1] - bny * dist])
+      }
+    }
+
+    // Left edge at start
+    outline.push([pts[0][0] - dirs[0][1] * hw, pts[0][1] + dirs[0][0] * hw])
+
+    // Start cap
+    const dFirst = dirs[0]
+    const startTheta = Math.atan2(dFirst[1], dFirst[0])
+    if (es === 'square') {
+      const ex = pts[0][0] - hw * dFirst[0], ey = pts[0][1] - hw * dFirst[1]
+      outline.push([ex - dFirst[1] * hw, ey + dFirst[0] * hw])
+      outline.push([ex + dFirst[1] * hw, ey - dFirst[0] * hw])
+    } else {
+      for (let i = 1; i < MITER_CAP_N; i++) {
+        const a = startTheta + Math.PI / 2 + Math.PI * i / MITER_CAP_N
+        outline.push([pts[0][0] + hw * Math.cos(a), pts[0][1] + hw * Math.sin(a)])
+      }
+    }
+
+    shapes.push(outline)
+  }
+
+  if (!shapes.length) return null
+  return buildPolygonsWithDrills(shapes, drills, 'F.Cu', zBot, zTop)
+}
+
 export function buildPerfboardBodies(doc) {
   const boardPoly = buildBoardPolygon(doc)
   const allNodes = enumerateConductorNodes(doc)
@@ -1081,12 +1183,13 @@ export function buildPerfboardBodies(doc) {
     ? buildTracesGeometry(traceSegments, drills, 'F.Cu', zBot, zTop, false, squareCornerPads)
     : null
 
+  const squareCornerBody = buildSquareCornerTraceGeometry(doc, drills, zBot, zTop)
   const curveTracesBody = buildCurveTraceGeometry(doc, drills, zBot, zTop)
   const teardropBody = buildTeardropGeometry(doc, padPositions, drills, zBot, zTop)
 
   const componentBodies = buildComponentBodies(doc)
   const jumperBodies = buildJumperBodies(doc)
-  return [boardBody, padsBody, tracesBody, curveTracesBody, teardropBody, ...componentBodies, ...jumperBodies].filter(Boolean)
+  return [boardBody, padsBody, tracesBody, squareCornerBody, curveTracesBody, teardropBody, ...componentBodies, ...jumperBodies].filter(Boolean)
 }
 
 export function createDefaultDocument() {
@@ -1094,11 +1197,11 @@ export function createDefaultDocument() {
     version: 1,
     name: 'untitled',
     grid: { cols: 14, rows: 14, pitch: 2.54, shape: 'rect' },
-    boardThickness: 1.6,
+    boardThickness: 0.8,
     copperThickness: 0.035,
     drillDiameter: 1.0,
     padDiameter: 2.0,
-    traceWidth: 0.5,
+    traceWidth: 2.0,
     curveEndWidth: 2.0,
     curveEndWidth2: 2.0,
     curveTaperDistance: 3.5,
@@ -1111,7 +1214,7 @@ export function createDefaultDocument() {
     pinHousingHeight: 2.5,
     pinHousingBoreWidth: 0.8,
     pinHousingBoreOffset: 0,
-    pinHousingWidth: 2.14,
+    pinHousingWidth: 2.6,
     pinHousingDepth: 2.14,
     pinHousingFaceOffset: 0,
     pads: [],

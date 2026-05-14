@@ -20,6 +20,18 @@
 
   const PRINT_PRESETS = [
     {
+      name: '3D Print', detail: 'Pad 2.0 · Drill 1.0 · Trace 2.0 · 0.8mm',
+      s: {
+        padDiameter: 2.0, drillDiameter: 1.0, traceWidth: 2.0, boardThickness: 0.8,
+        zScale: 37, boardZScale: 1,
+        curveEndWidth: 2.0, curveEndWidth2: 2.0, curveTaperDistance: 3.5,
+        roundTraceRadius: 1.0, roundTraceMode: 'arc', roundTracePasses: 2,
+        roundTraceTeardrop: false, roundTraceTdHPercent: 50, roundTraceTdVPercent: 90,
+        pinHousingHeight: 2.5, pinHousingBoreWidth: 0.8, pinHousingBoreOffset: 0,
+        pinHousingWidth: 2.6, pinHousingDepth: 2.14, pinHousingFaceOffset: 0
+      }
+    },
+    {
       name: 'Standard', detail: 'Pad 2.0 · Drill 1.0 · Trace 1.0 · 1.6mm',
       s: {
         padDiameter: 2.0, drillDiameter: 1.0, traceWidth: 1.0, boardThickness: 1.6,
@@ -27,7 +39,6 @@
         curveEndWidth: 3.0, curveEndWidth2: 3.0, curveTaperDistance: 0,
         roundTraceRadius: 1.0, roundTraceMode: 'arc', roundTracePasses: 2,
         roundTraceTeardrop: false, roundTraceTdHPercent: 50, roundTraceTdVPercent: 90,
-        zScale: 8, boardZScale: 1,
         pinHousingHeight: 2.5, pinHousingBoreWidth: 0.8, pinHousingBoreOffset: 0,
         pinHousingWidth: 2.14, pinHousingDepth: 2.14, pinHousingFaceOffset: 0
       }
