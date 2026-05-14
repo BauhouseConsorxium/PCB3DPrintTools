@@ -521,11 +521,13 @@ function buildCompoundBody(name, boxes) {
   }
 }
 
-function buildComponentBodies(doc) {
+function buildComponentBodies(doc, opts = {}) {
   const { pitch } = doc.grid
   const boardThickness = doc.boardThickness
   const copperThickness = doc.copperThickness
   const bodies = []
+  const copperOnlyIds = opts.copperOnlyIds ?? new Set()
+  const connectedKeys = opts.connectedKeys ?? null
 
   const HOUSING_H_MALE = 2.5
   const HOUSING_H_FEMALE = 8.5
@@ -933,6 +935,7 @@ function buildComponentBodies(doc) {
     const housingZ1 = boardThickness + headerH
     const pcbZ0 = housingZ1
     const pcbZ1 = pcbZ0 + pcbH
+    const onlyConnected = copperOnlyIds.has(m.id) && connectedKeys != null
 
     const geoms = []
 
@@ -953,6 +956,9 @@ function buildComponentBodies(doc) {
       }
       geoms.push(boxGeomRaw(hcx, hcy, hw, hd, housingZ0, housingZ1))
       for (let i = 0; i < N; i++) {
+        const pinCol = isV ? m.col + offset : m.col + i
+        const pinRow = isV ? m.row + i : m.row + offset
+        if (onlyConnected && !connectedKeys.has(`${pinCol},${pinRow}`)) continue
         const px = isV ? baseX + offset * pitch : baseX + i * pitch
         const py = isV ? baseY - i * pitch : baseY - offset * pitch
         geoms.push(boxGeomRaw(px, py, MOD_PIN_HW, MOD_PIN_HW, -MOD_PIN_BELOW, housingZ1))
@@ -1401,11 +1407,15 @@ export function buildPerfboardBodies(doc) {
   for (const d of doc.dips ?? []) {
     if (d.copperConnectedOnly) copperOnlyIds.add(d.id)
   }
+  for (const m of doc.modules ?? []) {
+    if (m.copperConnectedOnly) copperOnlyIds.add(m.id)
+  }
 
   let copperPadPositions = padPositions
+  let connectedKeys = null
   if (copperOnlyIds.size > 0) {
     const { pitch } = doc.grid
-    const connectedKeys = new Set()
+    connectedKeys = new Set()
     const TOL_SQ = 0.05 * 0.05
     for (const trace of doc.traces) {
       if (!trace.points.length) continue
@@ -1438,7 +1448,7 @@ export function buildPerfboardBodies(doc) {
       }
     }
     copperPadPositions = padPositions.filter(p => {
-      if ((p.source === 'header' || p.source === 'dip') && copperOnlyIds.has(p.sourceId)) {
+      if ((p.source === 'header' || p.source === 'dip' || p.source === 'module') && copperOnlyIds.has(p.sourceId)) {
         return connectedKeys.has(p.key)
       }
       return true
@@ -1455,7 +1465,7 @@ export function buildPerfboardBodies(doc) {
   const curveTracesBody = buildCurveTraceGeometry(doc, drills, zBot, zTop)
   const teardropBody = buildTeardropGeometry(doc, padPositions, drills, zBot, zTop)
 
-  const componentBodies = buildComponentBodies(doc)
+  const componentBodies = buildComponentBodies(doc, { copperOnlyIds, connectedKeys })
   const jumperBodies = buildJumperBodies(doc)
 
   let enclosureBody = null

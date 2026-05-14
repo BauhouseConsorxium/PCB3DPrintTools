@@ -38,6 +38,29 @@ export const MODULE_VARIANTS = {
     usbSizeMm: { w: 9, d: 7, h: 3 },
     usbOffsetMm: 23,
   },
+  esp32devkit: {
+    id: 'esp32devkit',
+    label: 'ESP32 Dev',
+    description: 'ESP32 DevKit V1 / NodeMCU-32 (30-pin, ESP-WROOM-32)',
+    icon: 'esp32devkit',
+    key: 'D',
+    title: 'ESP32 Dev',
+    titleColor: '#00f0ff',
+    pinsPerRow: 15,
+    rowGap: 9,
+    pinLabels: {
+      left: ['EN','GPIO36','GPIO39','GPIO34','GPIO35','GPIO32','GPIO33','GPIO25','GPIO26','GPIO27','GPIO14','GPIO12','GPIO13','GND','VIN'],
+      right: ['GPIO23','GPIO22','GPIO1','GPIO3','GPIO21','GPIO19','GPIO18','GPIO5','GPIO17','GPIO16','GPIO4','GPIO0','GPIO2','GPIO15','3V3'],
+    },
+    bodyFill: 'rgba(20,20,40,0.85)',
+    bodyStroke: 'rgba(120,180,255,0.4)',
+    pcbThicknessMm: 1.6,
+    headerHeightMm: 8.5,
+    chipSizeMm: { w: 18, d: 25.5, h: 3.2 },
+    chipOffsetMm: -7,
+    usbSizeMm: { w: 9, d: 7, h: 3 },
+    usbOffsetMm: 16,
+  },
 }
 
 export const MODULE_VARIANT_LIST = Object.values(MODULE_VARIANTS)
@@ -93,8 +116,9 @@ export function getModuleBounds(module) {
 }
 
 // Color for a pin label (power/ground/gpio).
+const POWER_LABELS = new Set(['3V3', '5V', 'VIN', 'RST', 'EN'])
 export function labelColor(label) {
   if (label === 'GND') return '#f0f0f0'
-  if (label === '3V3' || label === '5V' || label === 'RST') return '#ff2d95'
+  if (POWER_LABELS.has(label)) return '#ff2d95'
   return '#ff6bcb'
 }

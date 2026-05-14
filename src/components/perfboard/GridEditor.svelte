@@ -62,6 +62,7 @@
     onAddKeyswitch = () => {},
     onUpdateKeyswitch = () => {},
     onAddModule = () => {},
+    onUpdateModule = () => {},
     svgRef = $bindable(null),
   } = $props();
 
@@ -143,6 +144,9 @@
   let kswStart = $state(null);
   let kswPreview = $state(null);
   let editingKeyswitch = $state(null);
+
+  // Module edit state
+  let editingModule = $state(null);
 
   // Freetrace drawing state
   let freetraceDrawing = $state(false);
@@ -478,6 +482,9 @@
     }
     if (editingKeyswitch) {
       editingKeyswitch = null;
+    }
+    if (editingModule) {
+      editingModule = null;
     }
     if (editingPad) {
       editingPad = null;
@@ -1239,6 +1246,16 @@
           left: e.clientX - rect.left,
           top: e.clientY - rect.top - 20,
         };
+      } else if (el && (doc.modules || []).find((m) => m.id === el.id)) {
+        const mod = (doc.modules || []).find((m) => m.id === el.id);
+        const rect = containerEl.getBoundingClientRect();
+        editingModule = {
+          id: el.id,
+          label: mod.label ?? '',
+          copperConnectedOnly: mod.copperConnectedOnly ?? false,
+          left: e.clientX - rect.left,
+          top: e.clientY - rect.top - 20,
+        };
       } else if (el && doc.headers.find((h) => h.id === el.id)) {
         const header = doc.headers.find((h) => h.id === el.id);
         const rect = containerEl.getBoundingClientRect();
@@ -1440,6 +1457,21 @@
   function handleKswEditKeydown(e) {
     e.stopPropagation();
     if (e.key === 'Enter' || e.key === 'Escape') closeKswEdit();
+  }
+
+  function applyModuleEdit() {
+    if (!editingModule) return;
+    onUpdateModule(editingModule.id, editingModule.label, editingModule.copperConnectedOnly);
+  }
+
+  function closeModuleEdit() {
+    applyModuleEdit();
+    editingModule = null;
+  }
+
+  function handleModuleEditKeydown(e) {
+    e.stopPropagation();
+    if (e.key === 'Enter' || e.key === 'Escape') closeModuleEdit();
   }
 
   function applyCurveEdit() {
@@ -1651,6 +1683,10 @@
       }
       if (editingKeyswitch) {
         editingKeyswitch = null;
+        return;
+      }
+      if (editingModule) {
+        editingModule = null;
         return;
       }
       if (editingJumper) {
@@ -3494,8 +3530,14 @@
                   fill={lblColor}>{pin.label}</text>
           {:else}
             {@const px = pin.col * pitch}
+            <!-- In 'h' orientation each label is a horizontal rect rotated -90°
+                 about its right-middle. The rotated strip extends DOWN from
+                 the pivot for length `tw`. So for the TOP pin row (left side)
+                 the pivot must be at least `tw` above the pin or the strip
+                 will cover the pin pad. For the bottom row a small gap below
+                 the pin is enough. -->
             {@const ty = pin.side === 'left'
-              ? pin.row * pitch - padR - 0.2 - rectH
+              ? pin.row * pitch - tw - rectH / 2 - padR - 0.2
               : pin.row * pitch + padR + 0.2}
             <g transform="rotate(-90 {px} {ty + rectH / 2})">
               <rect x={px - tw} y={ty} width={tw} height={rectH}
@@ -3508,12 +3550,19 @@
             </g>
           {/if}
         {/each}
-        <!-- Module title -->
+        <!-- Module title:
+             'v' → above the module (clear space above top pin row)
+             'h' → centered in the body between pin rows (rotated GPIO labels
+                   crowd the area above/below the rows in 'h', so the title
+                   lives inside the body where it can't cover any pin) -->
         {#if v.title}
           {@const titleX = ((b.col1 + b.col2) / 2) * pitch}
-          {@const titleY = b.row1 * pitch - pitch * 0.3}
+          {@const titleY = isV
+            ? b.row1 * pitch - pitch * 0.3
+            : ((b.row1 + b.row2) / 2) * pitch}
           <text x={titleX} y={titleY}
-                text-anchor="middle" dominant-baseline="auto"
+                text-anchor="middle"
+                dominant-baseline={isV ? "auto" : "middle"}
                 fill={v.titleColor}
                 font-size={pitch * 0.55}
                 font-family="monospace"
@@ -4357,6 +4406,36 @@
         onkeydown={handleKswEditKeydown}
         oninput={(e) => { editingKeyswitch = { ...editingKeyswitch, label: e.target.value }; applyKswEdit() }}
       />
+    </div>
+  {/if}
+
+  {#if editingModule}
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
+    <div
+      class="absolute bg-surface-1 rounded-lg border-2 border-black shadow-[4px_4px_0_black] z-10 p-1.5 flex flex-col gap-1.5"
+      style="left: {editingModule.left}px; top: {editingModule.top}px"
+      onfocusout={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) closeModuleEdit() }}
+    >
+      <input
+        type="text"
+        value={editingModule.label}
+        placeholder="Label (e.g. U1)"
+        class="bg-surface-2 text-xs text-cyan-light rounded-lg px-2 py-1 border-2 border-black outline-none shadow-[2px_2px_0_black] w-44"
+        onkeydown={handleModuleEditKeydown}
+        oninput={(e) => { editingModule = { ...editingModule, label: e.target.value }; applyModuleEdit() }}
+      />
+      <label class="text-[10px] text-purple-light flex items-center gap-1.5 cursor-pointer">
+        <input
+          type="checkbox"
+          checked={editingModule.copperConnectedOnly}
+          onchange={(e) => {
+            editingModule = { ...editingModule, copperConnectedOnly: e.target.checked };
+            applyModuleEdit();
+          }}
+          class="accent-accent"
+        />
+        Render pins on connected only
+      </label>
     </div>
   {/if}
 

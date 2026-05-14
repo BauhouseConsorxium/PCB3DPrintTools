@@ -231,6 +231,16 @@
     ];
   }
 
+  function updateModule(id, label, copperConnectedOnly) {
+    pushUndo();
+    const m = (doc.modules || []).find((x) => x.id === id);
+    if (m) {
+      if (label !== undefined) m.label = label;
+      if (copperConnectedOnly !== undefined) m.copperConnectedOnly = copperConnectedOnly;
+      doc.modules = [...(doc.modules || [])];
+    }
+  }
+
   function addTrace(points, type) {
     if (points.length < 2) return;
     pushUndo();
@@ -1401,6 +1411,7 @@
             onAddKeyswitch={addKeyswitch}
             onUpdateKeyswitch={updateKeyswitch}
             onAddModule={addModule}
+            onUpdateModule={updateModule}
             onAddJumper={addJumper}
             onAddJoint={addJoint}
             onAddAnnotation={addAnnotation}

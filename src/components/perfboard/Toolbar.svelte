@@ -116,6 +116,16 @@
             <line x1="14" y1="6" x2="17" y2="6" stroke-linecap="round" />
             <line x1="14" y1="10" x2="17" y2="10" stroke-linecap="round" />
             <line x1="14" y1="14" x2="17" y2="14" stroke-linecap="round" />
+          {:else if tool.icon === 'esp32devkit'}
+            <rect x="6" y="3" width="8" height="14" rx="0.5" />
+            <rect x="7.5" y="4" width="5" height="6" fill="currentColor" stroke="none" opacity="0.5" />
+            <rect x="8.5" y="14.5" width="3" height="1.5" fill="currentColor" stroke="none" opacity="0.4" />
+            <line x1="3" y1="6" x2="6" y2="6" stroke-linecap="round" />
+            <line x1="3" y1="10" x2="6" y2="10" stroke-linecap="round" />
+            <line x1="3" y1="14" x2="6" y2="14" stroke-linecap="round" />
+            <line x1="14" y1="6" x2="17" y2="6" stroke-linecap="round" />
+            <line x1="14" y1="10" x2="17" y2="10" stroke-linecap="round" />
+            <line x1="14" y1="14" x2="17" y2="14" stroke-linecap="round" />
           {/if}
         </svg>
         <span>{tool.label}</span>
