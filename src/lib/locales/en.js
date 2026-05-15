@@ -67,7 +67,6 @@ export default {
     title: "Tembaga3D",
     version: "v1.0",
     org: "Bauhouse Consorxium",
-    kicker: "Part of the Congkak Bunyinya toolkit",
     license: "Open Source",
     tagline: "",
     body: {

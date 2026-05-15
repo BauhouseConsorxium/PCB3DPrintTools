@@ -43,6 +43,18 @@
   let flipStartTime = 0;
   let flipDuration = 400;
 
+  // fly-through mode
+  let flyMode = $state(false);
+  let flyPath = null;
+  let flyStartTime = 0;
+  let flyDuration = 22000;
+  let flySaved = null;
+  let flyLastT = 0;
+  let flyDidFlipThisLap = false;
+  let flyOrbitStartU = 0.55;
+  let flyBoardCenter = new THREE.Vector3();
+  const FLY_FLIP_AT = 0.4;
+
   function requestRender() {
     needsRender = true;
   }
@@ -197,7 +209,46 @@
 
     function loop(time) {
       animId = requestAnimationFrame(loop);
-      controls.update();
+
+      if (flyMode && flyPath) {
+        const t = ((time - flyStartTime) % flyDuration) / flyDuration;
+
+        // Lap rollover — reset the per-lap flip flag
+        if (t < flyLastT) flyDidFlipThisLap = false;
+
+        // Mid-bank flip: high above the board, camera will land on the other side
+        if (
+          !flyDidFlipThisLap &&
+          flyLastT < FLY_FLIP_AT &&
+          t >= FLY_FLIP_AT
+        ) {
+          flipBoard();
+          flyDidFlipThisLap = true;
+        }
+        flyLastT = t;
+
+        const pos = flyPath.getPointAt(t);
+        camera.position.copy(pos);
+
+        const isOrbit = t >= flyOrbitStartU;
+        if (isOrbit) {
+          // Perimeter showcase: stable up vector, look at board center, narrower FOV
+          camera.up.set(0, 1, 0);
+          camera.lookAt(flyBoardCenter);
+          camera.fov = 58 + Math.sin(t * Math.PI * 2) * 2;
+        } else {
+          // Skim: look slightly ahead on the curve, banked roll, wider FOV
+          const ahead = flyPath.getPointAt((t + 0.012) % 1);
+          const roll = Math.sin(t * Math.PI * 4) * 0.18;
+          camera.up.set(Math.sin(roll), Math.cos(roll), 0);
+          camera.lookAt(ahead);
+          camera.fov = 76 + Math.sin(t * Math.PI * 2) * 4;
+        }
+        camera.updateProjectionMatrix();
+        needsRender = true;
+      } else {
+        controls.update();
+      }
 
       let isAnimating = false;
       if (boardGroup && boardGroup.rotation.x !== flipTargetAngle) {
@@ -605,15 +656,196 @@
     flipStartTime = performance.now();
     requestRender();
   }
+
+  // ------- fly-through (Tron / Aphex aesthetic) -------
+
+  function buildFlyPath() {
+    if (!boardGroup) return null;
+    boardGroup.updateMatrixWorld(true);
+    const box = new THREE.Box3().setFromObject(boardGroup);
+    if (box.isEmpty()) return null;
+    const size = box.getSize(new THREE.Vector3());
+    const w = Math.max(size.x, 20);
+    const d = Math.max(size.z, 20);
+    const surfaceY = box.max.y + 1.2;
+    const high = Math.max(w, d) * 0.55;
+
+    // Act 1-3 — skim phase (camera looks forward)
+    const skimPts = [
+      new THREE.Vector3(-w * 0.95, high * 0.9, -d * 1.15),     // 0 high approach
+      new THREE.Vector3(-w * 0.55, surfaceY * 2.4, -d * 0.55),  // 1 dive
+      new THREE.Vector3(-w * 0.25, surfaceY, -d * 0.25),        // 2 skim entry
+      new THREE.Vector3( w * 0.25, surfaceY,  d * 0.25),        // 3 skim across
+      new THREE.Vector3( w * 0.7,  high * 2.4,  d * 0.7),       // 4 lift off
+      new THREE.Vector3( w * 1.1,  high * 1.4,  0),             // 5 arc top — flip happens
+      new THREE.Vector3( w * 0.7,  surfaceY * 1.6, -d * 0.5),   // 6 dive back
+      new THREE.Vector3( w * 0.25, surfaceY, -d * 0.1),         // 7 skim entry 2
+      new THREE.Vector3(-w * 0.25, surfaceY,  d * 0.1),         // 8 skim across 2
+    ];
+
+    // Act 4 — perimeter orbit (camera looks at board center)
+    const orbY = Math.max(w, d) * 0.45;
+    const orbR = 1.05; // radial multiplier; > 1 keeps camera outside the silhouette
+    const orbitPts = [
+      new THREE.Vector3(-w * 0.6 * orbR, orbY,  d * 1.0 * orbR),  // 9  SW
+      new THREE.Vector3( w * 0.0,         orbY,  d * 1.2 * orbR), // 10 S
+      new THREE.Vector3( w * 0.9 * orbR,  orbY,  d * 0.6 * orbR), // 11 SE
+      new THREE.Vector3( w * 1.2 * orbR,  orbY, -d * 0.1),        // 12 E
+      new THREE.Vector3( w * 0.6 * orbR,  orbY, -d * 1.0 * orbR), // 13 NE
+      new THREE.Vector3(-w * 0.4,         orbY, -d * 1.2 * orbR), // 14 N (bridges back to skim start)
+    ];
+
+    const pts = [...skimPts, ...orbitPts];
+    const curve = new THREE.CatmullRomCurve3(pts, true, "catmullrom", 0.5);
+
+    // Compute the arclength-u at which the orbit phase begins.
+    // getLengths(N) returns cumulative chord lengths at spline-t = i/N,
+    // and waypoint i lives at spline-t = i/pts.length on a closed Catmull-Rom.
+    const N = pts.length;
+    const lengths = curve.getLengths(N);
+    flyOrbitStartU = lengths[skimPts.length] / lengths[N];
+
+    // Cache board center in world space for lookAt during orbit phase
+    flyBoardCenter.copy(box.getCenter(new THREE.Vector3()));
+
+    return curve;
+  }
+
+  function startFly() {
+    const path = buildFlyPath();
+    if (!path) return;
+    flyPath = path;
+    flyStartTime = performance.now();
+    flyLastT = 0;
+    flyDidFlipThisLap = false;
+
+    flySaved = {
+      bg: scene.background ? scene.background.clone() : null,
+      fog: scene.fog,
+      gridVisible: grid ? grid.visible : true,
+      camPos: camera.position.clone(),
+      camTarget: controls.target.clone(),
+      camUp: camera.up.clone(),
+      camFov: camera.fov,
+      emissive: new Map(),
+      isFlipped,
+      boardRotX: boardGroup ? boardGroup.rotation.x : 0,
+    };
+
+    scene.background = new THREE.Color(0x000814);
+    scene.fog = new THREE.Fog(0x000814, 30, 220);
+
+    // Punchier grid for the Tron read
+    if (grid) {
+      scene.remove(grid);
+      grid = new THREE.GridHelper(400, 40, 0x00f0ff, 0xff2d95);
+      grid.material.opacity = 0.6;
+      grid.material.transparent = true;
+      const bBox = new THREE.Box3().setFromObject(boardGroup);
+      if (!bBox.isEmpty()) grid.position.y = bBox.min.y - 0.05;
+      scene.add(grid);
+    }
+
+    // Push copper/trace meshes toward emissive glow — using each material's
+    // own diffuse color so copper still reads as copper, not Tron cyan.
+    for (const [name, mesh] of Object.entries(meshMap)) {
+      if (!isCopper(name)) continue;
+      const mat = mesh.material;
+      if (!mat || !("emissive" in mat)) continue;
+      flySaved.emissive.set(name, {
+        color: mat.emissive ? mat.emissive.clone() : new THREE.Color(0),
+        intensity: mat.emissiveIntensity ?? 1,
+      });
+      if (mat.emissive && mat.color) mat.emissive.copy(mat.color);
+      mat.emissiveIntensity = 1.2;
+    }
+
+    controls.enabled = false;
+    camera.fov = 78;
+    camera.updateProjectionMatrix();
+    flyMode = true;
+    needsRender = true;
+  }
+
+  function stopFly() {
+    flyMode = false;
+    flyPath = null;
+    if (!flySaved) return;
+
+    if (flySaved.bg) scene.background = flySaved.bg;
+    scene.fog = flySaved.fog ?? null;
+
+    if (grid) {
+      scene.remove(grid);
+      grid = new THREE.GridHelper(300, 30, 0x6060a8, 0x3e3e62);
+      const bBox = new THREE.Box3().setFromObject(boardGroup);
+      if (!bBox.isEmpty()) grid.position.y = bBox.min.y - 0.05;
+      scene.add(grid);
+    }
+
+    for (const [name, mesh] of Object.entries(meshMap)) {
+      const saved = flySaved.emissive.get(name);
+      if (!saved) continue;
+      const mat = mesh.material;
+      if (mat?.emissive) mat.emissive.copy(saved.color);
+      if ("emissiveIntensity" in mat) mat.emissiveIntensity = saved.intensity;
+    }
+
+    camera.position.copy(flySaved.camPos);
+    camera.up.copy(flySaved.camUp);
+    controls.target.copy(flySaved.camTarget);
+    camera.fov = flySaved.camFov;
+    camera.updateProjectionMatrix();
+    controls.enabled = true;
+    controls.update();
+
+    // Snap board back to whatever state it was in before fly mode
+    if (boardGroup) {
+      boardGroup.rotation.x = flySaved.boardRotX;
+      flipTargetAngle = flySaved.boardRotX;
+      flipStartAngle = flySaved.boardRotX;
+    }
+    isFlipped = flySaved.isFlipped;
+
+    flySaved = null;
+    needsRender = true;
+  }
+
+  function toggleFly() {
+    if (flyMode) stopFly();
+    else startFly();
+  }
 </script>
 
 <div class="relative w-full h-full">
   <canvas bind:this={canvas} class="w-full h-full block"></canvas>
-  <button
-    onclick={flipBoard}
-    class="absolute top-4 right-4 bg-surface-1 hover:bg-surface-2 text-cyan-light font-bold px-3 py-2 rounded-lg border-2 border-black shadow-[2px_2px_0_black] text-xs transition-colors uppercase tracking-wider z-10"
-  >
-    Flip Board
-  </button>
+  <div class="absolute top-4 right-4 flex items-center gap-2 z-10">
+    <button
+      onclick={toggleFly}
+      title="Cinematic flythrough"
+      class="font-bold px-3 py-2 rounded-lg border-2 border-black shadow-[2px_2px_0_black] text-xs transition-colors uppercase tracking-wider flex items-center gap-1.5
+        {flyMode
+          ? 'bg-accent text-[var(--text-on-accent)] hover:bg-accent-light'
+          : 'bg-surface-1 hover:bg-surface-2 text-cyan-light'}"
+    >
+      <svg viewBox="0 0 16 16" class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M2 14L14 2M14 2H6M14 2v8" />
+        <path d="M2 9l3 1 1 3" />
+      </svg>
+      Fly
+    </button>
+    <button
+      onclick={flipBoard}
+      class="bg-surface-1 hover:bg-surface-2 text-cyan-light font-bold px-3 py-2 rounded-lg border-2 border-black shadow-[2px_2px_0_black] text-xs transition-colors uppercase tracking-wider"
+    >
+      Flip Board
+    </button>
+  </div>
+  {#if flyMode}
+    <div class="absolute top-4 left-4 z-10 px-3 py-1.5 rounded-lg bg-black/80 border border-accent/50 text-[10px] uppercase tracking-[0.2em] text-accent font-bold flex items-center gap-2 pointer-events-none">
+      <span class="w-1.5 h-1.5 rounded-full bg-accent animate-pulse"></span>
+      Fly Mode
+    </div>
+  {/if}
   <span class="absolute bottom-2 right-3 text-[10px] text-white/30 pointer-events-none select-none z-10">Bauhouse Consorxium</span>
 </div>

@@ -31,10 +31,6 @@
       </svg>
     </button>
 
-    <div class="text-[10px] uppercase tracking-[0.24em] text-accent font-semibold mb-3.5">
-      {t('about.kicker')}
-    </div>
-
     <h2 class="text-[26px] font-bold text-white tracking-tight leading-[1.1] max-w-[440px]">
       {t('about.title')}
     </h2>

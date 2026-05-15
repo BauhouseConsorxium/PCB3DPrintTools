@@ -47,7 +47,7 @@ export const MODULE_VARIANTS = {
     title: 'ESP32 Dev',
     titleColor: '#00f0ff',
     pinsPerRow: 15,
-    rowGap: 9,
+    rowGap: 10,
     pinLabels: {
       left: ['EN','GPIO36','GPIO39','GPIO34','GPIO35','GPIO32','GPIO33','GPIO25','GPIO26','GPIO27','GPIO14','GPIO12','GPIO13','GND','VIN'],
       right: ['GPIO23','GPIO22','GPIO1','GPIO3','GPIO21','GPIO19','GPIO18','GPIO5','GPIO17','GPIO16','GPIO4','GPIO0','GPIO2','GPIO15','3V3'],
