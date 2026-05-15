@@ -15,131 +15,101 @@
 <Modal
   bind:open
   title=""
-  width="w-[560px]"
-  maxHeight="max-h-[85vh]"
-  panelClass="bg-surface-1 border-2 border-black rounded-2xl shadow-[8px_8px_0_rgba(0,0,0,0.5)]"
+  width="w-[600px]"
+  maxHeight="max-h-[92vh]"
+  panelClass="bg-surface-1 border-2 border-black rounded-2xl shadow-[10px_10px_0_rgba(0,0,0,0.55)] overflow-hidden"
 >
-  <!-- Hero -->
-  <div class="relative px-8 pt-10 pb-6 overflow-hidden">
-    <!-- Background pattern -->
-    <div class="absolute inset-0 opacity-[0.04]" style="background-image: radial-gradient(circle, currentColor 1px, transparent 1px); background-size: 12px 12px; color: var(--accent);"></div>
-    <div class="absolute -top-16 -right-16 w-48 h-48 rounded-full bg-accent/15 blur-3xl"></div>
-    <div class="absolute -bottom-12 -left-12 w-36 h-36 rounded-full bg-cyan/10 blur-3xl"></div>
-
-    <!-- Close button -->
+  <!-- Title block -->
+  <header class="px-9 pt-9 pb-6 relative">
     <button
       onclick={dismiss}
-      class="absolute top-3 right-3 z-10 w-7 h-7 flex items-center justify-center rounded-lg text-purple-light/40 hover:text-white hover:bg-white/10 transition-all"
+      aria-label="Close"
+      class="absolute top-5 right-5 w-7 h-7 flex items-center justify-center rounded-md text-cyan-light/40 hover:text-cyan-light hover:bg-white/5 transition-colors"
     >
-      <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M6 18L18 6M6 6l12 12" />
       </svg>
     </button>
 
-    <div class="relative flex items-start gap-5">
-      <!-- Icon -->
-      <div class="shrink-0 w-20 h-20 rounded-2xl bg-gradient-to-br from-accent via-accent/90 to-accent/60 border-2 border-black shadow-[4px_4px_0_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.2)] flex items-center justify-center rotate-[-2deg]">
-        <svg viewBox="0 0 24 24" class="w-10 h-10 text-[var(--text-on-accent)] drop-shadow-[1px_1px_0_rgba(0,0,0,0.3)]" fill="none" stroke="currentColor" stroke-width="1.2">
-          <rect x="2" y="2" width="20" height="20" rx="2" />
-          <circle cx="7" cy="7" r="1.5" />
-          <circle cx="12" cy="7" r="1.5" />
-          <circle cx="17" cy="7" r="1.5" />
-          <circle cx="7" cy="12" r="1.5" />
-          <circle cx="12" cy="12" r="1.5" />
-          <circle cx="17" cy="12" r="1.5" />
-          <circle cx="7" cy="17" r="1.5" />
-          <circle cx="12" cy="17" r="1.5" />
-          <circle cx="17" cy="17" r="1.5" />
-        </svg>
-      </div>
+    <div class="text-[10px] uppercase tracking-[0.24em] text-accent font-semibold mb-3.5">
+      {t('about.kicker')}
+    </div>
 
-      <!-- Title block -->
-      <div class="pt-1">
-        <h2 class="text-xl font-black text-cyan-light tracking-tight leading-tight">{t('about.titleLine1')}<br/>{t('about.titleLine2')}</h2>
-        <div class="flex items-center gap-2 mt-2">
-          <span class="px-2 py-0.5 text-[9px] font-bold rounded-md bg-accent/20 text-accent border border-accent/30">{t('about.version')}</span>
-          <span class="text-[10px] text-purple-light/40">{t('about.org')}</span>
-        </div>
-      </div>
-    </div>
-  </div>
+    <h2 class="text-[26px] font-bold text-white tracking-tight leading-[1.1] max-w-[440px]">
+      {t('about.title')}
+    </h2>
 
-  <!-- Feature strip -->
-  <div class="mx-6 py-3 border-y border-black/30 flex items-center justify-between gap-2">
-    <div class="flex items-center gap-2">
-      <div class="w-6 h-6 rounded-md bg-accent/10 border border-accent/20 flex items-center justify-center">
-        <svg viewBox="0 0 16 16" class="w-3.5 h-3.5 text-accent" fill="none" stroke="currentColor" stroke-width="1.5">
-          <rect x="2" y="2" width="12" height="12" rx="1" />
-          <circle cx="5" cy="5" r="1" /><circle cx="11" cy="5" r="1" />
-          <circle cx="5" cy="11" r="1" /><circle cx="11" cy="11" r="1" />
-        </svg>
-      </div>
-      <span class="text-[10px] text-purple-light/60">{t('about.features.design')}</span>
+    <div class="mt-3.5 flex items-center gap-3 text-[11px] text-cyan-light/55">
+      <span class="font-mono">{t('about.version')}</span>
+      <span class="w-1 h-1 rounded-full bg-cyan-light/25"></span>
+      <span>{t('about.license')}</span>
+      <span class="w-1 h-1 rounded-full bg-cyan-light/25"></span>
+      <span>{t('about.org')}</span>
     </div>
-    <svg viewBox="0 0 12 8" class="w-4 h-2 text-purple-light/20" fill="none" stroke="currentColor" stroke-width="1">
-      <path d="M0 4h8M8 1l3 3-3 3" />
-    </svg>
-    <div class="flex items-center gap-2">
-      <div class="w-6 h-6 rounded-md bg-cyan/10 border border-cyan/20 flex items-center justify-center">
-        <svg viewBox="0 0 16 16" class="w-3.5 h-3.5 text-cyan" fill="none" stroke="currentColor" stroke-width="1.5">
-          <path d="M4 12V6h8v6" /><path d="M2 12h12" /><path d="M6 6V4h4v2" />
-        </svg>
-      </div>
-      <span class="text-[10px] text-purple-light/60">{t('about.features.print')}</span>
-    </div>
-    <svg viewBox="0 0 12 8" class="w-4 h-2 text-purple-light/20" fill="none" stroke="currentColor" stroke-width="1">
-      <path d="M0 4h8M8 1l3 3-3 3" />
-    </svg>
-    <div class="flex items-center gap-2">
-      <div class="w-6 h-6 rounded-md bg-copper/10 border border-copper/20 flex items-center justify-center">
-        <svg viewBox="0 0 16 16" class="w-3.5 h-3.5 text-copper" fill="none" stroke="currentColor" stroke-width="1.5">
-          <path d="M3 8h10" /><path d="M5 5l-2 3 2 3" /><path d="M11 5l2 3-2 3" />
-        </svg>
-      </div>
-      <span class="text-[10px] text-purple-light/60">{t('about.features.copperTape')}</span>
-    </div>
-  </div>
+  </header>
 
-  <!-- Narrative -->
-  <div class="px-6 py-5 space-y-4 overflow-y-auto max-h-[40vh]">
-    <p class="text-[11px] text-purple-light/80 leading-relaxed">
+  <!-- Hairline -->
+  <div class="mx-9 border-t border-white/[0.07]"></div>
+
+  <!-- Body -->
+  <article class="px-9 py-7 space-y-4 overflow-y-auto" style="max-height: 38vh;">
+    <p class="text-[13px] text-cyan-light/90 leading-[1.7]">
       {t('about.body.p1')}
     </p>
-    <p class="text-[11px] text-purple-light/80 leading-relaxed">
+    <p class="text-[13px] text-cyan-light/90 leading-[1.7]">
       {t('about.body.p2')}
     </p>
-
-    <!-- Pull quote -->
-    <div class="relative py-3 px-4 rounded-xl bg-gradient-to-r from-cyan/8 to-transparent border-l-3 border-cyan/40">
-      <p class="text-[11px] text-cyan-light/90 leading-relaxed font-medium">
-        {t('about.body.pullQuote')}
-      </p>
-    </div>
-
-    <p class="text-[11px] text-purple-light/80 leading-relaxed">
+    <p class="text-[13px] text-cyan-light/90 leading-[1.7]">
       {t('about.body.p3')}
     </p>
+    {#if t('about.body.signature')}
+      <p class="text-[11px] text-cyan-light/45 pt-2">{t('about.body.signature')}</p>
+    {/if}
+  </article>
 
-    <p class="text-[10px] text-purple-light/30 text-right italic">{t('about.body.signature')}</p>
-  </div>
+  <!-- Hairline -->
+  <div class="mx-9 border-t border-white/[0.07]"></div>
+
+  <!-- Funding -->
+  <section class="px-9 py-6">
+    <div class="text-[9px] uppercase tracking-[0.24em] text-cyan-light/35 font-semibold mb-3">
+      {t('about.funding.label')}
+    </div>
+    <div class="flex items-center gap-5">
+      <img
+        src="{import.meta.env.BASE_URL}dana-indonesiana-logo.png"
+        alt={t('about.funding.org')}
+        class="h-12 w-auto shrink-0"
+        style="filter: brightness(0) invert(1); opacity: 0.88;"
+      />
+      <div class="text-[11px] text-cyan-light/55 leading-relaxed">
+        {t('about.funding.description')}
+      </div>
+    </div>
+  </section>
 
   <!-- Footer -->
-  <div class="px-6 pb-6 pt-2 flex items-center gap-3">
-    <button
-      class="flex-1 px-5 py-2.5 text-xs font-bold rounded-xl bg-gradient-to-b from-accent to-accent/80 hover:from-accent-light hover:to-accent text-[var(--text-on-accent)] border-2 border-black shadow-[4px_4px_0_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.2)] transition-all hover:shadow-[5px_5px_0_rgba(0,0,0,0.4)] hover:-translate-x-px hover:-translate-y-px active:translate-x-0.5 active:translate-y-0.5 active:shadow-[1px_1px_0_rgba(0,0,0,0.4)]"
-      onclick={dismiss}
-    >
-      {t('about.cta')}
-    </button>
+  <footer class="px-9 py-6 flex items-center justify-between gap-4 bg-surface-0/40 border-t border-white/[0.07]">
     <a
       href="https://github.com/bauhouse/PCB3DPrintTools"
       target="_blank"
-      class="shrink-0 w-10 h-10 flex items-center justify-center rounded-xl border-2 border-black bg-surface-2 text-purple-light/50 hover:text-cyan hover:bg-surface-3 shadow-[3px_3px_0_rgba(0,0,0,0.3)] transition-all hover:shadow-[4px_4px_0_rgba(0,0,0,0.3)] hover:-translate-x-px hover:-translate-y-px active:translate-x-0.5 active:translate-y-0.5 active:shadow-[1px_1px_0_rgba(0,0,0,0.3)]"
-      title={t('about.github')}
+      rel="noopener noreferrer"
+      class="flex items-center gap-2 text-[11px] font-medium text-cyan-light/55 hover:text-cyan-light transition-colors"
     >
-      <svg viewBox="0 0 16 16" class="w-4 h-4" fill="currentColor">
+      <svg viewBox="0 0 16 16" class="w-3.5 h-3.5" fill="currentColor">
         <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z" />
       </svg>
+      <span>{t('about.github')}</span>
+      <svg viewBox="0 0 12 12" class="w-2.5 h-2.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M3 9l6-6M5 3h4v4" />
+      </svg>
     </a>
-  </div>
+
+    <button
+      onclick={dismiss}
+      class="px-6 py-2.5 text-[11px] font-bold tracking-wide uppercase rounded-lg bg-accent hover:bg-accent-light text-[var(--text-on-accent)] border-2 border-black shadow-[3px_3px_0_rgba(0,0,0,0.55)] transition-all hover:shadow-[4px_4px_0_rgba(0,0,0,0.55)] hover:-translate-y-px active:translate-y-0.5 active:shadow-[1px_1px_0_rgba(0,0,0,0.55)]"
+    >
+      {t('about.cta')}
+    </button>
+  </footer>
 </Modal>

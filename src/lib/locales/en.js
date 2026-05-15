@@ -10,7 +10,7 @@ export default {
       presets: "Presets",
     },
     perfboard: {
-      title: "Perfboard 3D Print Tools",
+      title: "Tembaga3D",
       projectNamePlaceholder: "Project name",
       tabs: {
         editor: "2D Editor",
@@ -64,22 +64,22 @@ export default {
     },
   },
   about: {
-    titleLine1: "Perfboard",
-    titleLine2: "3D Print Tools",
+    title: "Tembaga3D",
     version: "v1.0",
     org: "Bauhouse Consorxium",
-    features: {
-      design: "Design",
-      print: "3D Print",
-      copperTape: "Copper Tape",
-    },
+    kicker: "Part of the Congkak Bunyinya toolkit",
+    license: "Open Source",
+    tagline: "",
     body: {
-      p1: "I used to etch my own PCBs. Ferric chloride, UV exposure, careful timing. Every batch ended the same way — copper-laced waste down the sink. I knew it was wrong. I kept doing it because the results were good.",
-      p2: "Eventually I couldn't justify it anymore, so I stopped. No more homemade boards. That lasted years.",
-      pullQuote:
-        "3D printing a substrate and laying copper tape by hand got me back in. The traces are rougher. The tolerances are worse. You can't do fine-pitch SMD this way. But nothing toxic leaves the room, and you end up holding something you actually made — not something a chemical bath revealed.",
-      p3: "This tool handles the layout. Design, export STL, print, lay copper. It was built with AI assistance — not casually, but as a deliberate choice to spend less compute, not more. Whether that matters at the scale of one small tool, I'm honestly not sure. But I'd rather ask the question than ignore it.",
-      signature: "— Budi Prakosa",
+      p1: "Tembaga3D is a browser-based CAD application for designing simple circuit layouts intended for 3D-printed fabrication. Users compose pads, traces, headers, and module footprints in a grid editor and export the layout as an STL mesh with raised trace paths. Once printed, the raised geometry acts as a physical guide for applying copper tape along the conductive paths — tembaga being the Indonesian word for copper.",
+      p2: "The software was developed by Bauhouse Consorxium during the production of Congkak Bunyinya, an interactive electro-acoustic instrument that reinterprets the traditional Indonesian game of congklak. Constructing its Hall-effect sensor array required a layout tool tied directly to a fabrication process that did not depend on chemical etching or external PCB manufacturing — distinct from conventional CAD applications such as KiCad or EAGLE.",
+      p3: "Tembaga3D is free, open source, and runs in any modern browser. The software is available at github.com/bauhouse/PCB3DPrintTools.",
+      signature: "",
+    },
+    funding: {
+      label: "Supported by",
+      org: "Dana Indonesiana",
+      description: "Dana Abadi Kebudayaan · Indonesian Cultural Endowment",
     },
     cta: "Start Building",
     github: "View on GitHub",
