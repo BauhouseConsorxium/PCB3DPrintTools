@@ -6,6 +6,7 @@
   import PerfboardExportPanel from "./components/perfboard/PerfboardExportPanel.svelte";
   import GridEditor from "./components/perfboard/GridEditor.svelte";
   import ExportImageModal from "./components/perfboard/ExportImageModal.svelte";
+  import STLExportModal from "./components/perfboard/STLExportModal.svelte";
   import AboutModal from "./components/perfboard/AboutModal.svelte";
   import LanguageSwitcher from "./components/LanguageSwitcher.svelte";
   import {
@@ -17,6 +18,7 @@
   let viewer;
   let gridSvgEl = $state(null);
   let showExportModal = $state(false);
+  let showStlExportModal = $state(false);
   let showIntro = $state(!localStorage.getItem("perfboard-intro-seen"));
   let theme = $state(localStorage.getItem("perfboard-theme") || 'default');
   let showThemePicker = $state(false);
@@ -817,13 +819,6 @@
     }
   }
 
-  let exportIncludeBoard = $state(true)
-
-  function handleExport() {
-    if (!viewer) return;
-    const ts = new Date().toISOString().replace(/[:-]/g, "").slice(0, 15);
-    viewer.exportSTL(null, `${doc.name}_perfboard_${ts}.stl`, exportIncludeBoard);
-  }
 
   // Session system
   const SESSION_KEY = "perfboard-sessions";
@@ -1472,8 +1467,7 @@
       <PerfboardExportPanel
         bind:zScale
         bind:boardZScale
-        bind:includeBoard={exportIncludeBoard}
-        onExport={handleExport}
+        onExportSTL={() => showStlExportModal = true}
         onExport2D={() => showExportModal = true}
       />
 
@@ -1618,6 +1612,12 @@
 </div>
 
 <ExportImageModal bind:open={showExportModal} svgEl={gridSvgEl} {doc} />
+<STLExportModal
+  bind:open={showStlExportModal}
+  {viewer}
+  docName={doc.name}
+  hasEnclosure={doc.enclosure?.enabled ?? false}
+/>
 
 <style>
   @keyframes slideIn {

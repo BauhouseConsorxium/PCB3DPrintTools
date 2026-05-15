@@ -2,8 +2,7 @@
   let {
     zScale = $bindable(8),
     boardZScale = $bindable(1),
-    includeBoard = $bindable(true),
-    onExport = () => {},
+    onExportSTL = () => {},
     onExport2D = () => {},
   } = $props()
 
@@ -33,20 +32,15 @@
 
   <button
     class="w-full px-3 py-2 text-xs font-bold rounded-lg bg-accent hover:bg-accent-light text-[var(--text-on-accent)] border-2 border-black shadow-[4px_4px_0_black] transition-all hover:shadow-[5px_5px_0_black] hover:-translate-x-px hover:-translate-y-px active:translate-x-0.5 active:translate-y-0.5 active:shadow-[1px_1px_0_black]"
-    onclick={onExport}
+    onclick={onExportSTL}
   >
-    Export STL
+    Export STL…
   </button>
-
-  <label class="flex items-center gap-2 mt-2 cursor-pointer">
-    <input type="checkbox" bind:checked={includeBoard} class="accent-[#a3e635] w-3.5 h-3.5" />
-    <span class="text-xs text-purple-light">Include board</span>
-  </label>
 
   <button
     class="w-full px-3 py-2 text-xs font-bold rounded-lg bg-cyan hover:bg-cyan-light text-surface-0 border-2 border-black shadow-[4px_4px_0_black] transition-all hover:shadow-[5px_5px_0_black] hover:-translate-x-px hover:-translate-y-px active:translate-x-0.5 active:translate-y-0.5 active:shadow-[1px_1px_0_black] mt-2"
     onclick={onExport2D}
   >
-    Export 2D
+    Export 2D…
   </button>
 </div>
