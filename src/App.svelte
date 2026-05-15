@@ -7,7 +7,9 @@
     import ExportPanel from "./components/ExportPanel.svelte";
     import DrcPanel from "./components/DrcPanel.svelte";
     import PresetModal from "./components/PresetModal.svelte";
+    import LanguageSwitcher from "./components/LanguageSwitcher.svelte";
     import { parseBoardPoly, buildEnclosureBody } from "./lib/enclosure.js";
+    import { t } from "./lib/i18n.svelte.js";
 
     let status = $state("idle"); // 'idle' | 'loading' | 'ready' | 'error'
     let progress = $state("");
@@ -129,7 +131,7 @@
     function handleFile(file) {
         filename = file.name;
         status = "loading";
-        progress = "Reading file…";
+        progress = t("app.pcb.readingFile");
         bodies = [];
         visibility = {};
         isRebuild = false;
@@ -242,7 +244,7 @@
                 />
             </svg>
             <span class="text-sm font-semibold text-slate-100"
-                >PCB 3D Print Tools</span
+                >{t('app.pcb.title')}</span
             >
         </div>
 
@@ -279,7 +281,9 @@
         {/if}
 
         <div class="ml-auto flex items-center gap-2">
-            <span class="text-xs text-slate-600">Bauhouse Consorxium 2026</span>
+            <LanguageSwitcher variant="dark" />
+            <div class="w-px h-4 bg-[#2a2a48]"></div>
+            <span class="text-xs text-slate-600">{t('common.footer')}</span>
         </div>
     </header>
 
@@ -333,7 +337,7 @@
                         <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 6h9.75M10.5 6a1.5 1.5 0 11-3 0m3 0a1.5 1.5 0 10-3 0M3.75 6H7.5m3 12h9.75m-9.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-3.75 0H7.5m9-6h3.75m-3.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-9.75 0h9.75" />
                         </svg>
-                        Presets
+                        {t('app.pcb.presets')}
                     </button>
                 </div>
             {/if}
@@ -364,7 +368,7 @@
 
             <!-- Watermark -->
             <div class="absolute bottom-3 right-4 pointer-events-none select-none z-10">
-                <span class="text-sm font-semibold tracking-widest text-slate-400 uppercase">Bauhouse Consorxium</span>
+                <span class="text-sm font-semibold tracking-widest text-slate-400 uppercase">{t('common.watermark')}</span>
             </div>
 
             <!-- Export preview badge -->
@@ -378,7 +382,7 @@
                         class="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse"
                     ></span>
                     <span class="text-xs font-medium text-amber-300"
-                        >Export preview · {previewLabel}</span
+                        >{t('app.pcb.exportPreview', { label: previewLabel })}</span
                     >
                 </div>
             {/if}
@@ -402,7 +406,7 @@
                         />
                     </svg>
                     <p class="text-slate-600 text-sm">
-                        Drop a .kicad_pcb file to begin
+                        {t('app.pcb.idleHint')}
                     </p>
                 </div>
             {/if}
@@ -461,7 +465,7 @@
                     </svg>
                     <div class="text-center max-w-sm px-4">
                         <p class="text-red-400 text-sm font-medium mb-1">
-                            Failed to load PCB file
+                            {t('app.pcb.errorTitle')}
                         </p>
                         <p class="text-slate-500 text-xs break-words">
                             {errorMsg}
@@ -474,7 +478,7 @@
                         }}
                         class="px-4 py-1.5 text-sm rounded bg-[#20203a] hover:bg-[#2a2a48] text-slate-300 transition-colors"
                     >
-                        Dismiss
+                        {t('app.pcb.dismiss')}
                     </button>
                 </div>
             {/if}

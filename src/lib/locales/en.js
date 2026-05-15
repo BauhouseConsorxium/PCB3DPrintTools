@@ -1,0 +1,90 @@
+export default {
+  app: {
+    pcb: {
+      title: "PCB 3D Print Tools",
+      idleHint: "Drop a .kicad_pcb file to begin",
+      errorTitle: "Failed to load PCB file",
+      readingFile: "Reading file…",
+      exportPreview: "Export preview · {label}",
+      dismiss: "Dismiss",
+      presets: "Presets",
+    },
+    perfboard: {
+      title: "Perfboard 3D Print Tools",
+      projectNamePlaceholder: "Project name",
+      tabs: {
+        editor: "2D Editor",
+        preview: "3D Preview",
+      },
+      header: {
+        undo: "Undo (Ctrl+Z)",
+        redo: "Redo (Ctrl+Shift+Z)",
+        sessions: "Sessions ({count})",
+        newSession: "+ New",
+        sessionsHeading: "Sessions",
+        openFile: "Open file",
+        downloadJson: "Download .json",
+        examples: "Examples",
+        examplesHeading: "Load Example",
+        about: "About",
+      },
+      labelTool: {
+        heading: "Label",
+        placeholder: "Label text",
+      },
+      info: {
+        board: "Board: {w} × {h} mm",
+      },
+    },
+  },
+  common: {
+    footer: "Bauhouse Consorxium 2026",
+    watermark: "Bauhouse Consorxium",
+    language: "Language",
+  },
+  toolbar: {
+    heading: "Tools",
+    tools: {
+      select: "Select",
+      pad: "Pad",
+      header: "Header",
+      dip: "DIP",
+      trace: "Trace",
+      jumper: "Jumper",
+      label: "Label",
+      erase: "Erase",
+      curve: "Curve",
+      roundtrace: "Round",
+      cap: "Cap",
+      joint: "Joint",
+      freetrace: "Free",
+      resistor: "Res",
+      pinhousing: "Socket",
+      keyswitch: "Key",
+    },
+  },
+  about: {
+    titleLine1: "Perfboard",
+    titleLine2: "3D Print Tools",
+    version: "v1.0",
+    org: "Bauhouse Consorxium",
+    features: {
+      design: "Design",
+      print: "3D Print",
+      copperTape: "Copper Tape",
+    },
+    body: {
+      p1: "I used to etch my own PCBs. Ferric chloride, UV exposure, careful timing. Every batch ended the same way — copper-laced waste down the sink. I knew it was wrong. I kept doing it because the results were good.",
+      p2: "Eventually I couldn't justify it anymore, so I stopped. No more homemade boards. That lasted years.",
+      pullQuote:
+        "3D printing a substrate and laying copper tape by hand got me back in. The traces are rougher. The tolerances are worse. You can't do fine-pitch SMD this way. But nothing toxic leaves the room, and you end up holding something you actually made — not something a chemical bath revealed.",
+      p3: "This tool handles the layout. Design, export STL, print, lay copper. It was built with AI assistance — not casually, but as a deliberate choice to spend less compute, not more. Whether that matters at the scale of one small tool, I'm honestly not sure. But I'd rather ask the question than ignore it.",
+      signature: "— Budi Prakosa",
+    },
+    cta: "Start Building",
+    github: "View on GitHub",
+  },
+  locales: {
+    en: "English",
+  },
+};

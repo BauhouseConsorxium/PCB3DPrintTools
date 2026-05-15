@@ -1,38 +1,41 @@
 <script>
   import { MODULE_VARIANT_LIST } from "../../lib/perfboard-modules.js"
+  import { t } from "../../lib/i18n.svelte.js"
 
   let { activeTool = 'select', onToolChange = () => {} } = $props()
 
-  const baseTools = [
-    { id: 'select', label: 'Select', icon: 'pointer', key: null },
-    { id: 'pad', label: 'Pad', icon: 'pad', key: '1' },
-    { id: 'header', label: 'Header', icon: 'header', key: '2' },
-    { id: 'dip', label: 'DIP', icon: 'dip', key: '3' },
-    { id: 'trace', label: 'Trace', icon: 'trace', key: '4' },
-    { id: 'jumper', label: 'Jumper', icon: 'jumper', key: '5' },
-    { id: 'label', label: 'Label', icon: 'label', key: '6' },
-    { id: 'erase', label: 'Erase', icon: 'erase', key: '7' },
-    { id: 'curve', label: 'Curve', icon: 'curve', key: '8' },
-    { id: 'roundtrace', label: 'Round', icon: 'roundtrace', key: '9' },
-    { id: 'cap', label: 'Cap', icon: 'cap', key: '0' },
-    { id: 'joint', label: 'Joint', icon: 'joint', key: 'J' },
-    { id: 'freetrace', label: 'Free', icon: 'freetrace', key: 'F' },
-    { id: 'resistor', label: 'Res', icon: 'resistor', key: 'R' },
-    { id: 'pinhousing', label: 'Socket', icon: 'pinhousing', key: 'H' },
-    { id: 'keyswitch', label: 'Key', icon: 'keyswitch', key: 'K' },
+  const baseToolIds = [
+    { id: 'select', icon: 'pointer', key: null },
+    { id: 'pad', icon: 'pad', key: '1' },
+    { id: 'header', icon: 'header', key: '2' },
+    { id: 'dip', icon: 'dip', key: '3' },
+    { id: 'trace', icon: 'trace', key: '4' },
+    { id: 'jumper', icon: 'jumper', key: '5' },
+    { id: 'label', icon: 'label', key: '6' },
+    { id: 'erase', icon: 'erase', key: '7' },
+    { id: 'curve', icon: 'curve', key: '8' },
+    { id: 'roundtrace', icon: 'roundtrace', key: '9' },
+    { id: 'cap', icon: 'cap', key: '0' },
+    { id: 'joint', icon: 'joint', key: 'J' },
+    { id: 'freetrace', icon: 'freetrace', key: 'F' },
+    { id: 'resistor', icon: 'resistor', key: 'R' },
+    { id: 'pinhousing', icon: 'pinhousing', key: 'H' },
+    { id: 'keyswitch', icon: 'keyswitch', key: 'K' },
   ]
 
   // Module variant tools are sourced from src/lib/perfboard-modules.js.
+  // Their labels aren't translated yet — they ship from the module registry.
   // To add a new module: register it there + add an icon clause below.
-  const moduleTools = MODULE_VARIANT_LIST.map((v) => ({
-    id: v.id, label: v.label, icon: v.icon, key: v.key,
-  }))
-
-  const tools = [...baseTools, ...moduleTools]
+  const tools = $derived([
+    ...baseToolIds.map((t0) => ({ ...t0, label: t(`toolbar.tools.${t0.id}`) })),
+    ...MODULE_VARIANT_LIST.map((v) => ({
+      id: v.id, label: v.label, icon: v.icon, key: v.key,
+    })),
+  ])
 </script>
 
 <div class="flex flex-col gap-1 mb-4">
-  <div class="text-[10px] uppercase tracking-wider text-accent font-bold mb-1">Tools</div>
+  <div class="text-[10px] uppercase tracking-wider text-accent font-bold mb-1">{t('toolbar.heading')}</div>
   <div class="grid grid-cols-4 gap-1">
     {#each tools as tool}
       <button

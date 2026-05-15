@@ -7,10 +7,12 @@
   import GridEditor from "./components/perfboard/GridEditor.svelte";
   import ExportImageModal from "./components/perfboard/ExportImageModal.svelte";
   import AboutModal from "./components/perfboard/AboutModal.svelte";
+  import LanguageSwitcher from "./components/LanguageSwitcher.svelte";
   import {
     buildPerfboardBodies,
     createDefaultDocument,
   } from "./lib/perfboard-geometry.js";
+  import { t } from "./lib/i18n.svelte.js";
 
   let viewer;
   let gridSvgEl = $state(null);
@@ -1053,7 +1055,7 @@
         <circle cx="14" cy="14" r="1.5" />
       </svg>
       <span class="text-sm font-semibold text-cyan-light"
-        >Perfboard 3D Print Tools</span
+        >{t('app.perfboard.title')}</span
       >
     </div>
     <div class="ml-4 flex items-center gap-2">
@@ -1062,14 +1064,14 @@
         bind:value={doc.name}
         onfocus={pushUndo}
         class="bg-surface-2 text-xs text-cyan-light rounded-lg px-2 py-0.5 border-2 border-black focus:border-accent outline-none w-32 shadow-[2px_2px_0_black]"
-        placeholder="Project name"
+        placeholder={t('app.perfboard.projectNamePlaceholder')}
       />
       <div class="flex items-center gap-0.5 ml-2">
         <button
           onclick={undo}
           disabled={undoStack.length === 0}
           class="p-1 rounded-lg text-purple-light hover:text-cyan hover:bg-surface-2 transition-colors disabled:opacity-30 disabled:cursor-default disabled:hover:bg-transparent disabled:hover:text-purple-light"
-          title="Undo (Ctrl+Z)"
+          title={t('app.perfboard.header.undo')}
         >
           <svg
             viewBox="0 0 16 16"
@@ -1088,7 +1090,7 @@
           onclick={redo}
           disabled={redoStack.length === 0}
           class="p-1 rounded-lg text-purple-light hover:text-cyan hover:bg-surface-2 transition-colors disabled:opacity-30 disabled:cursor-default disabled:hover:bg-transparent disabled:hover:text-purple-light"
-          title="Redo (Ctrl+Shift+Z)"
+          title={t('app.perfboard.header.redo')}
         >
           <svg
             viewBox="0 0 16 16"
@@ -1113,7 +1115,7 @@
         <button
           onclick={() => (showSessionPanel = !showSessionPanel)}
           class="flex items-center gap-1.5 px-2 py-0.5 rounded-lg text-purple-light hover:text-cyan hover:bg-surface-2 transition-colors {showSessionPanel ? 'bg-surface-2 text-cyan' : ''}"
-          title="Sessions ({sessionList.length})"
+          title={t('app.perfboard.header.sessions', { count: sessionList.length })}
         >
           <svg viewBox="0 0 16 16" class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
             <path d="M4 2v12M8 2v12M12 2v12" />
@@ -1127,11 +1129,11 @@
         {#if showSessionPanel}
           <div class="absolute top-full left-0 mt-2 w-56 bg-surface-1 border-2 border-black rounded-lg shadow-[4px_4px_0_black] p-2.5 z-50">
             <div class="flex items-center justify-between mb-2">
-              <span class="text-[10px] uppercase tracking-wider text-accent font-bold">Sessions</span>
+              <span class="text-[10px] uppercase tracking-wider text-accent font-bold">{t('app.perfboard.header.sessionsHeading')}</span>
               <button
                 onclick={newSession}
                 class="text-[10px] px-2 py-0.5 rounded-md bg-accent hover:bg-accent-light text-[var(--text-on-accent)] font-bold border border-black shadow-[1px_1px_0_black] transition-all"
-              >+ New</button>
+              >{t('app.perfboard.header.newSession')}</button>
             </div>
             <div class="space-y-1 max-h-48 overflow-y-auto">
               {#each sessionList as session}
@@ -1165,7 +1167,7 @@
       <div class="flex items-center gap-0.5 ml-1.5">
         <label
           class="p-1 rounded-lg text-purple-light hover:text-cyan hover:bg-surface-2 transition-colors cursor-pointer"
-          title="Open file"
+          title={t('app.perfboard.header.openFile')}
         >
           <svg viewBox="0 0 16 16" class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
             <path d="M2 13V5h4l2 2h6v6H2z" />
@@ -1180,7 +1182,7 @@
         <button
           onclick={downloadJSON}
           class="p-1 rounded-lg text-purple-light hover:text-cyan hover:bg-surface-2 transition-colors"
-          title="Download .json"
+          title={t('app.perfboard.header.downloadJson')}
         >
           <svg viewBox="0 0 16 16" class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
             <path d="M8 2v8M5 7l3 3 3-3" />
@@ -1194,17 +1196,17 @@
         <button
           onmousedown={() => (showExamples = !showExamples)}
           class="flex items-center gap-1 px-2 py-0.5 rounded-lg text-purple-light hover:text-cyan hover:bg-surface-2 transition-colors text-[11px] font-semibold"
-          title="Load example project"
+          title={t('app.perfboard.header.examples')}
         >
           <svg viewBox="0 0 16 16" class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
             <path d="M8 3v10M3 8h10" />
             <circle cx="8" cy="8" r="6" />
           </svg>
-          Examples
+          {t('app.perfboard.header.examples')}
         </button>
         {#if showExamples}
           <div class="absolute top-full left-0 mt-2 w-60 bg-surface-1 border-2 border-black rounded-lg shadow-[4px_4px_0_black] p-2 z-50">
-            <div class="text-[9px] uppercase tracking-wider text-accent font-bold mb-1.5 px-1">Load Example</div>
+            <div class="text-[9px] uppercase tracking-wider text-accent font-bold mb-1.5 px-1">{t('app.perfboard.header.examplesHeading')}</div>
             <div class="space-y-0.5">
               {#each [
                 { file: "cd4093-noise-gen.perfboard.json", label: "CD4093 Noise Generator" },
@@ -1225,16 +1227,18 @@
         {/if}
       </div>
     </div>
-    <div class="ml-auto flex items-center gap-2">
+    <div class="ml-auto flex items-center gap-1">
       <!-- Theme picker -->
       <div class="relative">
         <button
           onmousedown={() => showThemePicker = !showThemePicker}
-          class="flex items-center gap-1.5 px-1.5 py-1 rounded-lg text-purple-light/50 hover:text-purple-light hover:bg-white/5 transition-colors"
+          title="Theme"
+          aria-label="Theme"
+          class="h-6 flex items-center justify-center px-1.5 rounded-lg text-purple-light/60 hover:text-purple-light hover:bg-surface-2 transition-colors"
         >
           {#each schemes as s}
             {#if s.id === theme}
-              <span class="w-3 h-3 rounded-full border border-black/30" style="background:{s.color}"></span>
+              <span class="w-3 h-3 rounded-full border border-black/30 shadow-[1px_1px_0_rgba(0,0,0,0.4)]" style="background:{s.color}"></span>
             {/if}
           {/each}
         </button>
@@ -1259,18 +1263,24 @@
         {/if}
       </div>
 
+      <div class="w-px h-4 bg-purple-light/15 mx-0.5"></div>
+
+      <LanguageSwitcher variant="light" />
+
+      <div class="w-px h-4 bg-purple-light/15 mx-0.5"></div>
+
       <button
         onclick={() => (showIntro = true)}
-        class="text-[10px] text-purple-light/60 hover:text-accent transition-colors"
+        title={t('app.perfboard.header.about')}
+        class="h-6 flex items-center gap-1 px-1.5 rounded-lg text-[10px] text-purple-light/60 hover:text-accent hover:bg-surface-2 transition-colors"
       >
-        About
+        <svg viewBox="0 0 16 16" class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="8" cy="8" r="6.25" />
+          <path d="M8 7v4" />
+          <circle cx="8" cy="5" r="0.5" fill="currentColor" stroke="none" />
+        </svg>
+        {t('app.perfboard.header.about')}
       </button>
-      <a
-        href="index.html"
-        class="text-[10px] text-purple-light/60 hover:text-accent transition-colors"
-      >
-        PCB 3D Print Tools &rarr;
-      </a>
     </div>
   </div>
 
@@ -1329,14 +1339,14 @@
           <div
             class="text-[10px] uppercase tracking-wider text-accent font-bold mb-2"
           >
-            Label
+            {t('app.perfboard.labelTool.heading')}
           </div>
           <div class="space-y-1.5">
             <input
               type="text"
               bind:value={annotationText}
               class="w-full bg-surface-2 text-xs text-cyan-light rounded-lg px-2 py-1 border-2 border-black focus:border-accent outline-none shadow-[2px_2px_0_black]"
-              placeholder="Label text"
+              placeholder={t('app.perfboard.labelTool.placeholder')}
             />
             <div class="flex items-center gap-1.5">
               {#each ["#ff2d95", "#00f0ff", "#a855f7", "#a3e635", "#fbbf24", "#ff6bcb", "#f0f0f0"] as c}
@@ -1392,7 +1402,7 @@
             : 'text-purple-light hover:text-cyan'}"
           onclick={() => (activeTab = "editor")}
         >
-          2D Editor
+          {t('app.perfboard.tabs.editor')}
         </button>
         <button
           class="px-4 py-2 text-xs transition-colors {activeTab === 'preview'
@@ -1400,7 +1410,7 @@
             : 'text-purple-light hover:text-cyan'}"
           onclick={() => (activeTab = "preview")}
         >
-          3D Preview
+          {t('app.perfboard.tabs.preview')}
         </button>
       </div>
 
