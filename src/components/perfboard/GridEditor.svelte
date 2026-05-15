@@ -2199,7 +2199,7 @@
     {#each doc.traces as trace}
       {@const isSelected = selectedIds.includes(trace.id)}
       {@const netCol = traceColor(nets, trace.id)}
-      <g opacity={traceDim(trace.id)}>
+      <g class="copper" opacity={traceDim(trace.id)}>
       {#if trace.type === "curve"}
         {@const pts = trace.points.map((p) => ({
           x: p.col * pitch,
@@ -2826,7 +2826,7 @@
       {/if}
       {#each hpads as hp, i}
         {@const hpFill = padFillFor(nets, hp.col, hp.row, isSelected, header.labels?.[i])}
-        <g opacity={padDim(hp.col, hp.row)}>
+        <g class="copper" opacity={padDim(hp.col, hp.row)}>
         {#if isSelected}
           <circle
             cx={hp.col * pitch}
@@ -2989,7 +2989,7 @@
       {/if}
       {#each dpads as dp}
         {@const dpFill = padFillFor(nets, dp.col, dp.row, isSelected, null)}
-        <g opacity={padDim(dp.col, dp.row)}>
+        <g class="copper" opacity={padDim(dp.col, dp.row)}>
         {#if isSelected}
           <circle
             cx={dp.col * pitch}
@@ -3159,14 +3159,14 @@
       {@const p2row = cap.orientation === 'h' ? cap.row : cap.row + 1}
       {@const cp1Fill = padFillFor(nets, cap.col, cap.row, isSelected, null)}
       {@const cp2Fill = padFillFor(nets, p2col, p2row, isSelected, null)}
-      <g opacity={padDim(cap.col, cap.row)}>
+      <g class="copper" opacity={padDim(cap.col, cap.row)}>
         {#if isSelected}
           <circle cx={p1x} cy={p1y} r={padR + pitch * 0.04} fill="rgba(255,255,255,0.45)"/>
         {/if}
         <circle cx={p1x} cy={p1y} r={padR} fill={cp1Fill}/>
         <circle cx={p1x} cy={p1y} r={drillR} fill="#1a1a2e"/>
       </g>
-      <g opacity={padDim(p2col, p2row)}>
+      <g class="copper" opacity={padDim(p2col, p2row)}>
         {#if isSelected}
           <circle cx={p2x} cy={p2y} r={padR + pitch * 0.04} fill="rgba(255,255,255,0.45)"/>
         {/if}
@@ -3239,14 +3239,14 @@
       {@const rp2row = res.orientation === 'h' ? res.row : res.row + spacing}
       {@const rp1Fill = padFillFor(nets, res.col, res.row, isSelected, null)}
       {@const rp2Fill = padFillFor(nets, rp2col, rp2row, isSelected, null)}
-      <g opacity={padDim(res.col, res.row)}>
+      <g class="copper" opacity={padDim(res.col, res.row)}>
         {#if isSelected}
           <circle cx={p1x} cy={p1y} r={padR + pitch * 0.04} fill="rgba(255,255,255,0.45)"/>
         {/if}
         <circle cx={p1x} cy={p1y} r={padR} fill={rp1Fill}/>
         <circle cx={p1x} cy={p1y} r={drillR} fill="#1a1a2e"/>
       </g>
-      <g opacity={padDim(rp2col, rp2row)}>
+      <g class="copper" opacity={padDim(rp2col, rp2row)}>
         {#if isSelected}
           <circle cx={p2x} cy={p2y} r={padR + pitch * 0.04} fill="rgba(255,255,255,0.45)"/>
         {/if}
@@ -3321,7 +3321,7 @@
         {@const ay = pp.row * pitch + (facing === 'south' ? padR + 0.1 : facing === 'north' ? -padR - 0.1 : 0)}
         {@const bx = ax + (facing === 'east' ? arrowLen : facing === 'west' ? -arrowLen : 0)}
         {@const by = ay + (facing === 'south' ? arrowLen : facing === 'north' ? -arrowLen : 0)}
-        <g opacity={padDim(pp.col, pp.row)}>
+        <g class="copper" opacity={padDim(pp.col, pp.row)}>
         {#if isSelected}
           <circle cx={pp.col * pitch} cy={pp.row * pitch} r={padR + pitch * 0.04} fill="rgba(255,255,255,0.45)"/>
         {/if}
@@ -3406,7 +3406,7 @@
         {@const px = pin.col * pitch}
         {@const py = pin.row * pitch}
         {@const pFill = padFillFor(nets, pin.col, pin.row, isSelected, null)}
-        <g opacity={padDim(pin.col, pin.row)}>
+        <g class="copper" opacity={padDim(pin.col, pin.row)}>
           {#if isSelected}
             <circle cx={px} cy={py} r={padR + pitch * 0.04} fill="rgba(255,255,255,0.45)"/>
           {/if}
@@ -3497,7 +3497,7 @@
           {@const pFill = padFillFor(nets, pin.col, pin.row, isSelected, pin.label)}
           {@const px = pin.col * pitch}
           {@const py = pin.row * pitch}
-          <g opacity={padDim(pin.col, pin.row)}>
+          <g class="copper" opacity={padDim(pin.col, pin.row)}>
             {#if isSelected}
               <circle cx={px} cy={py} r={padR + pitch * 0.04} fill="rgba(255,255,255,0.45)"/>
             {/if}
@@ -3578,7 +3578,7 @@
     {#each doc.pads as pad}
       {@const isSelected = selectedIds.includes(pad.id)}
       {@const padFill = padFillFor(nets, pad.col, pad.row, isSelected, pad.label)}
-      <g opacity={padDim(pad.col, pad.row)}>
+      <g class="copper" opacity={padDim(pad.col, pad.row)}>
       {#if isSelected}
         <circle
           cx={pad.col * pitch}
@@ -3714,7 +3714,7 @@
     {#each doc.joints || [] as joint}
       {@const isSelected = selectedIds.includes(joint.id)}
       {@const jtFill = padFillFor(nets, joint.col, joint.row, isSelected, null, "#f5c842")}
-      <g opacity={padDim(joint.col, joint.row)}>
+      <g class="copper" opacity={padDim(joint.col, joint.row)}>
         {#if isSelected}
           <circle
             cx={joint.col * pitch}

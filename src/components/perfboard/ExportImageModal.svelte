@@ -7,6 +7,7 @@
     doc,
   } = $props();
 
+  let mode = $state('standard'); // 'standard' | 'etching'
   let format = $state('png');
   let scale = $state(2);
   let showDimensions = $state(true);
@@ -14,6 +15,12 @@
   let showGridLines = $state(false);
   let showAnnotations = $state(true);
   let exporting = $state(false);
+
+  // Etching mode forces SVG output and strips all non-conductive layers.
+  const etching = $derived(mode === 'etching');
+  $effect(() => {
+    if (etching) format = 'svg';
+  });
 
   const pitch = $derived(doc.grid.pitch);
   const cols = $derived(doc.grid.cols);
@@ -23,11 +30,85 @@
   const boardH = $derived((rows - 1) * pitch + 2 * margin);
   const isCircle = $derived((doc.grid.shape ?? 'rect') === 'circle');
 
+  // Prune everything except class="copper" subtrees (and their ancestors so
+  // transforms still resolve), then force every surviving fill/stroke to
+  // black. The mask reads as a clean positive: black where copper should
+  // remain, white elsewhere.
+  function flattenToEtchingMask(svg) {
+    // 1. Drop all text — component labels, pin numbers — even inside copper.
+    for (const tx of svg.querySelectorAll('text')) tx.remove();
+
+    // 2. Find every .copper element. Mark it, all its descendants, and all
+    //    its ancestors. This preserves the wrapper group AND its rendered
+    //    contents (circles, paths) AND the parent <svg>/<g> chain.
+    const keep = new WeakSet();
+    keep.add(svg);
+    for (const el of svg.querySelectorAll('.copper')) {
+      keep.add(el);
+      for (const d of el.querySelectorAll('*')) keep.add(d);
+      let p = el.parentNode;
+      while (p && p !== svg.parentNode) {
+        keep.add(p);
+        p = p.parentNode;
+      }
+    }
+
+    // 3. Top-down prune. Anything not in `keep` is non-copper — drop it.
+    //    Always preserve metadata (defs/style/title/desc) so referenced
+    //    clip-paths and gradients still resolve.
+    function prune(el) {
+      const tag = el.tagName.toLowerCase();
+      if (tag === 'defs' || tag === 'style' || tag === 'title' || tag === 'desc') return;
+      if (!keep.has(el)) {
+        el.remove();
+        return;
+      }
+      for (const child of [...el.children]) prune(child);
+    }
+    for (const child of [...svg.children]) prune(child);
+
+    // 4. Force every surviving visible fill/stroke to pure black, except
+    //    drill-hole circles (which carry the substrate color #1a1a2e in the
+    //    source) — those become white so the drill punches through the pad
+    //    in the resulting mask.
+    const DRILL_FILL = '#1a1a2e';
+    for (const el of svg.querySelectorAll('*')) {
+      const tag = el.tagName.toLowerCase();
+      if (tag === 'style' || tag === 'defs' || tag === 'title' || tag === 'desc') continue;
+
+      el.removeAttribute('opacity');
+      el.removeAttribute('fill-opacity');
+      el.removeAttribute('stroke-opacity');
+
+      const fill = el.getAttribute('fill');
+      const stroke = el.getAttribute('stroke');
+      const isDrill = fill === DRILL_FILL;
+
+      if (isDrill) {
+        el.setAttribute('fill', '#fff');
+      } else if (fill !== null && fill !== 'none') {
+        el.setAttribute('fill', '#000');
+      }
+      if (stroke !== null && stroke !== 'none') el.setAttribute('stroke', '#000');
+
+      if (el.style) {
+        if (!isDrill) {
+          if (el.style.fill && el.style.fill !== 'none') el.style.fill = '#000';
+        }
+        if (el.style.stroke && el.style.stroke !== 'none') el.style.stroke = '#000';
+        el.style.opacity = '';
+        el.style.fillOpacity = '';
+        el.style.strokeOpacity = '';
+        el.style.filter = '';
+      }
+    }
+  }
+
   function buildExportSVG() {
     if (!svgEl) return null;
     const clone = svgEl.cloneNode(true);
 
-    const dimOffset = showDimensions ? pitch * 2 : 0;
+    const dimOffset = (!etching && showDimensions) ? pitch * 2 : 0;
     const pad = pitch * 0.5;
     if (isCircle) {
       const cx = (cols - 1) * pitch / 2;
@@ -43,24 +124,26 @@
     clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
     clone.removeAttribute('class');
 
-    for (const el of clone.querySelectorAll('.editor-interactive')) {
-      el.remove();
+    for (const el of clone.querySelectorAll('.editor-interactive')) el.remove();
+
+    if (etching) {
+      // Strip all decorative / non-conductive layers
+      for (const sel of ['.dimensions', '.grid-dots', '.grid-lines', '.annotations']) {
+        for (const el of clone.querySelectorAll(sel)) el.remove();
+      }
+    } else {
+      if (!showDimensions) for (const el of clone.querySelectorAll('.dimensions')) el.remove();
+      if (!showGridDots) for (const el of clone.querySelectorAll('.grid-dots')) el.remove();
+      if (!showGridLines) for (const el of clone.querySelectorAll('.grid-lines')) el.remove();
+      if (!showAnnotations) for (const el of clone.querySelectorAll('.annotations')) el.remove();
     }
 
-    if (!showDimensions) {
-      for (const el of clone.querySelectorAll('.dimensions')) el.remove();
-    }
-    if (!showGridDots) {
-      for (const el of clone.querySelectorAll('.grid-dots')) el.remove();
-    }
-    if (!showGridLines) {
-      for (const el of clone.querySelectorAll('.grid-lines')) el.remove();
-    }
-    if (!showAnnotations) {
-      for (const el of clone.querySelectorAll('.annotations')) el.remove();
-    }
+    // Etching needs the prune pass to run BEFORE the background rect is
+    // added — otherwise the rect itself gets pruned out as non-copper.
+    if (etching) flattenToEtchingMask(clone);
 
-    clone.style.background = '#0f0f1a';
+    const bgColor = etching ? '#ffffff' : '#0f0f1a';
+    clone.style.background = bgColor;
     clone.insertBefore(
       (() => {
         const bg = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
@@ -69,7 +152,7 @@
         bg.setAttribute('y', vb[1]);
         bg.setAttribute('width', vb[2]);
         bg.setAttribute('height', vb[3]);
-        bg.setAttribute('fill', '#0f0f1a');
+        bg.setAttribute('fill', bgColor);
         return bg;
       })(),
       clone.firstChild
@@ -80,6 +163,7 @@
 
   const previewSrc = $derived.by(() => {
     if (!open || !svgEl) return '';
+    void mode;
     void showDimensions;
     void showGridDots;
     void showGridLines;
@@ -100,13 +184,18 @@
     URL.revokeObjectURL(url);
   }
 
+  function baseName() {
+    const stem = doc.name || 'perfboard';
+    return etching ? `${stem}-etch` : stem;
+  }
+
   function exportSVG() {
     const svg = buildExportSVG();
     if (!svg) return;
     const serializer = new XMLSerializer();
     const str = serializer.serializeToString(svg);
     const blob = new Blob([str], { type: 'image/svg+xml' });
-    triggerDownload(blob, `${doc.name || 'perfboard'}.svg`);
+    triggerDownload(blob, `${baseName()}.svg`);
   }
 
   function exportPNG() {
@@ -135,7 +224,7 @@
       const ctx = canvas.getContext('2d');
       ctx.drawImage(img, 0, 0, imgW, imgH);
       canvas.toBlob((blob) => {
-        if (blob) triggerDownload(blob, `${doc.name || 'perfboard'}.png`);
+        if (blob) triggerDownload(blob, `${baseName()}.png`);
         exporting = false;
       }, 'image/png');
     };
@@ -161,7 +250,7 @@
   <!-- Preview -->
   <div class="px-4 pt-3">
     {#if previewSrc}
-      <div class="rounded-lg border border-border overflow-hidden bg-surface-0">
+      <div class="rounded-lg border border-border overflow-hidden {etching ? 'bg-white' : 'bg-surface-0'}">
         <img
           src={previewSrc}
           alt="Export preview"
@@ -177,24 +266,51 @@
 
   <!-- Controls -->
   <div class="px-4 py-3 space-y-3">
-    <!-- Layers -->
+    <!-- Mode -->
     <div>
+      <div class="text-[10px] uppercase tracking-wider text-accent font-bold mb-1.5">Mode</div>
+      <div class="grid grid-cols-2 gap-1">
+        <button
+          class="px-2 py-1.5 text-[11px] font-bold rounded-md border-2 transition-all flex flex-col items-center gap-0.5
+            {!etching
+              ? 'bg-accent text-white border-black shadow-[2px_2px_0_black]'
+              : 'text-purple-light border-transparent hover:border-black hover:bg-surface-2'}"
+          onclick={() => mode = 'standard'}
+        >
+          <span>Standard</span>
+          <span class="text-[8px] font-normal opacity-70">full color · all layers</span>
+        </button>
+        <button
+          class="px-2 py-1.5 text-[11px] font-bold rounded-md border-2 transition-all flex flex-col items-center gap-0.5
+            {etching
+              ? 'bg-white text-black border-black shadow-[2px_2px_0_black]'
+              : 'text-purple-light border-transparent hover:border-black hover:bg-surface-2'}"
+          onclick={() => mode = 'etching'}
+        >
+          <span>Etching</span>
+          <span class="text-[8px] font-normal opacity-70">B&W mask · traces only · SVG</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Layers -->
+    <div class:opacity-40={etching}>
       <div class="text-[10px] uppercase tracking-wider text-accent font-bold mb-1.5">Layers</div>
       <div class="grid grid-cols-2 gap-x-3 gap-y-1">
-        <label class="flex items-center gap-1.5 text-xs text-purple-light cursor-pointer">
-          <input type="checkbox" bind:checked={showDimensions} class="accent-accent w-3.5 h-3.5" />
+        <label class="flex items-center gap-1.5 text-xs text-purple-light {etching ? 'cursor-not-allowed' : 'cursor-pointer'}">
+          <input type="checkbox" bind:checked={showDimensions} disabled={etching} class="accent-accent w-3.5 h-3.5" />
           Dimensions
         </label>
-        <label class="flex items-center gap-1.5 text-xs text-purple-light cursor-pointer">
-          <input type="checkbox" bind:checked={showGridDots} class="accent-accent w-3.5 h-3.5" />
+        <label class="flex items-center gap-1.5 text-xs text-purple-light {etching ? 'cursor-not-allowed' : 'cursor-pointer'}">
+          <input type="checkbox" bind:checked={showGridDots} disabled={etching} class="accent-accent w-3.5 h-3.5" />
           Grid dots
         </label>
-        <label class="flex items-center gap-1.5 text-xs text-purple-light cursor-pointer">
-          <input type="checkbox" bind:checked={showGridLines} class="accent-accent w-3.5 h-3.5" />
+        <label class="flex items-center gap-1.5 text-xs text-purple-light {etching ? 'cursor-not-allowed' : 'cursor-pointer'}">
+          <input type="checkbox" bind:checked={showGridLines} disabled={etching} class="accent-accent w-3.5 h-3.5" />
           Grid lines
         </label>
-        <label class="flex items-center gap-1.5 text-xs text-purple-light cursor-pointer">
-          <input type="checkbox" bind:checked={showAnnotations} class="accent-accent w-3.5 h-3.5" />
+        <label class="flex items-center gap-1.5 text-xs text-purple-light {etching ? 'cursor-not-allowed' : 'cursor-pointer'}">
+          <input type="checkbox" bind:checked={showAnnotations} disabled={etching} class="accent-accent w-3.5 h-3.5" />
           Annotations
         </label>
       </div>
@@ -210,8 +326,10 @@
               class="px-3 py-1 text-xs font-bold rounded-md border-2 transition-all
                 {format === f
                   ? 'bg-accent text-white border-black shadow-[2px_2px_0_black]'
-                  : 'text-purple-light border-transparent hover:border-black hover:bg-surface-2'}"
-              onclick={() => format = f}
+                  : 'text-purple-light border-transparent hover:border-black hover:bg-surface-2'}
+                {etching && f === 'png' ? 'opacity-30 cursor-not-allowed' : ''}"
+              onclick={() => { if (!(etching && f === 'png')) format = f }}
+              disabled={etching && f === 'png'}
             >{f.toUpperCase()}</button>
           {/each}
         </div>
@@ -242,7 +360,7 @@
       onclick={doExport}
       disabled={exporting}
     >
-      {exporting ? 'Exporting...' : `Export ${format.toUpperCase()}`}
+      {exporting ? 'Exporting...' : etching ? 'Export Etching Mask (SVG)' : `Export ${format.toUpperCase()}`}
     </button>
   </div>
 </Modal>
