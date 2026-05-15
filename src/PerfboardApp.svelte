@@ -49,6 +49,88 @@
 
   let doc = $state(createDefaultDocument());
 
+  // Clipboard for copy/paste. Holds snapshots of selected elements; each
+  // paste increments the offset so successive pastes don't stack on top of
+  // each other.
+  let clipboard = null;
+  let clipboardPasteCount = 0;
+
+  function copySelection() {
+    if (selectedIds.length === 0) return;
+    const ids = new Set(selectedIds);
+    const pick = (arr) => (arr || []).filter((x) => ids.has(x.id));
+    const snap = (arr) => JSON.parse(JSON.stringify(pick(arr)));
+    clipboard = {
+      pads: snap(doc.pads),
+      headers: snap(doc.headers),
+      dips: snap(doc.dips),
+      capacitors: snap(doc.capacitors),
+      resistors: snap(doc.resistors),
+      pinHousings: snap(doc.pinHousings),
+      keyswitches: snap(doc.keyswitches),
+      modules: snap(doc.modules),
+      traces: snap(doc.traces),
+      jumpers: snap(doc.jumpers),
+      joints: snap(doc.joints),
+      annotations: snap(doc.annotations),
+    };
+    clipboardPasteCount = 0;
+  }
+
+  function pasteClipboard() {
+    if (!clipboard) return;
+    const hasAny = Object.values(clipboard).some((a) => a.length > 0);
+    if (!hasAny) return;
+
+    pushUndo();
+    clipboardPasteCount += 1;
+    const dc = clipboardPasteCount;
+    const dr = clipboardPasteCount;
+    const newSelected = [];
+
+    const cloneItem = (item) => {
+      const c = JSON.parse(JSON.stringify(item));
+      c.id = crypto.randomUUID();
+      newSelected.push(c.id);
+      return c;
+    };
+    const offsetCR = (item) => {
+      item.col += dc;
+      item.row += dr;
+      return item;
+    };
+
+    for (const p of clipboard.pads) doc.pads = [...doc.pads, offsetCR(cloneItem(p))];
+    for (const h of clipboard.headers) doc.headers = [...doc.headers, offsetCR(cloneItem(h))];
+    for (const d of clipboard.dips) doc.dips = [...(doc.dips || []), offsetCR(cloneItem(d))];
+    for (const c of clipboard.capacitors) doc.capacitors = [...(doc.capacitors || []), offsetCR(cloneItem(c))];
+    for (const r of clipboard.resistors) doc.resistors = [...(doc.resistors || []), offsetCR(cloneItem(r))];
+    for (const ph of clipboard.pinHousings) doc.pinHousings = [...(doc.pinHousings || []), offsetCR(cloneItem(ph))];
+    for (const sw of clipboard.keyswitches) doc.keyswitches = [...(doc.keyswitches || []), offsetCR(cloneItem(sw))];
+    for (const m of clipboard.modules) doc.modules = [...(doc.modules || []), offsetCR(cloneItem(m))];
+    for (const j of clipboard.joints) doc.joints = [...(doc.joints || []), offsetCR(cloneItem(j))];
+    for (const a of clipboard.annotations) doc.annotations = [...doc.annotations, offsetCR(cloneItem(a))];
+
+    // Jumpers carry two endpoints rather than (col, row)
+    for (const j of clipboard.jumpers) {
+      const c = cloneItem(j);
+      c.col1 += dc; c.row1 += dr;
+      c.col2 += dc; c.row2 += dr;
+      doc.jumpers = [...doc.jumpers, c];
+    }
+
+    // Traces carry a points array
+    for (const t of clipboard.traces) {
+      const c = cloneItem(t);
+      c.points = c.points.map((p) => ({ ...p, col: p.col + dc, row: p.row + dr }));
+      doc.traces = [...doc.traces, c];
+    }
+
+    selectedIds = newSelected;
+    // Switch to select so the user can immediately drag/rotate the pasted copy
+    activeTool = "select";
+  }
+
   // Undo/redo
   const MAX_UNDO = 50;
   let undoStack = $state([]);
@@ -1002,6 +1084,29 @@
     if (!isInput && mod && ((e.key === "z" && e.shiftKey) || e.key === "y")) {
       e.preventDefault();
       redo();
+      return;
+    }
+    if (!isInput && mod && (e.key === "c" || e.key === "C")) {
+      if (selectedIds.length > 0) {
+        e.preventDefault();
+        copySelection();
+      }
+      return;
+    }
+    if (!isInput && mod && (e.key === "v" || e.key === "V")) {
+      if (clipboard) {
+        e.preventDefault();
+        pasteClipboard();
+      }
+      return;
+    }
+    if (!isInput && mod && (e.key === "d" || e.key === "D")) {
+      // Duplicate = copy + paste in one stroke
+      if (selectedIds.length > 0) {
+        e.preventDefault();
+        copySelection();
+        pasteClipboard();
+      }
       return;
     }
     if (e.key === "Delete" || e.key === "Backspace") {
