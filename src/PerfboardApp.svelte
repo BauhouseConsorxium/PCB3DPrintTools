@@ -43,6 +43,10 @@
   let activeTab = $state("editor");
   let activeTool = $state("select");
   let selectedIds = $state([]);
+  let sidebarCollapsed = $state(localStorage.getItem("perfboard-sidebar-collapsed") === "1");
+  $effect(() => {
+    localStorage.setItem("perfboard-sidebar-collapsed", sidebarCollapsed ? "1" : "0");
+  });
   let zScale = $state(37);
   let boardZScale = $state(1);
   let showExamples = $state(false);
@@ -1104,6 +1108,11 @@
       }
       return;
     }
+    if (!isInput && mod && (e.key === "b" || e.key === "B")) {
+      e.preventDefault();
+      sidebarCollapsed = !sidebarCollapsed;
+      return;
+    }
     if (e.key === "Delete" || e.key === "Backspace") {
       if (!isInput && selectedIds.length > 0 && activeTool === "select") {
         pushUndo();
@@ -1388,8 +1397,26 @@
   <div class="flex flex-1 min-h-0">
     <!-- Sidebar -->
     <div
-      class="w-56 bg-gradient-to-b from-[var(--grad-from-1)] to-surface-1 border-r-3 border-black overflow-y-auto p-3 shrink-0 shadow-[inset_-2px_0_8px_rgba(0,0,0,0.3)]"
+      class="{sidebarCollapsed ? 'w-28' : 'w-56'} bg-gradient-to-b from-[var(--grad-from-1)] to-surface-1 border-r-3 border-black overflow-y-auto p-2 shrink-0 shadow-[inset_-2px_0_8px_rgba(0,0,0,0.3)] transition-[width] duration-150"
     >
+      <!-- Collapse toggle -->
+      <div class="flex {sidebarCollapsed ? 'justify-center' : 'justify-end'} mb-2">
+        <button
+          onclick={() => (sidebarCollapsed = !sidebarCollapsed)}
+          title={sidebarCollapsed ? "Expand sidebar (Ctrl+B)" : "Collapse sidebar (Ctrl+B)"}
+          class="w-6 h-6 flex items-center justify-center rounded-md text-purple-light/50 hover:text-cyan hover:bg-surface-2 transition-colors"
+        >
+          <svg viewBox="0 0 16 16" class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+            {#if sidebarCollapsed}
+              <path d="M6 4l4 4-4 4" />
+            {:else}
+              <path d="M10 4l-4 4 4 4" />
+            {/if}
+          </svg>
+        </button>
+      </div>
+
+      {#if !sidebarCollapsed}
       <BoardSettings
         bind:cols={doc.grid.cols}
         bind:rows={doc.grid.rows}
@@ -1425,16 +1452,18 @@
         bind:boardZScale
         onBeforeChange={pushUndo}
       />
+      {/if}
 
       <Toolbar
         {activeTool}
+        compact={sidebarCollapsed}
         onToolChange={(t) => {
           activeTool = t;
           selectedIds = [];
         }}
       />
 
-      {#if activeTool === "label"}
+      {#if activeTool === "label" && !sidebarCollapsed}
         <div class="mb-4">
           <div
             class="text-[10px] uppercase tracking-wider text-accent font-bold mb-2"
@@ -1464,31 +1493,30 @@
         </div>
       {/if}
 
-      <PerfboardExportPanel
-        bind:zScale
-        bind:boardZScale
-        onExportSTL={() => showStlExportModal = true}
-        onExport2D={() => showExportModal = true}
-      />
+      {#if !sidebarCollapsed}
+        <PerfboardExportPanel
+          bind:zScale
+          bind:boardZScale
+          onExportSTL={() => showStlExportModal = true}
+          onExport2D={() => showExportModal = true}
+        />
 
-
-
-
-      <!-- Board info -->
-      <div class="text-[10px] text-purple-light/50 space-y-0.5">
-        <div>
-          Board: {(
-            (doc.grid.cols - 1) * doc.grid.pitch +
-            doc.grid.pitch
-          ).toFixed(1)} &times; {(
-            (doc.grid.rows - 1) * doc.grid.pitch +
-            doc.grid.pitch
-          ).toFixed(1)} mm
+        <!-- Board info -->
+        <div class="text-[10px] text-purple-light/50 space-y-0.5">
+          <div>
+            Board: {(
+              (doc.grid.cols - 1) * doc.grid.pitch +
+              doc.grid.pitch
+            ).toFixed(1)} &times; {(
+              (doc.grid.rows - 1) * doc.grid.pitch +
+              doc.grid.pitch
+            ).toFixed(1)} mm
+          </div>
+          <div>
+            Pads: {doc.pads.length} | Headers: {doc.headers.length} | DIPs: {(doc.dips || []).length} | Caps: {(doc.capacitors || []).length} | Res: {(doc.resistors || []).length} | Sockets: {(doc.pinHousings || []).length} | Keys: {(doc.keyswitches || []).length} | Modules: {(doc.modules || []).length} | Traces: {doc.traces.length} | Jumpers: {doc.jumpers.length} | Labels: {doc.annotations.length}
+          </div>
         </div>
-        <div>
-          Pads: {doc.pads.length} | Headers: {doc.headers.length} | DIPs: {(doc.dips || []).length} | Caps: {(doc.capacitors || []).length} | Res: {(doc.resistors || []).length} | Sockets: {(doc.pinHousings || []).length} | Keys: {(doc.keyswitches || []).length} | Modules: {(doc.modules || []).length} | Traces: {doc.traces.length} | Jumpers: {doc.jumpers.length} | Labels: {doc.annotations.length}
-        </div>
-      </div>
+      {/if}
     </div>
 
     <!-- Content area -->

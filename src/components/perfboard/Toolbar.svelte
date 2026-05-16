@@ -2,7 +2,7 @@
   import { MODULE_VARIANT_LIST } from "../../lib/perfboard-modules.js"
   import { t } from "../../lib/i18n.svelte.js"
 
-  let { activeTool = 'select', onToolChange = () => {} } = $props()
+  let { activeTool = 'select', onToolChange = () => {}, compact = false } = $props()
 
   const baseToolIds = [
     { id: 'select', icon: 'pointer', key: null },
@@ -35,11 +35,13 @@
 </script>
 
 <div class="flex flex-col gap-1 mb-4">
-  <div class="text-[10px] uppercase tracking-wider text-accent font-bold mb-1">{t('toolbar.heading')}</div>
-  <div class="grid grid-cols-4 gap-1">
+  {#if !compact}
+    <div class="text-[10px] uppercase tracking-wider text-accent font-bold mb-1">{t('toolbar.heading')}</div>
+  {/if}
+  <div class="grid {compact ? 'grid-cols-2' : 'grid-cols-4'} gap-1">
     {#each tools as tool}
       <button
-        class="relative flex flex-col items-center gap-0.5 px-1 py-1.5 rounded-lg text-[10px] transition-all
+        class="relative flex flex-col items-center {compact ? 'gap-1 px-1 py-2' : 'gap-0.5 px-1 py-1.5'} rounded-lg text-[10px] transition-all
           {activeTool === tool.id ? 'bg-gradient-to-b from-accent to-accent/80 text-[var(--text-on-accent)] border-2 border-black shadow-[1px_1px_0_rgba(0,0,0,0.5),inset_0_1px_0_rgba(255,255,255,0.15)] translate-y-0.5' : 'bg-gradient-to-b from-[var(--grad-from-2)] to-surface-2 text-purple-light hover:text-cyan border-2 border-black/60 hover:border-black shadow-[2px_2px_0_rgba(0,0,0,0.3),inset_0_1px_0_rgba(255,255,255,0.06)] active:shadow-[0px_0px_0_rgba(0,0,0,0.3)] active:translate-y-0.5'}"
         onclick={() => onToolChange(tool.id)}
         title={tool.key ? `${tool.label} (${tool.key})` : tool.label}
@@ -47,7 +49,7 @@
         {#if tool.key}
           <span class="absolute top-0.5 right-0.5 text-[8px] text-cyan/40 leading-none">{tool.key}</span>
         {/if}
-        <svg viewBox="0 0 20 20" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.5">
+        <svg viewBox="0 0 20 20" class="{compact ? 'w-6 h-6' : 'w-4 h-4'}" fill="none" stroke="currentColor" stroke-width="1.5">
           {#if tool.icon === 'pointer'}
             <path d="M5 3l10 7-5 1-2 5z" />
           {:else if tool.icon === 'pad'}
@@ -139,7 +141,7 @@
             <line x1="3" y1="15" x2="6" y2="15" stroke-linecap="round" />
           {/if}
         </svg>
-        <span>{tool.label}</span>
+        <span class="leading-tight text-center">{tool.label}</span>
       </button>
     {/each}
   </div>
